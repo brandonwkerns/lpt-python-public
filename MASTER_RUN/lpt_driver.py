@@ -7,7 +7,7 @@ import sys
 import os
 import matplotlib.colors as colors
 import scipy.ndimage
-from lpt_generic_netcdf_data_functions import *
+from lpt.lpt_generic_netcdf_data_functions import *
 
 ################################################################################
 ##
@@ -62,8 +62,8 @@ plotting['time_lon_range'] = [40, 200]       # Longitude Range for time-longitud
 
 ## High level output directories. Images and data will go in here.
 output={}
-output['img_dir'] = '/home/orca/bkerns/public_html/realtime_mjo_tracking/lpt/images'
-output['data_dir'] = '/home/orca/bkerns/public_html/realtime_mjo_tracking/lpt/data'
+output['img_dir'] = './images'
+output['data_dir'] = './data/processed'
 output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 
 ##
