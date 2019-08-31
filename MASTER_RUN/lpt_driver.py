@@ -50,6 +50,10 @@ dataset['raw_data_parent_dir'] = '/home/disk/orca/zyw3/research/lpt-matlab-bkern
 dataset['file_name_format'] = 'gridded_rain_rates_%Y%m%d%H.nc'
 dataset['data_time_interval'] = 6           # Time resolution of the data in hours.
 dataset['verbose'] = True
+dataset['longitude_variable_name'] = 'lon'
+dataset['latitude_variable_name'] = 'lat'
+dataset['field_variable_name'] = 'rain'
+dataset['field_units'] = 'mm h-1'
 
 """
 Main settings for lpt
@@ -72,9 +76,11 @@ output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 lpo_options={}
 lpo_options['do_lpo_calc'] = True
 #lpo_options['do_lpo_calc'] = False
-lpo_options['thresh'] = 12.0                # LP Objects threshold (mm/day)
+lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
+lpo_options['field_units'] = 'mm d-1'
+lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
 lpo_options['accumulation_hours'] = 72      # Accumulation period for LP objects (hours).
-lpo_options['filter_stdev'] = 20             # Gaussian filter stdev, in terms of grid points.
+lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of grid points.
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?
 lpo_options['min_points'] = 400             # Throw away LP objects smaller than this.
 # If COLD_START_MODE is specified, assume there is no rain data before time zero.

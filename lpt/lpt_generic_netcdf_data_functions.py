@@ -23,13 +23,27 @@ def filter_str(stdev):
         strout = None
     return strout
 
+def handle_variable_names(dataset):
+    ## Extract variable names from the dataset dict if specified
+    ## Otherwise, return a default tuple of variable names.
+    if (('longitude_variable_name' in dataset) and
+        ('latitude_variable_name' in dataset) and
+        ('field_variable_name' in dataset)):
+
+        variable_names = (dataset['longitude_variable_name']
+                , dataset['latitude_variable_name']
+                , dataset['field_variable_name'])
+    else:
+        variable_names = ('lon','lat','rain')
+    return variable_names
 
 
 def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_options,argv):
 
+    variable_names = handle_variable_names(dataset)
+
     ## Get begin and end time from command line.
     ## Give warning message if it has not been specified.
-
     if len(argv) < 3:
         print('Specify begin and end time on command line, format YYYYMMDDHH.')
         print('Example: python lpt_generic_netcdf_data_driver 2011060100 2012063021')
@@ -65,15 +79,18 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
                 count = 0
 
                 for this_dt in reversed(dt_list):
-                    DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt, data_dir=dataset['raw_data_parent_dir'], fmt=dataset['file_name_format'], verbose=dataset['verbose'])
-                    DATA_RAW['precip'][DATA_RAW['precip'] < -0.01] = 0.0
+                    DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
+                            , variable_names = variable_names
+                            , data_dir=dataset['raw_data_parent_dir']
+                            , fmt=dataset['file_name_format']
+                            , verbose=dataset['verbose'])
                     if count < 1:
-                        data_collect = np.array(DATA_RAW['precip'])
+                        data_collect = np.array(DATA_RAW['data'])
                     else:
-                        data_collect += np.array(DATA_RAW['precip'])
+                        data_collect += np.array(DATA_RAW['data'])
                     count += 1
 
-                DATA_RUNNING = (data_collect/count) * 24.0 # Get the mean in mm/day.
+                DATA_RUNNING = (data_collect/count) * lpo_options['multiply_factor'] # Get to the units you want for objects.
                 print('Running mean done.',flush=True)
 
                 ## Filter the data
@@ -84,11 +101,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
                 ## Get LP objects.
                 label_im = lpt.helpers.identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
                 OBJ = lpt.helpers.calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
-                            , DATA_RAW['precip'], DATA_RUNNING, DATA_FILTERED, label_im, 0
+                            , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
                             , end_of_accumulation_time, verbose=True)
-                OBJ['units_inst'] = 'mm h-1'
-                OBJ['units_running'] = 'mm day-1'
-                OBJ['units_filtered'] = 'mm day-1'
+                OBJ['units_inst'] = dataset['field_units']
+                OBJ['units_running'] = lpo_options['field_units']
+                OBJ['units_filtered'] = lpo_options['field_units']
 
                 print('objects properties.',flush=True)
 
@@ -177,6 +194,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
         LPT0, BRANCHES0 = lpt.helpers.lpt_group_array_remove_small_objects(LPT0, BRANCHES0, options)
 
         ## Connect objects
+        ## This is the "meat" of the LPT method: The connection in time step.
         print('Connecting objects...')
         LPTfb, BRANCHESfb = lpt.helpers.calc_lpt_group_array(LPT0, BRANCHES0, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
 
@@ -207,7 +225,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
         else:
             TIMECLUSTERS = lpt.helpers.calc_lpt_system_group_properties(LPT, options)
 
-        fn_tc_base = (options['outdir'] #+ '/' + end_time.strftime(output['sub_directory_format'])
+        fn_tc_base = (options['outdir']
                          + '/lpt_systems_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
         lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
         lpt.lptio.lpt_systems_group_array_output_ascii(fn_tc_base + '.group_array.txt', LPT, BRANCHES)
@@ -225,10 +243,14 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
 
             timelon_rain = []
             for this_dt in dt_list:
-                DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt, data_dir=dataset['raw_data_parent_dir'], fmt=dataset['file_name_format'], verbose=dataset['verbose'])
+                DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
+                        , variable_names = variable_names
+                        , data_dir=dataset['raw_data_parent_dir']
+                        , fmt=dataset['file_name_format']
+                        , verbose=dataset['verbose'])
 
                 lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
-                timelon_rain.append(np.mean(np.array(DATA_RAW['precip'][lat_idx,:]), axis=0))
+                timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
 
 
             lpt.plotting.plot_timelon_with_lpt(ax2, dt_list, DATA_RAW['lon']
@@ -241,8 +263,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
             ax2.text(0.87,1.02,'(<15$\degree$S, >15$\degree$N Dashed)', transform=ax2.transAxes)
 
             img_dir2 = (output['img_dir'] + '/' + dataset['label'] + '/systems/')
-            #                + end_time.strftime(output['sub_directory_format']))
-
             os.makedirs(img_dir2, exist_ok = True)
             file_out_base = (img_dir2 + '/lpt_time_lon_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
             lpt.plotting.print_and_save(file_out_base)

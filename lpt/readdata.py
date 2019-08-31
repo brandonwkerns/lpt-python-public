@@ -13,7 +13,7 @@ to use with LPT.
 
 
 
-def read_generic_netcdf(fn):
+def read_generic_netcdf(fn, variable_names=('lon','lat','rain')):
     """
     DATA = read_generic_netcdf(fn)
 
@@ -30,9 +30,9 @@ def read_generic_netcdf(fn):
 
     DS = Dataset(fn)
     DATA={}
-    DATA['lon'] = DS['lon'][:]
-    DATA['lat'] = DS['lat'][:]
-    DATA['precip'] = DS['rain'][:][0]
+    DATA['lon'] = DS[variable_names[0]][:]
+    DATA['lat'] = DS[variable_names[1]][:]
+    DATA['data'] = DS[variable_names[2]][:][0]
     DS.close()
 
     ## Need to get from (-180, 180) to (0, 360) longitude.
@@ -41,12 +41,14 @@ def read_generic_netcdf(fn):
     if len(lon_lt_0) > 0:
         DATA['lon'][lon_lt_0] += 360.0
         DATA['lon'] = np.concatenate((DATA['lon'][lon_ge_0], DATA['lon'][lon_lt_0]))
-        DATA['precip'] = np.concatenate((DATA['precip'][:,lon_ge_0], DATA['precip'][:,lon_lt_0]), axis=1)
+        DATA['data'] = np.concatenate((DATA['data'][:,lon_ge_0], DATA['data'][:,lon_lt_0]), axis=1)
 
     return DATA
 
 
-def read_generic_netcdf_at_datetime(dt, data_dir='.', fmt='gridded_rain_rates_%Y%m%d%H.nc', verbose=False):
+def read_generic_netcdf_at_datetime(dt, data_dir='.'
+        , variable_names=('lon','lat','rain'), fmt='gridded_rain_rates_%Y%m%d%H.nc'
+        , verbose=False):
 
     fn = (data_dir + '/' + dt.strftime(fmt))
     DATA=None
@@ -56,6 +58,6 @@ def read_generic_netcdf_at_datetime(dt, data_dir='.', fmt='gridded_rain_rates_%Y
     else:
         if verbose:
             print(fn)
-        DATA=read_generic_netcdf(fn)
+        DATA=read_generic_netcdf(fn, variable_names = variable_names)
 
     return DATA
