@@ -60,16 +60,18 @@ Instead, copy the directory to a local working directory
 - The following directories are included by default under the MASTER_RUN/ directory
     (these are used by default in the driver script)
   * data/
-    + raw/                         Optional: You can link or copy raw data files here.
-    + interim/                     Gridded NetCDF files.
-    + processed/                   Digital output data. Organized in sub directories.
-  * images                         Images produced by the scripts. Organized in sub directories.
+    + raw/                         (Optional: You can link or copy raw data files here.)
+    + interim/                     (Gridded NetCDF files.)
+    + processed/                   (Digital output data. Organized in sub directories.)
+  * images                         (Images produced by the scripts. Organized in sub directories.)
 
 ## Setting up LPT on a new system:
 1) Clone this repository to your system, or download the zip file format.
 2) Copy the MASTER_RUN directory to a new run directory.
 3) Edit the lpt_driver.py script as needed.
 4) Run the lpt_driver.py script.
+     Usage: `python lpt_driver.py YYYYMMDDHH YYYYMMDDHH`
+     (Specify start and end times of the tracking)
 
 
 
