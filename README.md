@@ -43,7 +43,7 @@ Instead, copy the directory to a local working directory
 - numpy
 - scipy.signal, scipy.ndimage
 - NetCDF4.Dataset
-- gdal (for reading grib files)
+- matplotlib
 
 ## Code organization:
 - The main Python functions directory is lpt/.
