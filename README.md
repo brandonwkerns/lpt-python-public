@@ -5,6 +5,7 @@ This version of LPT is to be released with Kerns and Chen (2019), submitted to t
 This version is set up to run with "generic" NetCDF files with the following format:
 
 ```
+##
 ## netcdf gridded_rain_rates_YYYYMMDDHH {
 ## dimensions:
 ##        lon = NNN ;
@@ -21,8 +22,10 @@ This version is set up to run with "generic" NetCDF files with the following for
 ## Where NNN and MMM are the longitude and latitude array sizes.
 ##
 ##       +++ If lon is -180 to 180, it will be converted to 0 - 360. +++
-## The names of the coordinate variables "lon" and "lat" and data variable "rain"
-##    can be set in the driver script.
+##
+## Note: The names of the coordinate variables "lon" and "lat"
+##       and data variable "rain" can be set in the lpt_driver.py script.
+##
 ```
 
 *This version includes splitting up LPT system groups in to track branches.*  
