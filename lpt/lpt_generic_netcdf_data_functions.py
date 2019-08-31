@@ -83,7 +83,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
 
                 ## Get LP objects.
                 label_im = lpt.helpers.identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
-                #print(label_im)
                 OBJ = lpt.helpers.calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
                             , DATA_RAW['precip'], DATA_RUNNING, DATA_FILTERED, label_im, 0
                             , end_of_accumulation_time, verbose=True)
@@ -150,8 +149,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
                     + '/' + filter_str(lpo_options['filter_stdev'])
                     + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                     + '/thresh' + str(int(lpo_options['thresh'])) + '/systems')
-    #print(options)
-    #print(lpo_options)
 
     if options['do_lpt_calc']:
 
@@ -171,7 +168,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
                 + ' to ' + latest_lp_object_time.strftime('%Y%m%d%H')))
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-        dt_list = time_list # [begin_tracking_time + dt.timedelta(hours=x) for x in range(0, 24*lpt_options['lpt_history_days']+1, dataset['data_time_interval'])]
+        dt_list = time_list
 
         ## Initialize LPT
         LPT0, BRANCHES0 = lpt.helpers.init_lpt_group_array(dt_list, options['objdir'])
@@ -181,14 +178,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
 
         ## Connect objects
         print('Connecting objects...')
-        LPTfb, BRANCHESfb = lpt.helpers.calc_lpt_group_array3(LPT0, BRANCHES0, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
-        #LPTfb, BRANCHESfb = lpt.helpers.calc_lpt_group_array2(LPT0, BRANCHES0, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
+        LPTfb, BRANCHESfb = lpt.helpers.calc_lpt_group_array(LPT0, BRANCHES0, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
 
         ## Allow center jumps.
         print(('Allow center jumps up to ' + str(options['center_jump_max_hours']) + ' hours.'))
-        LPT_center_jumps, BRANCHES_center_jumps = lpt.helpers.lpt_group_array_allow_center_jumps2(LPTfb, BRANCHESfb, options)
-        #LPT_center_jumps = LPTfb.copy()
-        #BRANCHES_center_jumps = BRANCHESfb.copy()
+        LPT_center_jumps, BRANCHES_center_jumps = lpt.helpers.lpt_group_array_allow_center_jumps(LPTfb, BRANCHESfb, options)
 
         ## Eliminate short duration systems.
         print(('Remove LPT shorter than ' + str(options['min_lpt_duration_hours']) + ' hours.'))
@@ -198,8 +192,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
         ## Handle splitting and merging, if specified.
         if merge_split_options['allow_merge_split']:
             LPT, BRANCHES = lpt.helpers.lpt_split_and_merge(LPT_remove_short, BRANCHES_remove_short, merge_split_options, options)
-            #LPT = LPT_remove_short.copy()
-            #BRANCHES = BRANCHES_remove_short.copy()
         else:
             LPT = LPT_remove_short.copy()
             BRANCHES = BRANCHES_remove_short.copy()
