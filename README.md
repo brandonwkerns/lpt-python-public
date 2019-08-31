@@ -49,7 +49,7 @@ Instead, copy the directory to a local working directory
   * Supporting functions for calculations are in lpt/helpers.py.
   * Example plotting functions are in lpt/plotting.py
 - The following generic NetCDF data driver scripts is included in MASTER_RUN/:
-  * lpt_generic_netcdf_data_driver.py
+  * lpt_driver.py
 - The following example preprocessor scripts are included in MASTER_RUN/:
   * preprocess_tmpa.py
   * preprocess_wrf.py
