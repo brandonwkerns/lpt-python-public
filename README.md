@@ -62,12 +62,8 @@ Instead, copy the directory to a local working directory
   * data/
     + raw/                         Optional: You can link or copy raw data files here.
     + interim/                     Gridded NetCDF files.
-    + processed/
-      - objects/                   "Objects" snapshots files.
-      - systems/                   "Systems" tracked in time files.
-  * images
-    + objects/
-    + systems/
+    + processed/                   Digital output data. Organized in sub directories.
+  * images                         Images produced by the scripts. Organized in sub directories.
 
 ## Setting up LPT on a new system:
 1) Clone this repository to your system, or download the zip file format.
