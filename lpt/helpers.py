@@ -431,11 +431,11 @@ def calc_lpt_group_array(LPT0, BRANCHES0, options, min_points=1, verbose=False, 
         ##
         if min_points > 1:
             sizes = ndimage.sum(1, mask1, range(np.nanmax(mask1)+1))
-            for nn in [x for x in range(1,len(sizes)) if sizes[x] < min_points]:
+            for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
                 mask1[mask1 == nn] = -1
 
             sizes = ndimage.sum(1, mask2, range(np.nanmax(mask2)+1))
-            for nn in [x for x in range(1,len(sizes)) if sizes[x] < min_points]:
+            for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
                 mask2[mask2 == nn] = -1
 
         ##
@@ -465,7 +465,7 @@ def calc_lpt_group_array(LPT0, BRANCHES0, options, min_points=1, verbose=False, 
             ii = int(ndimage.maximum(mask1, label_im, nn))
             jj = int(ndimage.maximum(mask2, label_im, nn))
 
-            overlapping_npoints[ii,jj] = ndimage.sum(overlap, label_im, nn)
+            overlapping_npoints[ii,jj] += ndimage.sum(overlap, label_im, nn)
             overlapping_frac1[ii,jj] = overlapping_npoints[ii,jj] / np.sum(mask1==ii)
             overlapping_frac2[ii,jj] = overlapping_npoints[ii,jj] / np.sum(mask2==jj)
         ########################################################################
