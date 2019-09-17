@@ -84,11 +84,14 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
                             , data_dir=dataset['raw_data_parent_dir']
                             , fmt=dataset['file_name_format']
                             , verbose=dataset['verbose'])
+                    DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
+                    DATA_RAW['data'][~np.isfinite(DATA_RAW['data'])] = 0.0
                     if count < 1:
-                        data_collect = np.array(DATA_RAW['data'])
+                        data_collect = DATA_RAW['data'].copy()
                     else:
-                        data_collect += np.array(DATA_RAW['data'])
+                        data_collect += DATA_RAW['data']
                     count += 1
+                    print(np.max(data_collect))
 
                 DATA_RUNNING = (data_collect/count) * lpo_options['multiply_factor'] # Get to the units you want for objects.
                 print('Running mean done.',flush=True)
