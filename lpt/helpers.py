@@ -260,7 +260,15 @@ def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%
 
     overlap = [x in xy2 for x in xy1]
 
-    return (len(x1), len(x2), np.sum(overlap))
+    OUT = (len(x1), len(x2), np.sum(overlap))
+    del x1
+    del y1
+    del x2
+    del y2
+    del xy1
+    del xy2
+    
+    return OUT
 
 
 def init_lpt_group_array(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
@@ -709,13 +717,15 @@ def branches_binary_str4(branches_binary_int):
     return " ".join(str_pieces)
 
 
-def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
     """
     Check duration of "end" (e.g., "this") to "start" points (e.g., "other"), and connect if less than
     center_jump_max_hours.
 
     NOTE: This does not deal with branches.
     """
+    import gc
+    
     LPT2 = LPT.copy() # Make a copy so I don't inadvertantly over-write the input LPT!
     BRANCHES2 = BRANCHES.copy() # Make a copy so I don't inadvertantly over-write the input LPT!
 
@@ -724,13 +734,22 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, fmt="/%Y/%m/%Y%m%
     if options['center_jump_max_hours'] < 0.001:
         more_to_do = False
 
+    niter = 0
+    start_group = 0
+    
     while more_to_do:
+        niter += 1
+        if verbose:
+            print(('--> Start center jump iteration # ' + str(niter)), flush=True)
         more_to_do = False
 
         unique_lpt_groups = np.unique(LPT2[:,2])
         lpt_indices_to_keep = np.array([])
 
-        for this_lpt_group in range(len(unique_lpt_groups)):                # 1
+        for this_lpt_group in range(start_group, len(unique_lpt_groups)):                # 1
+            start_group = this_lpt_group
+            if verbose:
+                print(('Group # ' + str(this_lpt_group) + ' of ' + str(len(unique_lpt_groups)-1)),flush=True)
             this_group_all_idx = np.where(LPT2[:,2] == this_lpt_group)[0]
             this_group_end_idx = np.where(np.logical_and(LPT2[:,2] == this_lpt_group, LPT2[:,4] > 0.5))[0]
 
@@ -755,6 +774,8 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, fmt="/%Y/%m/%Y%m%
                             ## If I got here, the timing is OK for a center jump.
                             ## Now, check the overlapping criteria.
                             n_this, n_prev, n_overlap = calc_overlapping_points(this_objid,other_objid,options['objdir'], fmt=fmt)
+                            gc.collect()
+                            
                             match = False
                             if n_overlap >= options['min_overlap_points']:
                                 match=True
@@ -766,12 +787,12 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, fmt="/%Y/%m/%Y%m%
                             if match:
                                 ## I found a center jump! Add the smaller one to the larger group.
                                 if len(this_group_all_idx) > len(other_group_all_idx):
-                                    print('Center Jump: ' + str(LPT2[other_idx,2]) + ' in to ' + str(LPT2[this_idx,2]))
+                                    print('Center Jump: ' + str(LPT2[other_idx,2]) + ' in to ' + str(LPT2[this_idx,2]),flush=True)
                                     LPT2[other_group_all_idx, 2] = this_lpt_group
                                     for iiii in other_group_all_idx:
                                         BRANCHES2[iiii] = BRANCHES2[this_idx]
                                 else:
-                                    print('Center Jump: ' + str(LPT2[this_idx,2]) + ' in to ' + str(LPT2[other_idx,2]))
+                                    print('Center Jump: ' + str(LPT2[this_idx,2]) + ' in to ' + str(LPT2[other_idx,2]),flush=True)
                                     LPT2[this_group_all_idx, 2] = other_lpt_group
                                     for iiii in this_group_all_idx:
                                         BRANCHES2[iiii] = BRANCHES2[other_idx]
@@ -781,7 +802,8 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, fmt="/%Y/%m/%Y%m%
 
                                 more_to_do = True
                                 break                                       # 4
-
+                                
+                                
                     if more_to_do:
                         break                                               # 3
 
