@@ -267,7 +267,7 @@ def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%
     del y2
     del xy1
     del xy2
-    
+
     return OUT
 
 
@@ -725,7 +725,7 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, verbose=False, fm
     NOTE: This does not deal with branches.
     """
     import gc
-    
+
     LPT2 = LPT.copy() # Make a copy so I don't inadvertantly over-write the input LPT!
     BRANCHES2 = BRANCHES.copy() # Make a copy so I don't inadvertantly over-write the input LPT!
 
@@ -736,7 +736,7 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, verbose=False, fm
 
     niter = 0
     start_group = 0
-    
+
     while more_to_do:
         niter += 1
         if verbose:
@@ -775,7 +775,7 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, verbose=False, fm
                             ## Now, check the overlapping criteria.
                             n_this, n_prev, n_overlap = calc_overlapping_points(this_objid,other_objid,options['objdir'], fmt=fmt)
                             gc.collect()
-                            
+
                             match = False
                             if n_overlap >= options['min_overlap_points']:
                                 match=True
@@ -802,8 +802,8 @@ def lpt_group_array_allow_center_jumps(LPT, BRANCHES, options, verbose=False, fm
 
                                 more_to_do = True
                                 break                                       # 4
-                                
-                                
+
+
                     if more_to_do:
                         break                                               # 3
 
@@ -1396,6 +1396,8 @@ def calc_lpt_system_group_properties(LPT, options, fmt="/%Y/%m/%Y%m%d/objects_%Y
         TC_this['area'] = np.zeros(len(TC_this['timestamp']))
         TC_this['centroid_lon'] = np.zeros(len(TC_this['timestamp']))
         TC_this['centroid_lat'] = np.zeros(len(TC_this['timestamp']))
+        TC_this['largest_object_centroid_lon'] = np.zeros(len(TC_this['timestamp']))
+        TC_this['largest_object_centroid_lat'] = np.zeros(len(TC_this['timestamp']))
         TC_this['min_lon'] =  999.0 * np.ones(len(TC_this['timestamp']))
         TC_this['max_lon'] = -999.0 * np.ones(len(TC_this['timestamp']))
         TC_this['min_lat'] =  999.0 * np.ones(len(TC_this['timestamp']))
@@ -1418,6 +1420,7 @@ def calc_lpt_system_group_properties(LPT, options, fmt="/%Y/%m/%Y%m%d/objects_%Y
                 LPT[:,0] == TC_this['timestamp'][tt],
                 LPT[:,2] == this_group))[0]
 
+            max_area_already_used = -999.0
             for this_objid in LPT[idx_for_this_time,1]:
 
                 OBJ = read_lp_object_properties(this_objid, options['objdir']
@@ -1431,6 +1434,10 @@ def calc_lpt_system_group_properties(LPT, options, fmt="/%Y/%m/%Y%m%d/objects_%Y
                 TC_this['area'][tt] += OBJ['area']
                 TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
                 TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
+                if OBJ['area'] > max_area_already_used:
+                    TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
+                    TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
+                    max_area_already_used = 1.0*OBJ['area']
 
                 TC_this['min_lon'][tt] = min((TC_this['min_lon'][tt], OBJ['min_lon']))
                 TC_this['min_lat'][tt] = min((TC_this['min_lat'][tt], OBJ['min_lat']))

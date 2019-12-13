@@ -299,6 +299,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     timestamp_collect = np.double([MISSING])
     centroid_lon_collect = np.array([MISSING])
     centroid_lat_collect = np.array([MISSING])
+    largest_object_centroid_lon_collect = np.array([MISSING])
+    largest_object_centroid_lat_collect = np.array([MISSING])
     max_lon_collect = np.array([MISSING])
     min_lon_collect = np.array([MISSING])
     max_lat_collect = np.array([MISSING])
@@ -330,6 +332,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
         centroid_lon_collect = np.append(np.append(centroid_lon_collect, TIMECLUSTERS[ii]['centroid_lon']),MISSING)
         centroid_lat_collect = np.append(np.append(centroid_lat_collect, TIMECLUSTERS[ii]['centroid_lat']),MISSING)
+        largest_object_centroid_lon_collect = np.append(np.append(largest_object_centroid_lon_collect, TIMECLUSTERS[ii]['largest_object_centroid_lon']),MISSING)
+        largest_object_centroid_lat_collect = np.append(np.append(largest_object_centroid_lat_collect, TIMECLUSTERS[ii]['largest_object_centroid_lat']),MISSING)
         area_collect = np.append(np.append(area_collect, TIMECLUSTERS[ii]['area']),MISSING)
         max_lon_collect = np.append(np.append(max_lon_collect, TIMECLUSTERS[ii]['max_lon']),MISSING)
         max_lat_collect = np.append(np.append(max_lat_collect, TIMECLUSTERS[ii]['max_lat']),MISSING)
@@ -368,6 +372,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     var_lptid_all = DS.createVariable('lptid_stitched','f4',('nall',),fill_value=FILL_VALUE)
     var_centroid_lon_all = DS.createVariable('centroid_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
     var_centroid_lat_all = DS.createVariable('centroid_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
+    var_largest_object_centroid_lon_all = DS.createVariable('largest_object_centroid_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
+    var_largest_object_centroid_lat_all = DS.createVariable('largest_object_centroid_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
     var_area_all = DS.createVariable('area_stitched','d',('nall',),fill_value=FILL_VALUE)
     var_max_lon_all = DS.createVariable('max_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
     var_max_lat_all = DS.createVariable('max_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
@@ -400,6 +406,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     var_lptid_all[:] = lptid_collect
     var_centroid_lon_all[:] = centroid_lon_collect
     var_centroid_lat_all[:] = centroid_lat_collect
+    var_largest_object_centroid_lon_all[:] = largest_object_centroid_lon_collect
+    var_largest_object_centroid_lat_all[:] = largest_object_centroid_lat_collect
     var_area_all[:] = area_collect
     var_max_lon_all[:] = max_lon_collect
     var_max_lat_all[:] = max_lat_collect
@@ -429,8 +437,10 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     DS['meridional_propagation_speed'].setncatts({'units':'m s-1','long_name':'Centroid Meridional Propagation Speed from least squares regression.'})
     var_timestamp_all.setncatts({'units':'hours since 1970-1-1 0:0','long_name':'LPT System time stamp -- stitched'})
     var_lptid_all.setncatts({'units':'1.0','long_name':'LPT System id -- stitched'})
-    var_centroid_lon_all.setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360) -- stitched','standard_name':'longitude'})
-    var_centroid_lat_all.setncatts({'units':'degrees_north','long_name':'centroid latitude (-90-90) -- stitched','standard_name':'latitude'})
+    var_centroid_lon_all.setncatts({'units':'degrees_east','long_name':'centroid longitude, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
+    var_centroid_lat_all.setncatts({'units':'degrees_north','long_name':'centroid latitude, may be inbetween objects (-90-90) -- stitched','standard_name':'latitude'})
+    var_largest_object_centroid_lon_all.setncatts({'units':'degrees_east','long_name':'centroid longitude of the largest contiguous object (0-360) -- stitched','standard_name':'longitude'})
+    var_largest_object_centroid_lat_all.setncatts({'units':'degrees_north','long_name':'centroid latitude of the largest contiguous object (-90-90) -- stitched','standard_name':'latitude'})
     var_area_all.setncatts({'units':'km2','long_name':'LPT System enclosed area -- stitched'})
     var_max_lon_all.setncatts({'units':'degrees_east','long_name':'max (eastmost) longitude (0-360) -- stitched','standard_name':'longitude'})
     var_max_lat_all.setncatts({'units':'degrees_north','long_name':'max (northmost) latitude (-90-90) -- stitched','standard_name':'longitude'})
