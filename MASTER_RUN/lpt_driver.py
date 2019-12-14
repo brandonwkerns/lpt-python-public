@@ -94,6 +94,7 @@ lpo_options['min_points'] = 400             # Throw away LP objects smaller than
 # !!! the ACCUMULATION_PERIOD time prior to the initial time.  !!!
 lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
+lpo_options['do_lpo_mask'] = True  # Whether to generate LPO mask file.
 
 ##
 ## LPT Settings
@@ -106,6 +107,8 @@ lpt_options['min_overlap_frac'] = 0.5         # -- OR fraction of either LP obje
 lpt_options['min_lp_objects_points'] = 400    # Disregard LP objects smaller than this.
 lpt_options['min_lpt_duration_hours'] = 7*24  # Minumum duration to keep it as an LPT (hours)
 lpt_options['center_jump_max_hours'] = 3*24   # How long to allow center jumps (hours)
+lpt_options['do_lpt_individual_masks'] = True  # Whether to generate mask files for each LPT system.
+lpt_options['do_lpt_composite_mask'] = True    # Whether to generate mask file for all LPT systems combined.
 
 ## Merging/Splitting settings
 merge_split_options={}
