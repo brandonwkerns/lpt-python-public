@@ -156,6 +156,23 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
             except FileNotFoundError:
                 print('Data not yet available up to this point. Skipping.')
 
+    ##
+    ## Do LPO mask, if specified.
+    ##
+    if lpo_options['do_lpo_mask']:
+
+        ## In case LPO wasn't calculated, make sure the relevant stuff is defined.
+        objects_dir = (output['data_dir'] + '/' + dataset['label']
+                        + '/' + filter_str(lpo_options['filter_stdev'])
+                        + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                        + '/thresh' + str(int(lpo_options['thresh']))
+                        + '/objects/')
+
+        lpt.masks.calc_lpo_mask(begin_time, end_time, dataset['data_time_interval']
+            , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
+            , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
+            , mask_output_dir=objects_dir)
+
 
     """
     LPT Tracking Calculations (i.e., connect LP Objects in time)
@@ -232,7 +249,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
 
         ## Output
         print('Writing output.',flush=True)
-            
+
         fn_tc_base = (options['outdir']
                          + '/lpt_systems_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
         lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
