@@ -76,6 +76,7 @@ output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 lpo_options={}
 lpo_options['do_lpo_calc'] = True
 #lpo_options['do_lpo_calc'] = False
+lpo_options['do_lpo_mask'] = True  # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
 lpo_options['field_units'] = 'mm d-1'
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
@@ -94,7 +95,6 @@ lpo_options['min_points'] = 400             # Throw away LP objects smaller than
 # !!! the ACCUMULATION_PERIOD time prior to the initial time.  !!!
 lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
-lpo_options['do_lpo_mask'] = True  # Whether to generate LPO mask file.
 
 ##
 ## LPT Settings
