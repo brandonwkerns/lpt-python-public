@@ -104,6 +104,8 @@ lpt_options={}
 lpt_options['do_lpt_calc'] = True
 lpt_options['do_lpt_individual_masks'] = True  # Whether to generate mask files for each LPT system.
 lpt_options['do_lpt_composite_mask'] = True    # Whether to generate mask file for all LPT systems combined.
+lpt_options['mask_calc_volrain'] = False      # Whether to calculate a volumetric rain and include with mask files..
+
 lpt_options['min_overlap_points'] = 1600      # LP object connectivity is based on either points
 lpt_options['min_overlap_frac'] = 0.5         # -- OR fraction of either LP object.
 lpt_options['min_lp_objects_points'] = 400    # Disregard LP objects smaller than this.
