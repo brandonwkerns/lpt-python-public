@@ -307,6 +307,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
                         + '/objects/')
 
         lpt.masks.calc_individual_lpt_masks(begin_time, end_time, dataset['data_time_interval']
+            , prod = dataset['label']
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']

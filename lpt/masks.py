@@ -189,7 +189,8 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
 ################################################################################
 ################################################################################
 
-def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
+def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
+    ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True, do_volrain=False):
@@ -198,8 +199,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, accumulation_hou
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
     """
 
-    prod = 'trmm'
-    label = 'trmm'
+    #prod = 'trmm'
 
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
 
@@ -422,7 +422,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, accumulation_hou
         ## Output.
         ##
         os.makedirs(mask_output_dir + '/' +YMDH1_YMDH2, exist_ok=True)
-        fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+label+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
+        fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
 
         os.remove(fn_out) if os.path.exists(fn_out) else None
         print('Writing to: ' + fn_out, flush=True)
