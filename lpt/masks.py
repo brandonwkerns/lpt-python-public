@@ -193,16 +193,18 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=True, do_volrain=False):
+    , mask_output_dir = '.', verbose=True
+    , do_volrain=False, rain_dir = '.'):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
     """
 
-    #prod = 'trmm'
+
+    def rain_read_function(dt, verbose=False):
+        return lpt.readdata.read_generic_netcdf_at_datetime(dt, data_dir = rain_dir, verbose=verbose)
 
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
-
 
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
     lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt')
@@ -384,27 +386,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 this_mask = mask_arrays['mask_with_filter_and_accumulation'][tt] #mask[tt]
                 this_mask[this_mask > 0] = 1.0
 
-                if prod == 'wrf':
-                    try:
-                        RAIN1 = rain_read_function(this_dt, verbose=True)
-                        precip = RAIN1['precip'][:]
-                    except FileNotFoundError:
-                        print('No wrfout file at this time! Hopefully this was before the beginning of the run. Moving on...')
-                        continue
-
-                    try:
-                        RAIN0 = rain_read_function(this_dt - dt.timedelta(hours=interval_hours), verbose=True)
-                        precip -= RAIN0['precip'][:]
-                        precip /= interval_hours
-                    except:
-                        print('No previous wrfout file. Hopefully this was the beginning of the run.')
-                else:
-                    RAIN = rain_read_function(this_dt, verbose=False)
-                    precip = RAIN['precip'][:]
-
+                RAIN = rain_read_function(this_dt, verbose=False)
+                precip = RAIN['data'][:]
                 precip[~np.isfinite(precip)] = 0.0
                 precip[precip < -0.01] = 0.0
-
                 precip_masked = precip * this_mask
 
                 this_volrain += interval_hours * np.sum(precip_masked * AREA)
