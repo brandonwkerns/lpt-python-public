@@ -194,7 +194,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
-    , do_volrain=False, rain_dir = '.'):
+    , do_volrain=False, rain_dir = '.', calc_with_filter_radius = True):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -360,7 +360,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Do filter width spreading.
         ##
 
-        if filter_stdev > 0:
+        if filter_stdev > 0 and calc_with_filter_radius:
             print('Filter width spreading...this may take awhile.', flush=True)
             mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
             mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
@@ -494,7 +494,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             DSnew[mask_var][:] = mask_arrays[mask_var]
             DSnew[mask_var].setncattr('units','1')
 
-        if filter_stdev > 0:
+        if filter_stdev > 0 and calc_with_filter_radius:
             for mask_var in ['mask_with_filter_at_end_time','mask_with_filter_and_accumulation']:
                 DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
                 DSnew[mask_var][:] = mask_arrays[mask_var]
@@ -521,7 +521,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=True):
+    , mask_output_dir = '.', verbose=True, calc_with_filter_radius = True):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -660,7 +660,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Do filter width spreading.
     ##
 
-    if filter_stdev > 0:
+    if filter_stdev > 0 and calc_with_filter_radius:
         print('Filter width spreading...this may take awhile.', flush=True)
         mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
         mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
@@ -695,7 +695,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         DSnew[mask_var][:] = mask_arrays[mask_var]
         DSnew[mask_var].setncattr('units','1')
 
-    if filter_stdev > 0:
+    if filter_stdev > 0 and calc_with_filter_radius:
         for mask_var in ['mask_with_filter_at_end_time','mask_with_filter_and_accumulation']:
             DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
             DSnew[mask_var][:] = mask_arrays[mask_var]
