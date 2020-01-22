@@ -489,13 +489,13 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
             DSnew[var].setncatts({'units':'mm day-1','long_name':'LP object running mean rain rate (at end of accum time).','note':'Time is end of running mean time. Based on mask_at_end_time'})
 
-        for mask_var in ['mask_at_end_time','mask_with_filter_at_end_time','mask_with_accumulation','mask_with_filter_and_accumulation']:
-            if prod == 'wrf':
-                DSnew.createVariable(mask_var,'i',('time','y','x'), zlib=True, complevel=4)
-                DSnew[mask_var][:] = mask_arrays[mask_var]
-                DSnew[mask_var].setncattr('units','1')
+        for mask_var in ['mask_at_end_time','mask_with_accumulation']:
+            DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
+            DSnew[mask_var][:] = mask_arrays[mask_var]
+            DSnew[mask_var].setncattr('units','1')
 
-            else:
+        if filter_stdev > 0:
+            for mask_var in ['mask_with_filter_at_end_time','mask_with_filter_and_accumulation']:
                 DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
                 DSnew[mask_var][:] = mask_arrays[mask_var]
                 DSnew[mask_var].setncattr('units','1')
@@ -541,14 +541,11 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
 
     dt_hours = interval_hours
-    grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - dt_hours
+    grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
     grand_mask_timestamps1 = (dt_end - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
 
     grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
-    grand_mask_lon = None
-    grand_mask_lat = None
-    grand_mask = None
-    grand_mask_mjo = None
+    mask_arrays = None
 
 
     ## Read Stitched NetCDF data.
@@ -623,13 +620,16 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
             ## Initialize the mask arrays dictionary if this is the first LP object.
             ## First, I need the grid information. Get this from the first LP object.
-            if grand_mask is None:
+            if mask_arrays is None:
                 grand_mask_lon = DS['grid_lon'][:]
                 grand_mask_lat = DS['grid_lat'][:]
                 AREA = DS['grid_area'][:]
-                grand_mask = np.zeros((len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon)))
-                grand_mask_mjo = np.zeros((len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon)))
-
+                mask_arrays = {}
+                mask_arrays_shape = (len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon))
+                mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape)
+                mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
+                mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
+                mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
 
             ##
             ## Get LP Object pixel information.
@@ -649,11 +649,22 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             ##
 
             ## For mask_at_end_time, just use the mask from the objects file.
-            grand_mask[dt_idx, jjj, iii] = 1
+            mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
 
+            ## For the mask with accumulation, go backwards and fill in ones.
+            n_back = int(accumulation_hours/interval_hours)
+            for ttt in range(dt_idx - n_back, dt_idx+1):
+                mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
 
-    ## Use NAN for outside of LPT.
-    #grand_mask[grand_mask < -0.5] = np.nan
+    ##
+    ## Do filter width spreading.
+    ##
+
+    if filter_stdev > 0:
+        print('Filter width spreading...this may take awhile.', flush=True)
+        mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
+        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
+
 
     ##
     ## Output.
@@ -679,13 +690,16 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     DSnew['lat'][:] = grand_mask_lat
     DSnew['lat'].setncattr('units','degrees_north')
 
-    DSnew.createVariable('mask_lpt','i',('time','lat','lon'), zlib=True, complevel=4)
-    DSnew['mask_lpt'][:] = grand_mask
-    DSnew['mask_lpt'].setncattr('units','1')
+    for mask_var in ['mask_at_end_time','mask_with_accumulation']:
+        DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
+        DSnew[mask_var][:] = mask_arrays[mask_var]
+        DSnew[mask_var].setncattr('units','1')
 
-    DSnew.createVariable('mask_mjo','i',('time','lat','lon'), zlib=True, complevel=4)
-    DSnew['mask_mjo'][:] = grand_mask_mjo
-    DSnew['mask_mjo'].setncattr('units','1')
+    if filter_stdev > 0:
+        for mask_var in ['mask_with_filter_at_end_time','mask_with_filter_and_accumulation']:
+            DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
+            DSnew[mask_var][:] = mask_arrays[mask_var]
+            DSnew[mask_var].setncattr('units','1')
 
     DSnew['grid_area'][:] = AREA
     DSnew['grid_area'].setncattr('units','km2')
