@@ -208,9 +208,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
     lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt')
-    #lpt_objects_dir = (lp_objects_dir + '/'+prod+'/'+filter+'/'+thresh+'/objects')
-
-
 
     MISSING = -999.0
     FILL_VALUE = MISSING
@@ -508,3 +505,190 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DSnew['grid_area'].setncattr('description','Area of each grid cell.')
 
         DSnew.close()
+
+
+
+
+################################################################################
+################################################################################
+################################################################################
+###########  calc_composite_lpt_mask ###########################################
+################################################################################
+################################################################################
+################################################################################
+
+def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
+    ,accumulation_hours = 0, filter_stdev = 0
+    , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
+    , lpt_systems_dir = '.'
+    , mask_output_dir = '.', verbose=True):
+
+    """
+    dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
+    """
+
+
+    def rain_read_function(dt, verbose=False):
+        return lpt.readdata.read_generic_netcdf_at_datetime(dt, data_dir = rain_dir, verbose=verbose)
+
+    YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
+
+    lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
+    lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt')
+
+    MISSING = -999.0
+    FILL_VALUE = MISSING
+
+
+    dt_hours = interval_hours
+    grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - dt_hours
+    grand_mask_timestamps1 = (dt_end - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
+
+    grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
+    grand_mask_lon = None
+    grand_mask_lat = None
+    grand_mask = None
+    grand_mask_mjo = None
+
+
+    ## Read Stitched NetCDF data.
+    DS = Dataset(lpt_systems_file)
+    TC={}
+    TC['lptid'] = DS['lptid'][:]
+    TC['i1'] = DS['lpt_begin_index'][:]
+    TC['i2'] = DS['lpt_end_index'][:]
+    TC['timestamp_stitched'] = DS['timestamp_stitched'][:]
+    TC['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) if x > 100 else None for x in TC['timestamp_stitched']]
+    TC['centroid_lon'] = DS['centroid_lon_stitched'][:]
+    TC['centroid_lat'] = DS['centroid_lat_stitched'][:]
+    TC['area'] = DS['area_stitched'][:]
+    for var in ['max_filtered_running_field','max_running_field','max_inst_field'
+                ,'min_filtered_running_field','min_running_field','min_inst_field'
+                ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
+                ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+        TC[var] = DS[var][:]
+    DS.close()
+
+    unique_lpt_ids = np.unique(TC['lptid'])
+
+    LPT, BRANCHES = lpt.lptio.read_lpt_systems_group_array(lpt_group_file)
+
+
+
+    for this_lpt_id in unique_lpt_ids:
+        print('Adding LPT system mask for lptid = ' + str(this_lpt_id) + ' (max = ' + str(np.max(unique_lpt_ids)) + ') of time period ' + YMDH1_YMDH2 + '.')
+
+        this_group = np.floor(this_lpt_id)
+        this_group_lptid_list = sorted([x for x in unique_lpt_ids if np.floor(x) == this_group])
+
+        if np.round( 100.0 * (this_group_lptid_list[0] - this_group)) > 0:
+            this_branch = int(2**(np.round( 100.0 * (this_lpt_id - this_group)) - 1))
+        else:
+            this_branch = int(2**(np.round( 1000.0 * (this_lpt_id - this_group)) - 1))
+
+        if this_branch > 0:
+            this_branch_idx = [x for x in range(len(BRANCHES)) if LPT[x,2]==this_group and (BRANCHES[x] & this_branch) > 0] # bitwise and
+        else:
+            this_branch_idx = [x for x in range(len(BRANCHES)) if LPT[x,2]==this_group]
+
+        lp_object_id_list = LPT[this_branch_idx,1]
+
+
+        dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
+        dt1 = dt.datetime.strptime(str(int(np.max(lp_object_id_list)))[0:10],'%Y%m%d%H')
+        duration_hours = int((dt1 - dt0).total_seconds()/3600)
+        mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
+
+        for lp_object_id in lp_object_id_list:
+
+            nnnn = int(str(int(lp_object_id))[-4:])
+            try:
+                dt_this = lpt.helpers.get_objid_datetime(lp_object_id) # dt.datetime.strptime(str(int(lp_object_id))[0:10],'%Y%m%d%H')
+                timestamp_this = (dt_this - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
+                dt_idx = [tt for tt in range(len(grand_mask_timestamps)) if timestamp_this == grand_mask_timestamps[tt]]
+            except:
+                continue
+
+            if len(dt_idx) < 0:
+                print('This time not found in mask time list. Skipping LP object id: ' + str(int(lp_object_id)))
+                continue
+            elif len(dt_idx) > 1:
+                print('Found more than one mask time for this LP object. This should not happen! Skipping it.')
+                continue
+            else:
+                dt_idx = dt_idx[0]
+
+            fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
+            DS=Dataset(fn)
+
+            ## Initialize the mask arrays dictionary if this is the first LP object.
+            ## First, I need the grid information. Get this from the first LP object.
+            if grand_mask is None:
+                grand_mask_lon = DS['grid_lon'][:]
+                grand_mask_lat = DS['grid_lat'][:]
+                AREA = DS['grid_area'][:]
+                grand_mask = np.zeros((len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon)))
+                grand_mask_mjo = np.zeros((len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon)))
+
+
+            ##
+            ## Get LP Object pixel information.
+            ##
+            try:
+                iii = DS['pixels_x'][nnnn,:].compressed()
+                jjj = DS['pixels_y'][nnnn,:].compressed()
+
+            except:
+                DS.close()
+                continue
+
+            DS.close()
+
+            ##
+            ## Fill in the mask information.
+            ##
+
+            ## For mask_at_end_time, just use the mask from the objects file.
+            grand_mask[dt_idx, jjj, iii] = 1
+
+
+    ## Use NAN for outside of LPT.
+    #grand_mask[grand_mask < -0.5] = np.nan
+
+    ##
+    ## Output.
+    ##
+
+    fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'.nc')
+
+    os.remove(fn_out) if os.path.exists(fn_out) else None
+    print('Writing to: ' + fn_out, flush=True)
+    DSnew = Dataset(fn_out, 'w', data_model='NETCDF4', clobber=True)
+    DSnew.createDimension('time',len(grand_mask_timestamps))
+    DSnew.createDimension('lon',len(grand_mask_lon))
+    DSnew.createDimension('lat',len(grand_mask_lat))
+    DSnew.createVariable('lon','f4',('lon',))
+    DSnew.createVariable('lat','f4',('lat',))
+    DSnew.createVariable('grid_area','f4',('lat','lon'))
+    DSnew.createVariable('time','d',('time',)) # I would like to use u4, but ncview complains about dimension variable being unknown type.
+
+    DSnew['time'][:] = grand_mask_timestamps
+    DSnew['time'].setncattr('units','hours since 1970-1-1 0:0:0')
+    DSnew['lon'][:] = grand_mask_lon
+    DSnew['lon'].setncattr('units','degrees_east')
+    DSnew['lat'][:] = grand_mask_lat
+    DSnew['lat'].setncattr('units','degrees_north')
+
+    DSnew.createVariable('mask_lpt','i',('time','lat','lon'), zlib=True, complevel=4)
+    DSnew['mask_lpt'][:] = grand_mask
+    DSnew['mask_lpt'].setncattr('units','1')
+
+    DSnew.createVariable('mask_mjo','i',('time','lat','lon'), zlib=True, complevel=4)
+    DSnew['mask_mjo'][:] = grand_mask_mjo
+    DSnew['mask_mjo'].setncattr('units','1')
+
+    DSnew['grid_area'][:] = AREA
+    DSnew['grid_area'].setncattr('units','km2')
+    DSnew['grid_area'].setncattr('description','Area of each grid cell.')
+
+    DSnew.close()
