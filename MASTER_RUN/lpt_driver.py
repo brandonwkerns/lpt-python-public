@@ -76,7 +76,6 @@ output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 lpo_options={}
 lpo_options['do_lpo_calc'] = True
 #lpo_options['do_lpo_calc'] = False
-lpo_options['do_lpo_mask'] = True  # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
 lpo_options['field_units'] = 'mm d-1'
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
@@ -96,23 +95,33 @@ lpo_options['min_points'] = 400             # Throw away LP objects smaller than
 lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
 
+## LPO Mask Settings.
+lpo_options['do_lpo_mask'] = True           # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
+lpo_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
+lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
+
 ##
 ## LPT Settings
 ##
 lpt_options={}
 #lpt_options['do_lpt_calc'] = False
 lpt_options['do_lpt_calc'] = True
-lpt_options['do_lpt_individual_masks'] = True  # Whether to generate mask files for each LPT system.
-lpt_options['do_lpt_composite_mask'] = True    # Whether to generate mask file for all LPT systems combined.
-lpt_options['mask_calc_volrain'] = False      # Whether to calculate a volumetric rain and include with mask files..
-
 lpt_options['min_overlap_points'] = 1600      # LP object connectivity is based on either points
 lpt_options['min_overlap_frac'] = 0.5         # -- OR fraction of either LP object.
 lpt_options['min_lp_objects_points'] = 400    # Disregard LP objects smaller than this.
 lpt_options['min_lpt_duration_hours'] = 7*24  # Minumum duration to keep it as an LPT (hours)
 lpt_options['center_jump_max_hours'] = 3*24   # How long to allow center jumps (hours)
 
+## LPT Mask Settings.
+lpt_options['do_lpt_individual_masks'] = True # Whether to generate mask files for each LPT system.
+lpt_options['do_lpt_composite_mask'] = True   # Whether to generate mask file for all LPT systems combined.
+lpt_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
+lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
+lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
+
+##
 ## Merging/Splitting settings
+##
 merge_split_options={}
 merge_split_options['allow_merge_split'] = True
 #merge_split_options['allow_merge_split'] = False
