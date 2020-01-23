@@ -50,11 +50,55 @@ def feature_spread(array_in, npoints):
 
     return array_out
 
-################################################################################
 
-##
-## LPO mask
-##
+def add_mask_var_to_netcdf(DS, mask_var, data, dims=('time','lat','lon')):
+    """
+    Add a 3-D mask variable to a NetCDF file.
+    add_mask_var_to_netcdf(DS, mask_var, data, dims=('time','lat','lon'))
+
+    Inputs:
+        DS        is a netCDF4.Dataset file object.
+        mask_var  is a string for the variable name.
+        data      is the data to use. Should be integers.
+        dims      is a tuple of dimension names. Default: ('time','lat','lon')
+    Outputs:
+        -- None --
+    """
+    DS.createVariable(mask_var,'i',dims,zlib=True,complevel=4)
+    DS[mask_var][:] = data
+    DS[mask_var].setncattr('units','1')
+
+
+def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
+        , volrain_var_tser, data_tser, sum_dims=('n',), tser_dims=('time',)
+        , fill_value = -999):
+    """
+    Add sum and time series volrain to a NetCDF file.
+    add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
+        , volrain_var_tser, data_tser, tser_dims=('time',))
+
+    Inputs:
+        DS                is a netCDF4.Dataset file object.
+        volrain_var_sum   is a string for the volrain sum variable name.
+        data_sum          is the volrain sum data to use.
+        sum_dims          is a tuple of dimension names for sum data. Default: ('n',)
+        volrain_var_tser  is a string for the volrain time series variable name.
+        data_tser         is the volrain time series data to use.
+        tser_dims         is a tuple of dimension names for time series. Default: ('time',)
+    Outputs:
+        -- None --
+    """
+    ## Sum
+    DS.createVariable(volrain_var_sum,'f4',sum_dims,fill_value=fill_value)
+    DS[volrain_var_sum][:] = data_sum
+    DS[volrain_var_sum].setncatts({'units':'mm - km2','description':'Time Integrated Volumetric Rain','description':'Volumetric rain (sum of area * raw rain rate).'})
+    ## Time Series
+    DS.createVariable(volrain_var_tser,'f4',tser_dims,fill_value=fill_value)
+    DS[volrain_var_tser][:] = data_tser
+    DS[volrain_var_tser].setncatts({'units':'mm - km2','description':'Time Series of Volumetric Rain','description':'Volumetric rain (sum of area * raw rain rate).'})
+
+
+
 
 ################################################################################
 ################################################################################
@@ -194,7 +238,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
-    , do_volrain=False, rain_dir = '.', calc_with_filter_radius = True):
+    , do_volrain=False, rain_dir = '.'
+    , calc_with_filter_radius = True
+    , calc_with_accumulation_period = True):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -256,8 +302,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
         lp_object_id_list = LPT[this_branch_idx,1]
 
-
-        dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
+        else:
+            dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H')
         dt1 = dt.datetime.strptime(str(int(np.max(lp_object_id_list)))[0:10],'%Y%m%d%H')
         duration_hours = int((dt1 - dt0).total_seconds()/3600)
         mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
@@ -321,15 +369,15 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 AREA = DS['grid_area'][:]
                 mask_arrays['lon'] = DS['grid_lon'][:]
                 mask_arrays['lat'] = DS['grid_lat'][:]
-                if prod == 'wrf':
-                    ny, nx = mask_arrays['lon'].shape
-                    mask_arrays_shape = [len(mask_times), ny, nx]
-                else:
-                    mask_arrays_shape = [len(mask_times), len(lat), len(lon)]
+                mask_arrays_shape = [len(mask_times), len(lat), len(lon)]
                 mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape)
-                mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
-                mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
-                mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
+                if filter_stdev > 0 and calc_with_filter_radius:
+                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
+                    if accumulation_hours > 0 and calc_with_accumulation_period:
+                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
+
 
             ##
             ## Get LP Object pixel information.
@@ -352,9 +400,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
 
             ## For the mask with accumulation, go backwards and fill in ones.
-            n_back = int(accumulation_hours/interval_hours)
-            for ttt in range(dt_idx - n_back, dt_idx+1):
-                mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                n_back = int(accumulation_hours/interval_hours)
+                for ttt in range(dt_idx - n_back, dt_idx+1):
+                    mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
 
         ##
         ## Do filter width spreading.
@@ -363,42 +412,71 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         if filter_stdev > 0 and calc_with_filter_radius:
             print('Filter width spreading...this may take awhile.', flush=True)
             mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
-            mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
-        else:
-            mask_arrays['mask_with_filter_at_end_time'] = np.nan * mask_arrays['mask_at_end_time']
-            mask_arrays['mask_with_filter_and_accumulation'] = np.nan * mask_arrays['mask_with_accumulation']
-
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
 
         ## Do volumetric rain.
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
-            this_volrain = 0.0
-            global_volrain = 0.0
-            volrain_in_time = np.nan * np.zeros(len(mask_times))
-            global_volrain_in_time = np.nan * np.zeros(len(mask_times))
 
+            #### Initialize
+            VOLRAIN = {}
+
+            ## Global
+            VOLRAIN['volrain_global'] = 0.0
+            VOLRAIN['volrain_global_tser'] = np.nan * np.zeros(len(mask_times))
+
+            ## This LPT
+            VOLRAIN['volrain_at_end_time'] = 0.0
+            VOLRAIN['volrain_at_end_time_tser'] = np.nan * np.zeros(len(mask_times))
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                VOLRAIN['volrain_with_accumulation'] = 0.0
+                VOLRAIN['volrain_with_accumulation_tser'] = np.nan * np.zeros(len(mask_times))
+            if filter_stdev > 0 and calc_with_filter_radius:
+                VOLRAIN['volrain_with_filter_at_end_time'] = 0.0
+                VOLRAIN['volrain_with_filter_at_end_time_tser'] = np.nan * np.zeros(len(mask_times))
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    VOLRAIN['volrain_with_filter_and_accumulation'] = 0.0
+                    VOLRAIN['volrain_with_filter_and_accumulation_tser'] = np.nan * np.zeros(len(mask_times))
+
+            #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
             for tt in range(len(mask_times)):
-
                 this_dt = mask_times[tt]
-                this_mask = mask_arrays['mask_with_filter_and_accumulation'][tt] #mask[tt]
-                this_mask[this_mask > 0] = 1.0
 
+                ## Get rain.
                 RAIN = rain_read_function(this_dt, verbose=False)
                 precip = RAIN['data'][:]
                 precip[~np.isfinite(precip)] = 0.0
                 precip[precip < -0.01] = 0.0
+
+                ## Global
+                VOLRAIN['volrain_global'] += interval_hours * np.sum(precip * AREA)
+                VOLRAIN['volrain_global_tser'][tt] = interval_hours * np.sum(precip * AREA)
+
+                ## This LPT
+                this_mask = mask_arrays['mask_at_end_time'][tt]
+                this_mask[this_mask > 0] = 1.0
                 precip_masked = precip * this_mask
-
-                this_volrain += interval_hours * np.sum(precip_masked * AREA)
-                global_volrain += interval_hours * np.sum(precip * AREA)
-                volrain_in_time[tt] = interval_hours * np.sum(precip_masked * AREA)
-                global_volrain_in_time[tt] = interval_hours * np.sum(precip * AREA)
-
-            mask_arrays['volrain_accum'] = this_volrain
-            mask_arrays['volrain_accum_global'] = global_volrain
-            mask_arrays['volrain'] = volrain_in_time
-            mask_arrays['volrain_global'] = global_volrain_in_time
-
+                VOLRAIN['volrain_at_end_time'] += interval_hours * np.sum(precip_masked * AREA)
+                VOLRAIN['volrain_at_end_time_tser'][tt] = interval_hours * np.sum(precip_masked * AREA)
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    this_mask = mask_arrays['mask_with_accumulation'][tt]
+                    this_mask[this_mask > 0] = 1.0
+                    precip_masked = precip * this_mask
+                    VOLRAIN['volrain_with_accumulation'] += interval_hours * np.sum(precip_masked * AREA)
+                    VOLRAIN['volrain_with_accumulation_tser'][tt] = interval_hours * np.sum(precip_masked * AREA)
+                if filter_stdev > 0 and calc_with_filter_radius:
+                    this_mask = mask_arrays['mask_with_filter_at_end_time'][tt]
+                    this_mask[this_mask > 0] = 1.0
+                    precip_masked = precip * this_mask
+                    VOLRAIN['volrain_with_filter_at_end_time'] += interval_hours * np.sum(precip_masked * AREA)
+                    VOLRAIN['volrain_with_filter_at_end_time_tser'][tt] = interval_hours * np.sum(precip_masked * AREA)
+                    if accumulation_hours > 0 and calc_with_accumulation_period:
+                        this_mask = mask_arrays['mask_with_filter_and_accumulation'][tt]
+                        this_mask[this_mask > 0] = 1.0
+                        precip_masked = precip * this_mask
+                        VOLRAIN['volrain_with_filter_and_accumulation'] += interval_hours * np.sum(precip_masked * AREA)
+                        VOLRAIN['volrain_with_filter_and_accumulation_tser'][tt] = interval_hours * np.sum(precip_masked * AREA)
 
         ##
         ## Output.
@@ -411,22 +489,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DSnew = Dataset(fn_out, 'w', data_model='NETCDF4', clobber=True)
         DSnew.createDimension('n', 1)
         DSnew.createDimension('time',len(mask_times))
-        if prod == 'wrf':
-            ny,nx = lon.shape
-            DSnew.createDimension('x',nx)
-            DSnew.createDimension('y',ny)
-            DSnew.createVariable('lon','f4',('y','x'))
-            DSnew.createVariable('lat','f4',('y','x'))
-            DSnew.createVariable('grid_area','f4',('y','x'))
-        else:
-            DSnew.createDimension('lon',len(lon))
-            DSnew.createDimension('lat',len(lat))
-            DSnew.createVariable('lon','f4',('lon',))
-            DSnew.createVariable('lat','f4',('lat',))
-            DSnew.createVariable('grid_area','f4',('lat','lon'))
-
-
-        DSnew.createVariable('time','d',('time',)) # I would like to use u4, but ncview complains about dimension variable being unknown type.
+        DSnew.createDimension('lon',len(lon))
+        DSnew.createDimension('lat',len(lat))
+        DSnew.createVariable('lon','f4',('lon',))
+        DSnew.createVariable('lat','f4',('lat',))
+        DSnew.createVariable('grid_area','f4',('lat','lon'))
+        DSnew.createVariable('time','d',('time',))
         DSnew.createVariable('centroid_lon','f4',('time',),fill_value=FILL_VALUE)
         DSnew.createVariable('centroid_lat','f4',('time',),fill_value=FILL_VALUE)
         DSnew.createVariable('area','d',('time',),fill_value=FILL_VALUE)
@@ -437,19 +505,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
             DSnew.createVariable(var,'f4',('time',),fill_value=FILL_VALUE)
 
-        if do_volrain:
-            for var in ['volrain','volrain_global']:
-                DSnew.createVariable(var,'f4',('time',),fill_value=FILL_VALUE)
-
         # Bulk fields.
         for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
             DSnew.createVariable(var,'f4',('n',),fill_value=FILL_VALUE)
-
-        if do_volrain:
-            for var in ['volrain_accum','volrain_accum_global']:
-                DSnew.createVariable(var,'f4',('n',),fill_value=FILL_VALUE)
-
-
 
         ts = [(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 for x in mask_times]
         DSnew['time'][:] = ts
@@ -466,11 +524,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
             DSnew[mask_var][:] = mask_arrays[mask_var]
 
-        if do_volrain:
-            for mask_var in ['volrain','volrain_global','volrain_accum','volrain_accum_global']:
-                DSnew[mask_var][:] = mask_arrays[mask_var]
-
-
         DSnew['centroid_lon'].setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'})
         DSnew['centroid_lat'].setncatts({'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'})
         DSnew['area'].setncatts({'units':'km2','long_name':'LPT System enclosed area','note':'Time is end of running mean time.'})
@@ -478,27 +531,39 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DSnew['duration'].setncatts({'units':'h','long_name':'LPT System duration'})
         DSnew['zonal_propagation_speed'].setncatts({'units':'m s-1','long_name':'Zonal popagation speed','description':'Zonal popagation speed of the entire LPT system -- based on least squares fit of lon(time).'})
         DSnew['meridional_propagation_speed'].setncatts({'units':'m s-1','long_name':'meridional popagation speed','description':'Meridional popagation speed of the entire LPT system -- based on least squares fit of lon(time).'})
-        if do_volrain:
-            DSnew['volrain'].setncatts({'units':'mm - km2','long_name':'LPT System Volumetric Rain time series','description':'Volumetric rain (sum of area * raw rain rate) within the mask WITH filter and accumulaiton.'})
-            DSnew['volrain_global'].setncatts({'units':'mm - km2','long_name':'Global (e.g., full domain area) Volumetric Rain time series-- concurrent with LPT System','description':'Total global/full domain volumetric rain (sum of area * raw rain rate) during the entire period of the mask WITH filter and accumulaiton.'})
-            DSnew['volrain_accum'].setncatts({'units':'mm - km2','long_name':'LPT System Volumetric Rain accumulation','description':'Volumetric rain (sum of area * raw rain rate) within the mask WITH filter and accumulaiton.'})
-            DSnew['volrain_accum_global'].setncatts({'units':'mm - km2','long_name':'Global (e.g., full domain area) Volumetric Rain accumulation -- concurrent with LPT System','description':'Total global/full domain volumetric rain (sum of area * raw rain rate) during the entire period of the mask WITH filter and accumulaiton.'})
 
         for var in ['max_filtered_running_field','max_running_field','max_inst_field'
                     ,'min_filtered_running_field','min_running_field','min_inst_field'
                     ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
             DSnew[var].setncatts({'units':'mm day-1','long_name':'LP object running mean rain rate (at end of accum time).','note':'Time is end of running mean time. Based on mask_at_end_time'})
 
-        for mask_var in ['mask_at_end_time','mask_with_accumulation']:
-            DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
-            DSnew[mask_var][:] = mask_arrays[mask_var]
-            DSnew[mask_var].setncattr('units','1')
-
+        add_mask_var_to_netcdf(DSnew, 'mask_at_end_time', mask_arrays['mask_at_end_time'])
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            add_mask_var_to_netcdf(DSnew, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'])
         if filter_stdev > 0 and calc_with_filter_radius:
-            for mask_var in ['mask_with_filter_at_end_time','mask_with_filter_and_accumulation']:
-                DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
-                DSnew[mask_var][:] = mask_arrays[mask_var]
-                DSnew[mask_var].setncattr('units','1')
+            add_mask_var_to_netcdf(DSnew, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'])
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                add_mask_var_to_netcdf(DSnew, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'])
+
+        if do_volrain:
+            add_volrain_to_netcdf(DSnew, 'volrain_global', VOLRAIN['volrain_global']
+                    , 'volrain_global_tser', VOLRAIN['volrain_global_tser']
+                    , fill_value = FILL_VALUE)
+            add_volrain_to_netcdf(DSnew, 'volrain_at_end_time', VOLRAIN['volrain_at_end_time']
+                    , 'volrain_at_end_time_tser', VOLRAIN['volrain_at_end_time_tser']
+                    , fill_value = FILL_VALUE)
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                add_volrain_to_netcdf(DSnew, 'volrain_with_accumulation', VOLRAIN['volrain_with_accumulation']
+                        , 'volrain_with_accumulation_tser', VOLRAIN['volrain_with_accumulation_tser']
+                        , fill_value = FILL_VALUE)
+            if filter_stdev > 0 and calc_with_filter_radius:
+                add_volrain_to_netcdf(DSnew, 'volrain_with_filter_at_end_time', VOLRAIN['volrain_with_filter_at_end_time']
+                        , 'volrain_with_filter_at_end_time_tser', VOLRAIN['volrain_with_filter_at_end_time_tser']
+                        , fill_value = FILL_VALUE)
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    add_volrain_to_netcdf(DSnew, 'volrain_with_filter_and_accumulation', VOLRAIN['volrain_with_filter_and_accumulation']
+                            , 'volrain_with_filter_and_accumulation_tser', VOLRAIN['volrain_with_filter_and_accumulation_tser']
+                            , fill_value = FILL_VALUE)
 
         DSnew['grid_area'][:] = AREA
         DSnew['grid_area'].setncattr('units','km2')
@@ -521,7 +586,9 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=True, calc_with_filter_radius = True):
+    , mask_output_dir = '.', verbose=True
+    , calc_with_filter_radius = True
+    , calc_with_accumulation_period = True):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -541,7 +608,10 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
 
     dt_hours = interval_hours
-    grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
+    if accumulation_hours > 0 and calc_with_accumulation_period:
+        grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
+    else:
+        grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
     grand_mask_timestamps1 = (dt_end - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
 
     grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
@@ -627,9 +697,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 mask_arrays = {}
                 mask_arrays_shape = (len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon))
                 mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape)
-                mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
-                mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
-                mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
+                if calc_with_filter_radius:
+                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
+                    if accumulation_hours > 0 and calc_with_accumulation_period:
+                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
 
             ##
             ## Get LP Object pixel information.
@@ -652,9 +725,10 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
 
             ## For the mask with accumulation, go backwards and fill in ones.
-            n_back = int(accumulation_hours/interval_hours)
-            for ttt in range(dt_idx - n_back, dt_idx+1):
-                mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                n_back = int(accumulation_hours/interval_hours)
+                for ttt in range(dt_idx - n_back, dt_idx+1):
+                    mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
 
     ##
     ## Do filter width spreading.
@@ -663,13 +737,13 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     if filter_stdev > 0 and calc_with_filter_radius:
         print('Filter width spreading...this may take awhile.', flush=True)
         mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
-        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
 
 
     ##
     ## Output.
     ##
-
     fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'.nc')
 
     os.remove(fn_out) if os.path.exists(fn_out) else None
@@ -681,7 +755,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     DSnew.createVariable('lon','f4',('lon',))
     DSnew.createVariable('lat','f4',('lat',))
     DSnew.createVariable('grid_area','f4',('lat','lon'))
-    DSnew.createVariable('time','d',('time',)) # I would like to use u4, but ncview complains about dimension variable being unknown type.
+    DSnew.createVariable('time','d',('time',))
 
     DSnew['time'][:] = grand_mask_timestamps
     DSnew['time'].setncattr('units','hours since 1970-1-1 0:0:0')
@@ -690,16 +764,13 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     DSnew['lat'][:] = grand_mask_lat
     DSnew['lat'].setncattr('units','degrees_north')
 
-    for mask_var in ['mask_at_end_time','mask_with_accumulation']:
-        DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
-        DSnew[mask_var][:] = mask_arrays[mask_var]
-        DSnew[mask_var].setncattr('units','1')
-
+    add_mask_var_to_netcdf(DSnew, 'mask_at_end_time', mask_arrays['mask_at_end_time'])
+    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+        add_mask_var_to_netcdf(DSnew, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'])
     if filter_stdev > 0 and calc_with_filter_radius:
-        for mask_var in ['mask_with_filter_at_end_time','mask_with_filter_and_accumulation']:
-            DSnew.createVariable(mask_var,'i',('time','lat','lon'), zlib=True, complevel=4)
-            DSnew[mask_var][:] = mask_arrays[mask_var]
-            DSnew[mask_var].setncattr('units','1')
+        add_mask_var_to_netcdf(DSnew, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'])
+        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+            add_mask_var_to_netcdf(DSnew, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'])
 
     DSnew['grid_area'][:] = AREA
     DSnew['grid_area'].setncattr('units','km2')

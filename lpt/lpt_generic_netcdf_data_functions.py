@@ -316,7 +316,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
             , mask_output_dir=objects_dir
             , do_volrain = lpt_options['mask_calc_volrain']
             , rain_dir = rain_dir
-            , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius'])
+            , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
+            , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period'])
 
 
     if lpt_options['do_lpt_composite_mask']:
@@ -334,4 +335,5 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
             , mask_output_dir=objects_dir
-            , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius'])
+            , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
+            , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period'])
