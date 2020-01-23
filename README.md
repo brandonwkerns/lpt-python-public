@@ -42,7 +42,7 @@ Instead, copy the directory to a local working directory
 ## Python module dependencies (see below for full environment I used):
 - numpy
 - scipy.signal, scipy.ndimage
-- NetCDF4.Dataset
+- netCDF4.Dataset
 - matplotlib
 
 ## Code organization:
@@ -52,7 +52,7 @@ Instead, copy the directory to a local working directory
   * Supporting functions for calculations are in lpt/helpers.py.
   * Example plotting functions are in lpt/plotting.py
 - The following generic NetCDF data driver scripts is included in MASTER_RUN/:
-  * lpt_driver.py
+  * lpt_run.py
 - The following example preprocessor scripts are included in MASTER_RUN/:
   * preprocess_tmpa.py
   * preprocess_wrf.py
@@ -68,9 +68,9 @@ Instead, copy the directory to a local working directory
 ## Setting up LPT on a new system:
 1) Clone this repository to your system, or download the zip file format.
 2) Copy the MASTER_RUN directory to a new run directory.
-3) Edit the lpt_driver.py script as needed.
-4) Run the lpt_driver.py script.
-     Usage: `python lpt_driver.py YYYYMMDDHH YYYYMMDDHH`
+3) Edit the lpt_run.py script as needed.
+4) Run the lpt_run.py script.
+     Usage: `python lpt_run.py YYYYMMDDHH YYYYMMDDHH`
      (Specify start and end times of the tracking)
 
 
