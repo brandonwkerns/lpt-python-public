@@ -29,6 +29,8 @@ def feature_spread(array_in, npoints):
         npx = 1*npoints
         npy = 1*npoints
 
+    nt = s[0]
+
     [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
     circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
     circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
@@ -36,6 +38,8 @@ def feature_spread(array_in, npoints):
 
     ## Loop over the times.
     ## For each time, use the convolution to "spread out" the effect of each time's field.
+    ## (I tried using 3-D convolution here, but it took almost twice as much memory
+    ##  and was slightly SLOWER than this method.)
     for tt in range(s[0]):
         array_2d = array_in[tt,:,:]
         array_2d_new = array_2d.copy()
