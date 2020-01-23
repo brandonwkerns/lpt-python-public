@@ -38,7 +38,8 @@ def handle_variable_names(dataset):
     return variable_names
 
 
-def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_options,argv):
+def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
+                ,merge_split_options,mjo_id_options,argv):
 
     variable_names = handle_variable_names(dataset)
 
@@ -294,6 +295,26 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options,merge_split_optio
             file_out_base = (img_dir2 + '/lpt_time_lon_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
             lpt.plotting.print_and_save(file_out_base)
             fig2.clf()
+
+
+    if mjo_id_options['do_mjo_id']:
+
+        begin_tracking_time = begin_time
+        latest_lp_object_time = end_time
+
+        YMDHb = begin_time.strftime('%Y%m%d%H')
+        YMDHb_fancy = begin_time.strftime('%Y-%m-%d %H:00 UTC')
+
+        YMDH = end_time.strftime('%Y%m%d%H')
+        YMDH_fancy = end_time.strftime('%Y-%m-%d %H:00 UTC')
+
+
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print(('Doing MJO Identification for: '
+                + begin_tracking_time.strftime('%Y%m%d%H')
+                + ' to ' + latest_lp_object_time.strftime('%Y%m%d%H')))
+        print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
 
 
     ##

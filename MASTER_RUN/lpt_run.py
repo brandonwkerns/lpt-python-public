@@ -127,8 +127,21 @@ merge_split_options['allow_merge_split'] = True
 #merge_split_options['allow_merge_split'] = False
 merge_split_options['split_merger_min_hours'] = 72     # Min duration of a split/merging track to separate it.
 
+##
+## MJO LPT Identification settings
+##
+mjo_id_options = {}
+mjo_id_options['do_mjo_id'] = True
+mjo_id_options['min_zonal_speed'] = -999.0   # full LPT track net speed, in m/s.
+mjo_id_options['min_duration']    = 7.0*24.0      # In hours. Does NOT include accumulation period.
+mjo_id_options['min_eastward_prop_zonal_speed'] = 0.0  # Eastward propagation portion, in m/s.
+mjo_id_options['min_eastward_prop_duration'] = 7.0*24.0  # In hours. Doesn't include 3-Day accumulation period.
+mjo_id_options['min_eastward_prop_duration_in_lat_band'] = 7.0*24.0  # In hours. Doesn't include 3-Day accumulation period.
+mjo_id_options['min_total_eastward_lon_propagation'] = 10.0 # in deg. longitude.
+mjo_id_options['max_abs_latitude'] = 15.0 # in deg. latitude. Eastward propagation period must get this close to the Equator at some point.
+
 """
 Call the driver function.
 """
 
-lpt_driver(dataset,plotting,output,lpo_options,lpt_options, merge_split_options, sys.argv)
+lpt_driver(dataset,plotting,output,lpo_options,lpt_options, merge_split_options, mjo_id_options, sys.argv)
