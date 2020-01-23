@@ -110,7 +110,9 @@ def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
 
 
 def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
-    , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'):
+    , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'
+    , calc_with_filter_radius = True
+    , calc_with_accumulation_period = True):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -120,20 +122,36 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
 
 
     # These times are for the END of accumulation time.
+    """
     total_hours0 = (dt_end - dt_begin).total_seconds()/3600.0
     mask_times0 = [dt_begin + dt.timedelta(hours=x) for x in np.arange(0,total_hours0+1,interval_hours)]
 
     # These times include the accumulation period leading up to the first END of accumulation time.
-    total_hours = (dt_end - dt_begin).total_seconds()/3600.0  + accumulation_hours
-    mask_times = [dt_begin - dt.timedelta(hours=accumulation_hours) + dt.timedelta(hours=x) for x in np.arange(0,total_hours+1,interval_hours)]
+    if accumulation_hours > 0 and calc_with_accumulation_period:
+        total_hours = (dt_end - dt_begin).total_seconds()/3600.0  + accumulation_hours
+        mask_times = [dt_begin - dt.timedelta(hours=accumulation_hours) + dt.timedelta(hours=x) for x in np.arange(0,total_hours+1,interval_hours)]
+    else:
+        total_hours = (dt_end - dt_begin).total_seconds()/3600.0
+        mask_times = [dt_begin + dt.timedelta(hours=x) for x in np.arange(0,total_hours+1,interval_hours)]
+    """
+
+    dt1 = dt_end
+    if accumulation_hours > 0 and calc_with_accumulation_period:
+        dt0 = dt_begin - dt.timedelta(hours=accumulation_hours)
+        dt_idx0 = int(accumulation_hours/interval_hours)
+    else:
+        dt0 = dt_begin
+        dt_idx0 = 0
+    duration_hours = int((dt1 - dt0).total_seconds()/3600)
+    mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
 
     mask_arrays={} #Start with empty dictionary
 
-    dt_idx = int(accumulation_hours/interval_hours) - 1
-    for this_dt in mask_times0:
-        dt_idx += 1
+    for dt_idx in range(dt_idx0, len(mask_times)):
+        this_dt = mask_times[dt_idx]
 
-        print(this_dt.strftime('%Y%m%d%H'), flush=True)
+        if dt_idx == dt_idx0 or dt_idx == len(mask_times)-1 or np.mod(dt_idx, 100) == 0:
+            print(('LPO Mask: ' + this_dt.strftime('%Y%m%d%H') + ' ('+str(dt_idx)+' of '+str(len(mask_times)-1)+')'), flush=True)
 
         fn = (lp_objects_dir + '/' + this_dt.strftime(lp_objects_fn_format))
         try:
@@ -151,11 +169,13 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
             mask_arrays['lon'] = DS['grid_lon'][:]
             mask_arrays['lat'] = DS['grid_lat'][:]
             mask_arrays_shape = [len(mask_times), len(lat), len(lon)]
-            print(mask_arrays_shape)
             mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape)
-            mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
-            mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
-            mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
+            if calc_with_filter_radius:
+                mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
 
         ##
         ## Get LP Object pixel information.
@@ -173,9 +193,10 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
             mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
 
             ## For the mask with accumulation, go backwards and fill in ones.
-            n_back = int(accumulation_hours/interval_hours)
-            for ttt in range(dt_idx - n_back, dt_idx+1):
-                mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
+            if accumulation_hours > 0 and calc_with_accumulation_period:
+                n_back = int(accumulation_hours/interval_hours)
+                for ttt in range(dt_idx - n_back, dt_idx+1):
+                    mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
 
         except:
             DS.close()
@@ -184,13 +205,11 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ## Do filter width spreading.
     ##
 
-    if filter_stdev > 0:
+    if filter_stdev > 0 and calc_with_filter_radius:
         print('Filter width spreading...this may take awhile.', flush=True)
         mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
-        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
-    else:
-        mask_arrays['mask_with_filter_at_end_time'] = np.nan * mask_arrays['mask_at_end_time']
-        mask_arrays['mask_with_filter_and_accumulation'] = np.nan * mask_arrays['mask_at_end_time']
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
 
     ##
     ## Output.
@@ -215,14 +234,15 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     DSnew['lat'][:] = lat
     DSnew['lat'].setncattr('units','degrees_north')
 
-    for mask_var in ['mask_at_end_time','mask_with_filter_at_end_time','mask_with_accumulation','mask_with_filter_and_accumulation']:
-        DSnew.createVariable(mask_var,'i',('time','lat','lon'))
-        DSnew[mask_var][:] = mask_arrays[mask_var]
-        DSnew[mask_var].setncattr('units','1')
+    add_mask_var_to_netcdf(DSnew, 'mask_at_end_time', mask_arrays['mask_at_end_time'])
+    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+        add_mask_var_to_netcdf(DSnew, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'])
+    if filter_stdev > 0 and calc_with_filter_radius:
+        add_mask_var_to_netcdf(DSnew, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'])
+        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+            add_mask_var_to_netcdf(DSnew, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'])
 
     DSnew.close()
-
-
 
 
 ################################################################################
