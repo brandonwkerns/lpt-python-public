@@ -133,12 +133,16 @@ merge_split_options['split_merger_min_hours'] = 72     # Min duration of a split
 mjo_id_options = {}
 mjo_id_options['do_mjo_id'] = True
 mjo_id_options['min_zonal_speed'] = -999.0   # full LPT track net speed, in m/s.
-mjo_id_options['min_duration']    = 7.0*24.0      # In hours. Does NOT include accumulation period.
+mjo_id_options['min_lpt_duration']    = 7.0*24.0      # In hours. Does NOT include accumulation period.
 mjo_id_options['min_eastward_prop_zonal_speed'] = 0.0  # Eastward propagation portion, in m/s.
 mjo_id_options['min_eastward_prop_duration'] = 7.0*24.0  # In hours. Doesn't include 3-Day accumulation period.
 mjo_id_options['min_eastward_prop_duration_in_lat_band'] = 7.0*24.0  # In hours. Doesn't include 3-Day accumulation period.
 mjo_id_options['min_total_eastward_lon_propagation'] = 10.0 # in deg. longitude.
 mjo_id_options['max_abs_latitude'] = 15.0 # in deg. latitude. Eastward propagation period must get this close to the Equator at some point.
+## These settings are for the eaat/west propagation portions ("divide and conquer").
+mjo_id_options['duration_to_avoid_being_conquered'] = 7.0*24.0  # In hours.
+mjo_id_options['lon_prop_to_avoid_being_conquered'] = 20.0      # In degrees longitude
+mjo_id_options['backtrack_allowance'] = 5.0                     # In degrees longitude
 
 """
 Call the driver function.
