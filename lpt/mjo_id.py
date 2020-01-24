@@ -469,11 +469,11 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                         , east_prop_group_df['total_zonal_spd'].values[jj]
                                         , year11, month11, day11, hour11
                                         , year22, month22, day22, hour22
-                                        , this_volrain
-                                        , 0, 0, 0, 0
-                                        , 0,0,0,0
-                                        , 0,0,0,0
-                                        , 0, 0
+#                                        , this_volrain
+                                        , -999, -999, -999, -999
+                                        , 9999,99,99,99
+                                        , 9999,99,99,99
+                                        , -999, -999
                                     ] ]
 
         else:
@@ -514,7 +514,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                     , east_prop_group_df_sort['total_zonal_spd'].values[0]
                                     , year11, month11, day11, hour11
                                     , year22, month22, day22, hour22
-                                    , this_volrain
+#                                    , this_volrain
                                     , east_prop_group_df_sort['begin_indx'].values[0]
                                     , east_prop_group_df_sort['end_indx'].values[0]
                                     , east_prop_group_df_sort['segment_zonal_spd'].values[0]
@@ -551,23 +551,26 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                             , east_prop_group_df['total_zonal_spd'].values[jj]
                                             , year11, month11, day11, hour11
                                             , year22, month22, day22, hour22
-                                            , this_volrain
-                                            , 0, 0, 0, 0
-                                            , 0,0,0,0
-                                            , 0,0,0,0
-                                            , 0, 0
+#                                            , this_volrain
+                                            , -999, -999, -999, -999
+                                            , 9999,99,99,99
+                                            , 9999,99,99,99
+                                            , -999, -999
                                         ] ]
-
-
 
     ## Output
     ## For output table files.
-    FMT=('%14d%14d%10.4f%10d%10.2f%16.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d %10.2f '
+    FMT=('%14d%14d%10.4f%10d%10.2f%16.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d '
             + '%20d%15d%11.2f%11.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d%20.1f%15.1f')
 
-    header = 'begin_tracking  end_tracking lpt_index  lptgroup  duration  mean_zonal_spd   lpt_begin     lpt_end    volrain      eprop_begin_idx  eprop_end_idx  eprop_spd  eprop_dur eprop_begin   eprop_end     eprop_lon_begin  eprop_lon_end'
+    header = 'begin_tracking  end_tracking lpt_index  lptgroup  duration  mean_zonal_spd   lpt_begin     lpt_end      eprop_begin_idx  eprop_end_idx  eprop_spd  eprop_dur eprop_begin   eprop_end     eprop_lon_begin  eprop_lon_end'
 
+    mjo_lpt_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
     if len(FOUT_mjo_lpt) > 0:
-        np.savetxt('test.txt', FOUT_mjo_lpt, fmt=FMT,header=header,comments='')
+        print(mjo_lpt_file)
+        np.savetxt(mjo_lpt_file, FOUT_mjo_lpt, fmt=FMT,header=header,comments='')
+
+    non_mjo_lpt_file = (lpt_systems_dir + '/non_mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
     if len(FOUT_non_mjo_lpt) > 0:
-        np.savetxt('test2.txt', FOUT_non_mjo_lpt, fmt=FMT,header=header,comments='')
+        print(non_mjo_lpt_file)
+        np.savetxt(non_mjo_lpt_file, FOUT_non_mjo_lpt, fmt=FMT,header=header,comments='')
