@@ -383,8 +383,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
             this_lpt_lat = f['lat'][i1:i2+1]
             this_lpt_area = f['area'][i1:i2+1]  ## Only used in case of "tie breaker" for dominant MJO east prop segment.
 
-            this_volrain = 0.0 ## TODO: Incorporate volumetric rain in here.
-
             ## "bulk" properties of the LPT as a whole.
             duration = duration_in_hours(this_lpt_time)
             total_lon_propagation = max(this_lpt_lon) - min(this_lpt_lon)
@@ -469,7 +467,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                         , east_prop_group_df['total_zonal_spd'].values[jj]
                                         , year11, month11, day11, hour11
                                         , year22, month22, day22, hour22
-#                                        , this_volrain
                                         , -999, -999, -999, -999
                                         , 9999,99,99,99
                                         , 9999,99,99,99
@@ -514,7 +511,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                     , east_prop_group_df_sort['total_zonal_spd'].values[0]
                                     , year11, month11, day11, hour11
                                     , year22, month22, day22, hour22
-#                                    , this_volrain
                                     , east_prop_group_df_sort['begin_indx'].values[0]
                                     , east_prop_group_df_sort['end_indx'].values[0]
                                     , east_prop_group_df_sort['segment_zonal_spd'].values[0]
@@ -551,7 +547,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                             , east_prop_group_df['total_zonal_spd'].values[jj]
                                             , year11, month11, day11, hour11
                                             , year22, month22, day22, hour22
-#                                            , this_volrain
                                             , -999, -999, -999, -999
                                             , 9999,99,99,99
                                             , 9999,99,99,99
@@ -563,7 +558,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     FMT=('%14d%14d%10.4f%10d%10.2f%16.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d '
             + '%20d%15d%11.2f%11.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d%20.1f%15.1f')
 
-    header = 'begin_tracking  end_tracking lpt_index  lptgroup  duration  mean_zonal_spd   lpt_begin     lpt_end      eprop_begin_idx  eprop_end_idx  eprop_spd  eprop_dur eprop_begin   eprop_end     eprop_lon_begin  eprop_lon_end'
+    header = 'begin_tracking  end_tracking     lptid  lptgroup  duration  mean_zonal_spd   lpt_begin     lpt_end      eprop_begin_idx  eprop_end_idx  eprop_spd  eprop_dur eprop_begin   eprop_end     eprop_lon_begin  eprop_lon_end'
 
     mjo_lpt_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
     if len(FOUT_mjo_lpt) > 0:
