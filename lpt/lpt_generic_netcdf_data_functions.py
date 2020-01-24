@@ -299,6 +299,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
     if mjo_id_options['do_mjo_id']:
 
+        """
         begin_tracking_time = begin_time
         latest_lp_object_time = end_time
 
@@ -307,13 +308,26 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
         YMDH = end_time.strftime('%Y%m%d%H')
         YMDH_fancy = end_time.strftime('%Y-%m-%d %H:00 UTC')
-
+        """
 
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         print(('Doing MJO Identification for: '
-                + begin_tracking_time.strftime('%Y%m%d%H')
-                + ' to ' + latest_lp_object_time.strftime('%Y%m%d%H')))
+                + begin_time.strftime('%Y%m%d%H')
+                + ' to ' + end_time.strftime('%Y%m%d%H')))
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+
+        ## In case LPO wasn't calculated, make sure the relevant stuff is defined.
+        objects_dir = (output['data_dir'] + '/' + dataset['label']
+                        + '/' + filter_str(lpo_options['filter_stdev'])
+                        + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                        + '/thresh' + str(int(lpo_options['thresh']))
+                        + '/objects/')
+
+        lpt.mjo_id.do_mjo_id(begin_time, end_time, dataset['data_time_interval']
+            , mjo_id_options, prod = dataset['label']
+            , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
+            , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
+            , lpt_systems_dir=options['outdir'])
 
 
 
