@@ -109,7 +109,7 @@ def duration_in_hours(x):
 ################################################################################
 
 
-def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, plot_label=''):
+def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, plot_path='east_west_propagation_division.png', plot_suptitle=''):
     """
     [mask_net_eastward_propagation, spd_raw] = west_east_divide_and_conquer(G, year1, ii, do_plotting)
 
@@ -133,7 +133,7 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
 
         os.makedirs('plots', exist_ok=True)
 
-        fig = plt.figure(figsize=(4,6))
+        fig = plt.figure(figsize=(6,10))
         gs = gridspec.GridSpec(ncols=1, nrows=6)
 
         ax0 = fig.add_subplot(gs[0:3,0])
@@ -146,8 +146,7 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
         ax1.plot(hours_since_beginning_filled, 0.0*spd_raw, 'k--',linewidth = 0.5)
         ax1.set_title('Zonal Propagation Speed')
         ax1.set_ylabel('[m/s]')
-        ax1.set_ylim([-15.0, 15.0])
-        ax1.set_xlabel('[h]')
+        ax1.set_ylim([-10.0, 10.0])
 
     #########################################
 
@@ -164,13 +163,13 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
     #########################################
     if do_plotting:
         ax2 = fig.add_subplot(gs[4,0])
-        plt.bar(hours_since_beginning_filled,mask_net_eastward_propagation
-                ,width=delta_t_hours,linewidth=0)
-        ax2.set_ylim([0,1])
-        ax2.set_yticks([0,1])
+        plt.bar(hours_since_beginning_filled,2*mask_net_eastward_propagation-1
+                ,width=delta_t_hours,edgecolor='none', linewidth=0)
+        ax2.plot(hours_since_beginning_filled, 0.0*spd_raw, 'k--',linewidth = 0.5)
+        ax2.set_ylim([-1,1])
+        ax2.set_yticks([-1,1])
         ax2.set_yticklabels(['West','East'])
-        ax2.set_title('Zonal Propagation: Raw')
-        ax2.set_xlabel('[h]')
+        ax2.set_title('Zonal Propagation Direction: Raw')
     #########################################
 
     ## Keep going UNLESS it is all easterly or westerly.
@@ -274,16 +273,19 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
         #ax3 = fig.add_subplot(3,1,3)
         ax3 = fig.add_subplot(gs[5,0])
 
-        plt.bar(hours_since_beginning_filled,mask_net_eastward_propagation
-                ,width=delta_t_hours,linewidth=0)
-        ax3.set_ylim([0,1])
-        ax3.set_yticks([0,1])
+        plt.bar(hours_since_beginning_filled,2*mask_net_eastward_propagation-1
+                ,width=delta_t_hours, edgecolor='none', linewidth=0)
+        ax3.plot(hours_since_beginning_filled, 0.0*spd_raw, 'k--',linewidth = 0.5)
+        ax3.set_ylim([-1,1])
+        ax3.set_yticks([-1,1])
         ax3.set_yticklabels(['West','East'])
-        ax3.set_title('Zonal Propagation: Divide and Conquer')
-        ax3.set_xlabel('[h]')
+        ax3.set_title('Zonal Propagation Direction: Divide and Conquer')
+        ax3.set_xlabel('Time Since Initiation [h]')
 
+        plt.suptitle(plot_suptitle, y=1.02)
         plt.tight_layout()
-        plt.savefig(('test'+plot_label+'.png'),dpi=100,bbox_inches='tight')
+        print(plot_path)
+        plt.savefig(plot_path,dpi=100,bbox_inches='tight')
     #########################################
 
 
@@ -305,7 +307,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.', verbose=True):
 
-    do_plotting = True
+    do_plotting = opts['do_plotting']
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
     dateint1 = datetime2dateint(dt_begin)
     dateint2 = datetime2dateint(dt_end)
@@ -388,7 +390,12 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
             total_lon_propagation = max(this_lpt_lon) - min(this_lpt_lon)
             net_lon_propagation = this_lpt_lon[-1] - this_lpt_lon[1]
 
-            [mask_net_eastward_propagation, spd_raw] = west_east_divide_and_conquer(this_lpt_time, this_lpt_lon, opts, do_plotting)
+            plot_dir = ('mjo_id_plots/' + YMDH1_YMDH2)
+            if do_plotting:
+                os.makedirs(plot_dir, exist_ok=True)
+            plot_file = (plot_dir + '/east_west_propagation_division_'+prod+'_'+YMDH1_YMDH2+ '.lptid{0:010.4f}.png'.format(this_lptid))
+            [mask_net_eastward_propagation, spd_raw] = west_east_divide_and_conquer(this_lpt_time, this_lpt_lon, opts
+                , do_plotting=do_plotting, plot_path=plot_file, plot_suptitle='LPT ID: {0:010.4f}'.format(this_lptid))
             ## Get the data frame with the characteristics of each of the periods
             ## of eastward propagation.
             east_prop_df = {}
@@ -492,7 +499,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                 i1 = f['i1'][jjj]
                 i2 = f['i2'][jjj]
                 this_lpt_time = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) for x in ts[i1:i2+1]]
-
 
                 ii1 = east_prop_group_df_sort['begin_indx'].values[0]
                 ii2 = east_prop_group_df_sort['end_indx'].values[0]

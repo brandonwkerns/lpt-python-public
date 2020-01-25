@@ -132,6 +132,7 @@ merge_split_options['split_merger_min_hours'] = 72     # Min duration of a split
 ##
 mjo_id_options = {}
 mjo_id_options['do_mjo_id'] = True
+mjo_id_options['do_plotting'] = True
 mjo_id_options['min_zonal_speed'] = -999.0   # full LPT track net speed, in m/s.
 mjo_id_options['min_lpt_duration']    = 7.0*24.0      # In hours. Does NOT include accumulation period.
 mjo_id_options['min_eastward_prop_zonal_speed'] = 0.0  # Eastward propagation portion, in m/s.
