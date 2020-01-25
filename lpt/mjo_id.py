@@ -318,12 +318,11 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     count_mjo=0    ## Keep count of east propagating systems.
     count_in_mjo_group=0    ## Keep count of systems in the same group as east propagating systems.
     count_non_mjo=0   ## Keep count of non MJO systems
-    FOUT_mjo_lpt = [] ## Empty array -- this will hold the MJO LPT info.
-              ## It will get written to text file in the end.
-    FOUT_mjo_group_lpt = [] ## Empty array -- this will hold the LPTs in an MJO LPT group but not selected as MJO LPT.
-              ## It will get written to text file in the end.
-    FOUT_non_mjo_lpt = [] ## Empty array -- this will hold the MJO LPT info.
-              ## It will get written to text file in the end.
+
+    ## These arrays will get filled in throughout the function, and written at the end.
+    FOUT_mjo_lpt = [] ## This will hold the MJO LPT info.
+    FOUT_mjo_group_extra_lpt = [] ## This will hold the LPTs in an MJO LPT group but not selected as MJO LPT.
+    FOUT_non_mjo_lpt = [] ## This will hold the MJO LPT info.
 
     ##
     ## Read in LPT stuff.
@@ -528,6 +527,37 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                 ] ]
 
                 ##TO DO: Add the others to MJO LPT group but not the identified MJO LPT.
+                if east_prop_group_df_sort.shape[0] > 1:
+                    for jj in range(1,east_prop_group_df_sort.shape[0]):
+
+                        year11 = east_prop_group_df['year_begin'].values[jj]
+                        month11 = east_prop_group_df['month_begin'].values[jj]
+                        day11 = east_prop_group_df['day_begin'].values[jj]
+                        hour11 = east_prop_group_df['hour_begin'].values[jj]
+
+                        year22 = east_prop_group_df['year_end'].values[jj]
+                        month22 = east_prop_group_df['month_end'].values[jj]
+                        day22 = east_prop_group_df['day_end'].values[jj]
+                        hour22 = east_prop_group_df['hour_end'].values[jj]
+
+                        ## Check whether this one has already been added.
+                        if len(FOUT_mjo_group_extra_lpt) > 0:
+                            if east_prop_group_df['lptid'].values[jj] in np.array(FOUT_mjo_group_extra_lpt)[:,2]:
+                                continue
+                            if east_prop_group_df['lptid'].values[jj] in np.array(FOUT_mjo_lpt)[:,2]:
+                                continue
+
+                        FOUT_mjo_group_extra_lpt += [ [dateint1, dateint2, east_prop_group_df['lptid'].values[jj], this_group
+                                                , east_prop_group_df['total_duration'].values[jj]
+                                                , east_prop_group_df['total_zonal_spd'].values[jj]
+                                                , year11, month11, day11, hour11
+                                                , year22, month22, day22, hour22
+                                                , -999, -999, -999, -999
+                                                , 9999,99,99,99
+                                                , 9999,99,99,99
+                                                , -999, -999
+                                            ] ]
+
 
             else:
 
@@ -570,6 +600,11 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     if len(FOUT_mjo_lpt) > 0:
         print(mjo_lpt_file)
         np.savetxt(mjo_lpt_file, FOUT_mjo_lpt, fmt=FMT,header=header,comments='')
+
+    mjo_lpt_group_extras_file = (lpt_systems_dir + '/mjo_group_extra_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+    if len(FOUT_mjo_group_extra_lpt) > 0:
+        print(mjo_lpt_group_extras_file)
+        np.savetxt(mjo_lpt_group_extras_file, FOUT_mjo_group_extra_lpt, fmt=FMT,header=header,comments='')
 
     non_mjo_lpt_file = (lpt_systems_dir + '/non_mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
     if len(FOUT_non_mjo_lpt) > 0:
