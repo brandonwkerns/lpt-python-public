@@ -612,7 +612,8 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
     , calc_with_filter_radius = True
-    , calc_with_accumulation_period = True):
+    , calc_with_accumulation_period = True
+    , subset='all'):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -626,6 +627,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
     lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt')
+
 
     MISSING = -999.0
     FILL_VALUE = MISSING
@@ -663,6 +665,18 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     unique_lpt_ids = np.unique(TC['lptid'])
 
     LPT, BRANCHES = lpt.lptio.read_lpt_systems_group_array(lpt_group_file)
+
+
+    ## Get LPT list if it's MJO (subset='mjo') or non MJO (subset='non_mjo') case.
+    ## Over-ride unique_lpt_ids so it only includes those LPTs.
+    if subset == 'mjo':
+        lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+        lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
+        unique_lpt_ids = np.unique(lpt_list[:,2])
+    if subset == 'non_mjo':
+        lpt_list_file = (lpt_systems_dir + '/non_mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+        lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
+        unique_lpt_ids = np.unique(lpt_list[:,2])
 
 
 
@@ -768,7 +782,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ##
     ## Output.
     ##
-    fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'.nc')
+    if subset == 'mjo':
+        fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'_mjo_lpt.nc')
+    elif subset == 'non_mjo':
+        fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'_non_mjo_lpt.nc')
+    else:
+        fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'.nc')
 
     os.remove(fn_out) if os.path.exists(fn_out) else None
     print('Writing to: ' + fn_out, flush=True)

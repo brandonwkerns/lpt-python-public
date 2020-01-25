@@ -115,6 +115,8 @@ lpt_options['center_jump_max_hours'] = 3*24   # How long to allow center jumps (
 ## LPT Mask Settings.
 lpt_options['do_lpt_individual_masks'] = True # Whether to generate mask files for each LPT system.
 lpt_options['do_lpt_composite_mask'] = True   # Whether to generate mask file for all LPT systems combined.
+lpt_options['do_mjo_lpt_composite_mask'] = True   # Whether to generate mask file for all MJO LPT systems combined.
+lpt_options['do_non_mjo_lpt_composite_mask'] = True   # Whether to generate mask file for all non MJO LPT systems combined.
 lpt_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
 lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
