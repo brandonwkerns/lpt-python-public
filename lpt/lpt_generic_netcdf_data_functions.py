@@ -277,45 +277,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         fn_tc_base = (options['outdir']
                          + '/lpt_systems_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
         lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
-        #lpt.lptio.lpt_systems_group_array_output_ascii(fn_tc_base + '.group_array.txt', LPT, BRANCHES)
         lpt.lptio.lpt_system_tracks_output_netcdf(fn_tc_base + '.nc', TIMECLUSTERS)
-
-
-        """
-
-        ## Eliminate short duration systems.
-        print(('Remove LPT shorter than ' + str(options['min_lpt_duration_hours']) + ' hours.'),flush=True)
-        LPT_remove_short, BRANCHES_remove_short = lpt.helpers.remove_short_lived_systems(LPT_center_jumps, BRANCHES_center_jumps, options['min_lpt_duration_hours']
-                                , latest_datetime = latest_lp_object_time)
-
-        ## Handle splitting and merging, if specified.
-        if merge_split_options['allow_merge_split']:
-            print('Managing mergers and splits.', flush=True)
-            LPT, BRANCHES = lpt.helpers.lpt_split_and_merge(LPT_remove_short, BRANCHES_remove_short, merge_split_options, options)
-        else:
-            LPT = LPT_remove_short.copy()
-            BRANCHES = BRANCHES_remove_short.copy()
-
-        ## Re-order LPT system branches.
-        print('Re-ordering LPT branches.', flush=True)
-        BRANCHES = lpt.helpers.reorder_LPT_branches(LPT, BRANCHES)
-
-        ## Get "timeclusters" tracks.
-        print('Calculating LPT properties.',flush=True)
-        if merge_split_options['allow_merge_split']:
-            TIMECLUSTERS = lpt.helpers.calc_lpt_system_group_properties_with_branches(LPT, BRANCHES, options)
-        else:
-            TIMECLUSTERS = lpt.helpers.calc_lpt_system_group_properties(LPT, options)
-
-        ## Output
-        print('Writing output.',flush=True)
-
-        fn_tc_base = (options['outdir']
-                         + '/lpt_systems_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
-        lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
-        lpt.lptio.lpt_systems_group_array_output_ascii(fn_tc_base + '.group_array.txt', LPT, BRANCHES)
-        lpt.lptio.lpt_system_tracks_output_netcdf(fn_tc_base + '.nc', TIMECLUSTERS)
-        """
 
         """
         LPT Plotting
