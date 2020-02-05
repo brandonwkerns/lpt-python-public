@@ -42,7 +42,7 @@ def feature_spread(array_in, npoints):
     ##  and was slightly SLOWER than this method.)
     for tt in range(s[0]):
         if tt % 100 == 0:
-            print(('Feature Spread: ' + str(tt) + ' of max ' + str(range(s[0])) + '.'))
+            print(('Feature Spread: ' + str(tt) + ' of max ' + str(s[0]-1) + '.'))
         array_2d = array_in[tt,:,:]
         array_2d_new = array_2d.copy()
         unique_values = np.unique(array_2d)
@@ -289,6 +289,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     DS = Dataset(lpt_systems_file)
     TC={}
     TC['lptid'] = DS['lptid'][:]
+    TC['objid'] = DS['objid'][:]
+    TC['num_objects'] = DS['num_objects'][:]
     TC['i1'] = DS['lpt_begin_index'][:]
     TC['i2'] = DS['lpt_end_index'][:]
     TC['timestamp_stitched'] = DS['timestamp_stitched'][:]
@@ -304,29 +306,16 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     DS.close()
 
 
-    LPT, BRANCHES = lpt.lptio.read_lpt_systems_group_array(lpt_group_file)
-
     F = Dataset(lpt_systems_file)
     unique_lpt_ids = np.unique(F['lptid'][:])
 
     for this_lpt_id in unique_lpt_ids:
         print('Calculating LPT system mask for lptid = ' + str(this_lpt_id) + ' of time period ' + YMDH1_YMDH2 + '.')
 
-        this_group = np.floor(this_lpt_id)
-        this_group_lptid_list = sorted([x for x in unique_lpt_ids if np.floor(x) == this_group])
-
-        if np.round( 100.0 * (this_group_lptid_list[0] - this_group)) > 0:
-            this_branch = int(2**(np.round( 100.0 * (this_lpt_id - this_group)) - 1))
-        else:
-            this_branch = int(2**(np.round( 1000.0 * (this_lpt_id - this_group)) - 1))
-
-        print((this_lpt_id, this_branch))
-        if this_branch > 0:
-            this_branch_idx = [x for x in range(len(BRANCHES)) if LPT[x,2]==this_group and (BRANCHES[x] & this_branch) > 0] # bitwise and
-        else:
-            this_branch_idx = [x for x in range(len(BRANCHES)) if LPT[x,2]==this_group]
-
-        lp_object_id_list = LPT[this_branch_idx,1]
+        ## Get list of LP Objects for this LPT system.
+        this_lpt_idx = np.argwhere(TC['lptid'] == this_lpt_id)[0][0]
+        print((this_lpt_idx,TC['num_objects'][this_lpt_idx]))
+        lp_object_id_list = TC['objid'][this_lpt_idx,0:int(TC['num_objects'][this_lpt_idx])]
 
         if accumulation_hours > 0 and calc_with_accumulation_period:
             dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
