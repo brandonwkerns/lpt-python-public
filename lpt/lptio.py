@@ -289,14 +289,13 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
     MISSING = -999.0
     FILL_VALUE = MISSING
+
     ##
-    ## Dimensions
+    ## Initialize stitched variables.
     ##
-    DS.createDimension('nlpt', len(TIMECLUSTERS))
-    max_points = 1
-    max_times = 1
     lptid_collect = np.array([MISSING])
     timestamp_collect = np.double([MISSING])
+    nobj_collect = np.double([MISSING])
     centroid_lon_collect = np.array([MISSING])
     centroid_lat_collect = np.array([MISSING])
     largest_object_centroid_lon_collect = np.array([MISSING])
@@ -320,16 +319,21 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     lpt_begin_index = []
     lpt_end_index = []
     time_step_hours = 999
+
+    ##
+    ## Fill in stitched variables.
+    ##
+    max_lpo = 1
     for ii in range(len(TIMECLUSTERS)):
 
-        max_points = max(max_points, len(TIMECLUSTERS[ii]['objid']))
-        max_times = max(max_times, len(TIMECLUSTERS[ii]['datetime']))
+        max_lpo = max(max_lpo, len(TIMECLUSTERS[ii]['objid'])) # will be used below.
 
         lpt_begin_index += [len(lptid_collect)] # zero based, so next index is the length.
 
         lptid_collect = np.append(np.append(lptid_collect, np.ones(len(TIMECLUSTERS[ii]['datetime']))*TIMECLUSTERS[ii]['lpt_id']),MISSING)
         this_timestamp = [(TIMECLUSTERS[ii]['datetime'][x] - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 for x in range(len(TIMECLUSTERS[ii]['datetime']))]
         timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
+        nobj_collect = np.append(np.append(nobj_collect, TIMECLUSTERS[ii]['nobj']),MISSING)
         centroid_lon_collect = np.append(np.append(centroid_lon_collect, TIMECLUSTERS[ii]['centroid_lon']),MISSING)
         centroid_lat_collect = np.append(np.append(centroid_lat_collect, TIMECLUSTERS[ii]['centroid_lat']),MISSING)
         largest_object_centroid_lon_collect = np.append(np.append(largest_object_centroid_lon_collect, TIMECLUSTERS[ii]['largest_object_centroid_lon']),MISSING)
@@ -352,7 +356,27 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
         lpt_end_index += [len(lptid_collect)-2] # zero based, and I added a NaN, so end index is the length.
 
+
+    ##
+    ## Initialize LPO variables.
+    ##
+    lpo_objid = MISSING * np.ones([len(TIMECLUSTERS), max_lpo])
+
+    ##
+    ## Fill in LPO variables
+    ##
+
+    for ii in range(len(TIMECLUSTERS)):
+        lpo_objid[ii,0:len(TIMECLUSTERS[ii]['objid'])] = TIMECLUSTERS[ii]['objid']
+
+
+
+    ##
+    ## Dimensions
+    ##
+    DS.createDimension('nlpt', len(TIMECLUSTERS))
     DS.createDimension('nall', len(timestamp_collect))
+    DS.createDimension('obj', max_lpo)
 
     ##
     ## Variables
@@ -367,9 +391,14 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     DS.createVariable('zonal_propagation_speed','f4',('nlpt',),fill_value=FILL_VALUE)
     DS.createVariable('meridional_propagation_speed','f4',('nlpt',),fill_value=FILL_VALUE)
 
-    ## Stitchec "bulk" variables.
+    ## LP Objects variables.
+    DS.createVariable('num_objects', 'i', ('nlpt',),fill_value=FILL_VALUE)
+    DS.createVariable('objid', 'i8', ('nlpt','obj'),fill_value=FILL_VALUE)
+
+    ## Stitched "bulk" variables.
     var_timestamp_all = DS.createVariable('timestamp_stitched','u4',('nall',),fill_value=int(FILL_VALUE))
     var_lptid_all = DS.createVariable('lptid_stitched','f4',('nall',),fill_value=FILL_VALUE)
+    var_nobj_all = DS.createVariable('nobj_stitched','i',('nall',),fill_value=FILL_VALUE)
     var_centroid_lon_all = DS.createVariable('centroid_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
     var_centroid_lat_all = DS.createVariable('centroid_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
     var_largest_object_centroid_lon_all = DS.createVariable('largest_object_centroid_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
@@ -401,9 +430,12 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     DS['zonal_propagation_speed'][:] = [TIMECLUSTERS[ii]['zonal_propagation_speed'] for ii in range(len(TIMECLUSTERS))]
     DS['meridional_propagation_speed'][:] = [TIMECLUSTERS[ii]['meridional_propagation_speed'] for ii in range(len(TIMECLUSTERS))]
 
-    #print(timestamp_collect[0:4])
+    DS['num_objects'][:] = [len(TIMECLUSTERS[ii]['objid']) for ii in range(len(TIMECLUSTERS))]
+    DS['objid'][:] = lpo_objid
+
     var_timestamp_all[:] = timestamp_collect
     var_lptid_all[:] = lptid_collect
+    var_nobj_all[:] = nobj_collect
     var_centroid_lon_all[:] = centroid_lon_collect
     var_centroid_lat_all[:] = centroid_lat_collect
     var_largest_object_centroid_lon_all[:] = largest_object_centroid_lon_collect
