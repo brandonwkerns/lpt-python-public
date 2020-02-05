@@ -297,6 +297,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     TC['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) if x > 100 else None for x in TC['timestamp_stitched']]
     TC['centroid_lon'] = DS['centroid_lon_stitched'][:]
     TC['centroid_lat'] = DS['centroid_lat_stitched'][:]
+    TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'][:]
+    TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'][:]
     TC['area'] = DS['area_stitched'][:]
     for var in ['max_filtered_running_field','max_running_field','max_inst_field'
                 ,'min_filtered_running_field','min_running_field','min_inst_field'
@@ -330,20 +332,20 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Include some basic LPT info for user friendliness.
         lptidx = [ii for ii in range(len(TC['lptid'])) if this_lpt_id == TC['lptid'][ii]][0]
 
-        # Time varying properties
-        for var in ['centroid_lon','centroid_lat','area'
+        basic_lpt_info_field_list = ['centroid_lon','centroid_lat','area'
+                    ,'largest_object_centroid_lon','largest_object_centroid_lat'
                     ,'max_filtered_running_field','max_running_field','max_inst_field'
                     ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
+                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']
+
+        # Time varying properties
+        for var in basic_lpt_info_field_list:
             mask_arrays[var] = MISSING * np.ones(len(mask_times))
 
         for ttt in range(TC['i1'][lptidx],TC['i2'][lptidx]+1):
             this_time_indx = [ii for ii in range(len(mask_times)) if TC['datetime'][ttt] == mask_times[ii]]
             if len(this_time_indx) > 0:
-                for var in ['centroid_lon','centroid_lat','area'
-                    ,'max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
+                for var in basic_lpt_info_field_list:
                     mask_arrays[var][this_time_indx] = TC[var][ttt]
 
         # Bulk properties
@@ -512,6 +514,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DSnew.createVariable('time','d',('time',))
         DSnew.createVariable('centroid_lon','f4',('time',),fill_value=FILL_VALUE)
         DSnew.createVariable('centroid_lat','f4',('time',),fill_value=FILL_VALUE)
+        DSnew.createVariable('largest_object_centroid_lon','f4',('time',),fill_value=FILL_VALUE)
+        DSnew.createVariable('largest_object_centroid_lat','f4',('time',),fill_value=FILL_VALUE)
         DSnew.createVariable('area','d',('time',),fill_value=FILL_VALUE)
 
         # Time varying fields
@@ -532,15 +536,16 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DSnew['lat'][:] = lat
         DSnew['lat'].setncattr('units','degrees_north')
 
-        for mask_var in ['centroid_lon','centroid_lat','area'
-                    ,'max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
-                    ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+        for mask_var in basic_lpt_info_field_list:
+            DSnew[mask_var][:] = mask_arrays[mask_var]
+
+        for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
             DSnew[mask_var][:] = mask_arrays[mask_var]
 
         DSnew['centroid_lon'].setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'})
         DSnew['centroid_lat'].setncatts({'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'})
+        DSnew['largest_object_centroid_lon'].setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'})
+        DSnew['largest_object_centroid_lat'].setncatts({'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'})
         DSnew['area'].setncatts({'units':'km2','long_name':'LPT System enclosed area','note':'Time is end of running mean time.'})
         DSnew['maxarea'].setncatts({'units':'km2','long_name':'LPT System enclosed area','note':'This is the max over the LPT life time.'})
         DSnew['duration'].setncatts({'units':'h','long_name':'LPT System duration'})
