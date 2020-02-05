@@ -6,6 +6,7 @@ from scipy import ndimage
 import matplotlib.pylab as plt
 from netCDF4 import Dataset
 import glob
+import networkx as nx
 
 
 
@@ -271,7 +272,279 @@ def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%
     return OUT
 
 
-def init_lpt_group_array(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+
+def init_lpt_graph(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+
+    G = nx.DiGraph() # Empty graph
+
+    for this_dt in dt_list:
+
+        print(this_dt)
+        fn = (objdir + this_dt.strftime(fmt))
+        print(fn)
+        try:
+            DS = Dataset(fn)
+            try:
+                id_list = DS['objid'][:]
+                lon = DS['centroid_lon'][:]
+                lat = DS['centroid_lat'][:]
+                area = DS['area'][:]
+                pixels_x = DS['pixels_x'][:]
+            except IndexError:
+                print('WARNING: No LPO at this time: ' + str(this_dt))
+                id_list = [] # In case of no LPOs at this time.
+            DS.close()
+
+            for ii in range(len(id_list)):
+                npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
+                if npts >= min_points:
+                    G.add_node(int(id_list[ii]), timestamp=(this_dt - dt.datetime(1970,1,1,0,0,0)).total_seconds()
+                        , lon = lon[ii], lat=lat[ii], area=area[ii]
+                        , pos = (lon[ii], (this_dt - dt.datetime(1970,1,1,0,0,0)).total_seconds()))
+
+        except FileNotFoundError:
+            print('WARNING: Missing this file!')
+
+    return G
+
+def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+
+    ##
+    ## Read in LPO masks for current and previous times.
+    ##
+    fn1 = objdir + '/' + dt1.strftime(fmt)
+    fn2 = objdir + '/' + dt2.strftime(fmt)
+
+    DS1 = Dataset(fn1, 'r')
+    mask1 = DS1['grid_mask'][:]
+    objid1 = DS1['objid'][:]
+    DS1.close()
+
+    DS2 = Dataset(fn2, 'r')
+    mask2 = DS2['grid_mask'][:]
+    objid2 = DS2['objid'][:]
+    DS2.close()
+
+    ##
+    ## Apply minimum size.
+    ## Any LPOs smaller than the minimum size get taken out of the mask.
+    ## Their mask values get set to zero, and they will not be considered
+    ## for overlapping.
+    ##
+    if min_points > 1:
+        sizes = ndimage.sum(1, mask1, range(np.nanmax(mask1)+1))
+        for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
+            mask1[mask1 == nn] = -1
+
+        sizes = ndimage.sum(1, mask2, range(np.nanmax(mask2)+1))
+        for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
+            mask2[mask2 == nn] = -1
+
+    ##
+    ## Each overlap must necessarily be one LPO against another single LPO.
+    ##
+    overlap = np.logical_and(mask1 > -1, mask2 > -1)
+    label_im, nb_labels = ndimage.label(overlap)
+
+    ########################################################################
+    ## Construct overlapping points "look up table" array.
+    ## Then, we will use this array as a look up table for specific LPOs.
+    ##   -----------> objid2
+    ##   |
+    ##   |
+    ##   |
+    ##   v
+    ## objid1
+    ########################################################################
+
+    overlapping_npoints = np.zeros([len(objid1), len(objid2)])
+    overlapping_frac1 = np.zeros([len(objid1), len(objid2)])
+    overlapping_frac2 = np.zeros([len(objid1), len(objid2)])
+
+    for nn in range(1,nb_labels+1):
+        ## Figure out which LPOs this represents.
+        ii = int(ndimage.maximum(mask1, label_im, nn))
+        jj = int(ndimage.maximum(mask2, label_im, nn))
+
+        overlapping_npoints[ii,jj] += ndimage.sum(overlap, label_im, nn)
+        overlapping_frac1[ii,jj] = overlapping_npoints[ii,jj] / np.sum(mask1==ii)
+        overlapping_frac2[ii,jj] = overlapping_npoints[ii,jj] / np.sum(mask2==jj)
+
+    ## Prepare outputs.
+    OVERLAP={}
+    OVERLAP['npoints'] = overlapping_npoints
+    OVERLAP['frac1'] = overlapping_frac1
+    OVERLAP['frac2'] = overlapping_frac2
+    return OVERLAP
+
+
+def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+
+    """
+    usage: LPT = calc_lpt_group_array(LPT, objdir, options)
+    Calculate the simple LPT groups.
+
+    options dictionary entries needed:
+    options['objdir']
+    options['min_overlap_points']
+    options['min_overlap_frac']
+
+    "LPT" is a 2-D "group" array (np.int64) with columns: [timestamp, objid, lpt_group_id, begin_point, end_point, split_point]
+    -- timestamp = Linux time stamp (e.g., seconds since 00 UTC 1970-1-1)
+    -- objid = LP object id (YYYYMMDDHHnnnn)
+    -- lpt_group_id = LPT group id, connected LP objects have a common LPT group id.
+    -- begin point = 1 if it is the beginning of a track. 0 otherwise.
+    -- end point = 1 if no tracks were connected to it, 0 otherwise.
+    -- split point = 1 if split detected, 0 otherwise.
+
+    BRANCHES is a 1-D native Python list with native Python int values.
+    This is needed because BRANCHES is bitwise, and there can be more than 64 branches in a group.
+    -- branches = bitwise binary starts from 1 at each branch. Mergers will have separate branch numbers.
+                   overlapping portions will have multiple branch numbers associated with them.
+    """
+
+    # Make copies to avoid immutability weirdness.
+    Gnew = G0.copy()
+    objdir = options['objdir']
+
+    lpo_id_list = list(G0.nodes())
+    datetime_list = [get_objid_datetime(x) for x in lpo_id_list]
+    timestamp_list = [int((x - dt.datetime(1970,1,1,0,0,0)).total_seconds()) for x in datetime_list]
+
+    ## Now, loop through the times.
+    unique_timestamp_list = np.unique(timestamp_list)
+    for tt in range(1,len(unique_timestamp_list)):
+
+        ## Datetimes for this time and previous time.
+        this_timestamp = unique_timestamp_list[tt]
+        prev_timestamp = unique_timestamp_list[tt-1]
+        this_dt = dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(this_timestamp))
+        prev_dt = dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(prev_timestamp))
+        print(this_dt, flush=True)
+
+        ## Get overlap points.
+        OVERLAP = get_lpo_overlap(this_dt, prev_dt, objdir, fmt=fmt, min_points = min_points)
+        overlapping_npoints = OVERLAP['npoints']
+        overlapping_frac1 = OVERLAP['frac1']
+        overlapping_frac2 = OVERLAP['frac2']
+
+        ## The indices (e.g., LPT and BRANCHES array rows) for these times.
+        this_time_idx, = np.where(timestamp_list == this_timestamp)
+        prev_time_idx, = np.where(timestamp_list == prev_timestamp)
+
+        for ii in this_time_idx:
+            this_objid = lpo_id_list[ii]
+            idx1 = int(str(this_objid)[-4:])
+
+            ## 1) Figure out which "previous time" LPT indices overlap.
+            matches = []
+            for jj in prev_time_idx:
+                prev_objid = lpo_id_list[jj]
+                idx2 = int(str(prev_objid)[-4:])
+
+                n_overlap = overlapping_npoints[idx1,idx2]
+                frac1 = overlapping_frac1[idx1,idx2]
+                frac2 = overlapping_frac2[idx1,idx2]
+
+                if n_overlap >= options['min_overlap_points']:
+                    matches.append(jj)
+                elif 1.0*frac1 > options['min_overlap_frac']:
+                    matches.append(jj)
+                elif 1.0*frac2 > options['min_overlap_frac']:
+                    matches.append(jj)
+            if verbose:
+                #print((str(this_objid), matches))
+                print(str(this_objid))
+
+            ## 2) Link the previous LPT Indices to the group.
+            ##    If no matches, it will skip this loop.
+            for match in matches:
+                if verbose:
+                    print(' --> with: ' + str(lpo_id_list[match]))
+                ## Add it as a graph edge.
+                Gnew.add_edge(lpo_id_list[match],this_objid)
+
+    return Gnew
+
+
+def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", verbose=False):
+    """
+    Check duration of "leaf" (e.g., "this") to "root" nodes of other DAGs, and connect if less than
+    center_jump_max_hours.
+    """
+
+    objdir=options['objdir']
+
+    # Get connected components of graph.
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    for kk in range(len(SG)):
+
+        end_nodes = [x for x in SG[kk].nodes() if SG[kk].out_degree(x)==0 and SG[kk].in_degree(x)>=1]
+        if len(end_nodes) < 0:
+            continue
+
+        for ll in range(len(SG)):
+            if ll == kk:
+                continue
+
+            begin_nodes = [x for x in SG[ll].nodes() if SG[ll].out_degree(x)>=1 and SG[ll].in_degree(x)==0]
+            if len(begin_nodes) < 0:
+                continue
+
+            for kkkk in end_nodes:
+                kkkk_idx = kkkk - int(1000*np.floor(kkkk/1000))
+                for llll in begin_nodes:
+                    llll_idx = llll - int(1000*np.floor(llll/1000))
+                    hours_diff = (get_objid_datetime(llll)-get_objid_datetime(kkkk)).total_seconds()/3600.0
+                    if hours_diff > 0.1 and hours_diff < options['fall_below_threshold_max_hours']+0.1:
+
+                        begin_dt = get_objid_datetime(llll)
+                        end_dt = get_objid_datetime(kkkk)
+
+                        OVERLAP = get_lpo_overlap(end_dt, begin_dt, objdir, fmt=fmt, min_points = min_points)
+                        overlapping_npoints = OVERLAP['npoints']
+                        overlapping_frac1 = OVERLAP['frac1']
+                        overlapping_frac2 = OVERLAP['frac2']
+
+                        n_overlap = overlapping_npoints[kkkk_idx, llll_idx]
+                        frac1 = overlapping_frac1[kkkk_idx, llll_idx]
+                        frac2 = overlapping_frac2[kkkk_idx, llll_idx]
+
+                        if n_overlap >= options['min_overlap_points']:
+                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!')
+                            G.add_edge(kkkk,llll)
+                        elif 1.0*frac1 > options['min_overlap_frac']:
+                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!')
+                            G.add_edge(kkkk,llll)
+                        elif 1.0*frac2 > options['min_overlap_frac']:
+                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!')
+                            G.add_edge(kkkk,llll)
+
+    return G
+
+
+def lpt_graph_remove_short_duration_systems(G, min_duration
+                        , latest_datetime = dt.datetime(3000,1,1,0,0,0)):
+
+    # Get connected components of graph.
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    for kk in range(len(SG)):
+        min_lpo_id = np.nanmin(list(SG[kk].nodes()))
+        max_lpo_id = np.nanmax(list(SG[kk].nodes()))
+        min_dt = get_objid_datetime(min_lpo_id)
+        max_dt = get_objid_datetime(max_lpo_id)
+        duration = (max_dt - min_dt).total_seconds()/3600.0
+        if duration < min_duration - 0.1:
+            G.remove_nodes_from(list(SG[kk].nodes()))
+
+    return G
+
+
+def init_lpt_group_array(dt_list, objdir, min_points = 0, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
     """
     "LPT" is a 2-D "group" array (np.int64) with columns: [timestamp, objid, lpt_group_id, begin_point, end_point, split_point]
     -- timestamp = Linux time stamp (e.g., seconds since 0000 UTC 1970-1-1)
@@ -315,6 +588,336 @@ def init_lpt_group_array(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/o
             print('WARNING: Missing this file!')
 
     return (np.int_(LPT), BRANCHES)
+
+
+
+def get_list_of_path_graphs(G):
+
+    Plist=[] # initialize empty list.
+
+    ## Break in to individual paths (e.g., LPT branches).
+    roots = []
+    leaves = []
+    for node in G.nodes:
+        if G.in_degree(node) == 0: # it's a root
+            roots.append(node)
+        elif G.out_degree(node) == 0: # it's a leaf
+            leaves.append(node)
+
+    for root in roots:
+        for leaf in leaves:
+            for path in nx.all_simple_paths(G, source=root, target=leaf):
+                Plist.append(G.subgraph(path).copy())  # Add to list.
+
+    return Plist
+
+
+def lpt_graph_remove_short_ends(G, min_duration_to_keep):
+
+    ## Work on each connected component (DAG, directed acyclical graph) separately.
+    ## First, I get a list of DAG sub groups to loop through.
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    ## Loop over each DAG
+    for kk in range(len(SG)):
+        print('--> DAG ' + str(kk+1) + ' of ' + str(len(SG)))
+
+        cycles = nx.cycle_basis(nx.to_undirected(SG[kk]))
+        cycles1 = sorted([item for sublist in cycles for item in sublist]) #list of lists --> 1D list
+
+        nodes_to_remove = []
+
+        Plist = get_list_of_path_graphs(SG[kk])
+        if len(Plist) == 1:
+            print('----> Found '+str(len(Plist))+' path.')
+        else:
+            print('----> Found '+str(len(Plist))+' paths.')
+
+        ## Compare the paths to eachother.
+        for iiii in range(len(Plist)-1):
+            if iiii % 50 == 0:
+                print('----> Doing '+str(iiii))
+            path1 = Plist[iiii]
+            for jjjj in range(iiii+1,len(Plist)):
+                #if jjjj == iiii:
+                #    continue
+                path2 = Plist[jjjj]
+
+                ## Check whether the pair of paths splits and re-joins.
+                ## If this occurs, the undirected composite
+                ## of the two graphs will have a loop, e.g., it will be cyclic.
+                composite_graph = nx.compose(nx.to_undirected(path1), nx.to_undirected(path2))
+                if nx.is_tree(composite_graph):
+
+                    nodes1 = set(path1.nodes())
+                    nodes2 = set(path2.nodes())
+
+                    if len(nodes1.intersection(nodes2)) > 0:
+
+                        diff1 = sorted(list(nodes1 - nodes2))
+                        diff2 = sorted(list(nodes2 - nodes1))
+                        dur1 = (get_objid_datetime(diff1[-1]) - get_objid_datetime(diff1[0])).total_seconds()/3600.0
+                        dur2 = (get_objid_datetime(diff2[-1]) - get_objid_datetime(diff2[0])).total_seconds()/3600.0
+
+                        if dur1 >= dur2:
+                            if dur2 < min_duration_to_keep + 0.1:
+                                ## Make sure I wouldn't remove any parts of the cycles
+                                if len(set(diff2).intersection(set(cycles1))) == 0:
+                                    nodes_to_remove += diff2
+                        else:
+                            if dur1 < min_duration_to_keep + 0.1:
+                                ## Make sure I wouldn't remove any parts of the cycles
+                                if len(set(diff1).intersection(set(cycles1))) == 0:
+                                    nodes_to_remove += diff1
+
+        G.remove_nodes_from(nodes_to_remove)
+
+    return G
+
+
+def initialize_time_cluster_fields(TC, length):
+
+    ## Fields initialized to zero.
+    for field in ['nobj','area','centroid_lon','centroid_lat'
+                ,'largest_object_centroid_lon','largest_object_centroid_lat'
+                ,'amean_inst_field','amean_running_field','amean_filtered_running_field']:
+        TC[field] = np.zeros(length)
+
+    ## Fields initialized to 999.0.
+    for field in ['min_lon','min_lat','min_inst_field','min_running_field'
+                ,'min_filtered_running_field']:
+        TC[field] =  999.0 * np.ones(length)
+
+    ## Fields initialized to -999.0.
+    for field in ['max_lon','max_lat','max_inst_field','max_running_field'
+                ,'max_filtered_running_field']:
+        TC[field] = -999.0 * np.ones(length)
+
+    return TC
+
+
+def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    ## The branch nodes of G have the properties of timestamp, lon, lat, and area.
+    TC_all = []
+
+    ## First, I get a list of DAG sub groups to loop through.
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    ## Loop over each DAG
+    for kk in range(len(SG)):
+        print('--> DAG ' + str(kk+1) + ' of ' + str(len(SG)))
+
+        TC_this = {}
+        TC_this['lpt_group_id'] = kk
+        TC_this['lpt_id'] = 1.0*kk
+
+        TC_this['objid'] = sorted(list(SG[kk].nodes()))
+        ts=nx.get_node_attributes(SG[kk],'timestamp')
+        timestamp_all = [ts[x] for x in TC_this['objid']]
+        TC_this['timestamp'] = np.unique(timestamp_all)
+        TC_this['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
+
+        ##
+        ## Sum/average the LPTs to get bulk/mean properties at each time.
+        ##
+
+        ## Initialize
+        TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
+
+        ## Loop over unique time stamps.
+        for tt in range(len(TC_this['timestamp'])):
+            max_area_already_used = -999.0
+            this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == TC_this['timestamp'][tt]]
+            for this_objid in this_objid_list:
+
+                OBJ = read_lp_object_properties(this_objid, options['objdir']
+                        , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
+                        ,'min_lon','max_lon','min_lat','max_lat'
+                        ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
+                        ,'min_inst_field','min_running_field','min_filtered_running_field'
+                        ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
+
+                TC_this['nobj'][tt] += 1
+                TC_this['area'][tt] += OBJ['area']
+                TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
+                TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
+                if OBJ['area'] > max_area_already_used:
+                    TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
+                    TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
+                    max_area_already_used = 1.0*OBJ['area']
+
+                TC_this['min_lon'][tt] = min((TC_this['min_lon'][tt], OBJ['min_lon']))
+                TC_this['min_lat'][tt] = min((TC_this['min_lat'][tt], OBJ['min_lat']))
+                TC_this['max_lon'][tt] = max((TC_this['max_lon'][tt], OBJ['max_lon']))
+                TC_this['max_lat'][tt] = max((TC_this['max_lat'][tt], OBJ['max_lat']))
+
+                TC_this['amean_inst_field'][tt] += OBJ['amean_inst_field'] * OBJ['area']
+                TC_this['amean_running_field'][tt] += OBJ['amean_running_field'] * OBJ['area']
+                TC_this['amean_filtered_running_field'][tt] += OBJ['amean_filtered_running_field'] * OBJ['area']
+                TC_this['min_inst_field'][tt] = min((TC_this['min_inst_field'][tt], OBJ['min_inst_field']))
+                TC_this['min_running_field'][tt] = min((TC_this['min_running_field'][tt], OBJ['min_running_field']))
+                TC_this['min_filtered_running_field'][tt] = min((TC_this['min_filtered_running_field'][tt], OBJ['min_filtered_running_field']))
+                TC_this['max_inst_field'][tt] = max((TC_this['max_inst_field'][tt], OBJ['max_inst_field']))
+                TC_this['max_running_field'][tt] = max((TC_this['max_running_field'][tt], OBJ['max_running_field']))
+                TC_this['max_filtered_running_field'][tt] = max((TC_this['max_filtered_running_field'][tt], OBJ['max_filtered_running_field']))
+
+            TC_this['centroid_lon'][tt] /= TC_this['area'][tt]
+            TC_this['centroid_lat'][tt] /= TC_this['area'][tt]
+
+            TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
+            TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
+            TC_this['amean_filtered_running_field'][tt] /= TC_this['area'][tt]
+
+        ## Least squares linear fit for propagation speed.
+        Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
+        TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
+
+        Pmeridional = np.polyfit(TC_this['timestamp'],TC_this['centroid_lat'],1)
+        TC_this['meridional_propagation_speed'] = Pmeridional[0] * 111000.0  # deg / s --> m / s
+
+        TC_all.append(TC_this)
+
+    return TC_all
+
+
+
+def get_list_of_path_graphs_rejoin_cycles(G):
+
+    #########################################################
+    ## 1. For any path intersecting with a cycle, add all nodes of the cycle.
+    ## 2. Remove duplicate paths.
+
+    cycles = nx.cycle_basis(nx.to_undirected(G))
+    Plist = get_list_of_path_graphs(G)
+
+    for ii in range(len(Plist)):
+        for C in cycles:
+            if len(set(C).intersection(set(Plist[ii].nodes()))) > 0:
+                Plist[ii].add_nodes_from(C)  #Only nodes are copied. But that's all I need.
+
+    for ii in range(len(Plist)):
+        if ii == 0:
+            Plist_new = [Plist[ii]]
+        else:
+            ## Check whether it is already in Plist_new.
+            ##  Use XOR on the set of nodes.
+            include_it = True
+            for P in Plist_new:
+                print(len(set(Plist[ii].nodes()) ^ set(P.nodes())))
+                if len(set(Plist[ii].nodes()) ^ set(P.nodes())) == 0:
+                    include_it = False
+                    break
+            if include_it:
+                Plist_new.append(Plist[ii])
+
+        print((ii, Plist_new))
+
+    return Plist_new
+
+
+def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    ## The branch nodes of G have the properties of timestamp, lon, lat, and area.
+    TC_all = []
+
+    ## First, I get a list of DAG sub groups to loop through.
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    ## Loop over each DAG
+    for kk in range(len(SG)):
+        print('--> DAG ' + str(kk+1) + ' of ' + str(len(SG)))
+
+        Plist = get_list_of_path_graphs_rejoin_cycles(SG[kk])
+
+        if len(Plist) == 1:
+            print('----> Found '+str(len(Plist))+' path.')
+        else:
+            print('----> Found '+str(len(Plist))+' paths.')
+
+
+        ## Get "timeclusters" for each branch.
+        for iiii in range(len(Plist)):
+            path1 = Plist[iiii]
+
+            PG = SG[kk].subgraph(path1).copy()
+
+            TC_this = {}
+            TC_this['lpt_group_id'] = kk
+            TC_this['lpt_id'] = 1.0*kk + (iiii+1)/max(10.0,np.power(10,np.ceil(np.log10(len(Plist)))))
+                                            ## ^ I should probably account for possible cycles here.
+            TC_this['objid'] = sorted(list(PG.nodes()))
+            ts=nx.get_node_attributes(PG,'timestamp')
+            timestamp_all = [ts[x] for x in TC_this['objid']]
+            TC_this['timestamp'] = np.unique(timestamp_all)
+            TC_this['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
+
+            ##
+            ## Sum/average the LPTs to get bulk/mean properties at each time.
+            ##
+
+            ## Initialize
+            TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
+
+            ## Loop over unique time stamps.
+            for tt in range(len(TC_this['timestamp'])):
+                max_area_already_used = -999.0
+                this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == TC_this['timestamp'][tt]]
+                for this_objid in this_objid_list:
+
+                    OBJ = read_lp_object_properties(this_objid, options['objdir']
+                            , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
+                            ,'min_lon','max_lon','min_lat','max_lat'
+                            ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
+                            ,'min_inst_field','min_running_field','min_filtered_running_field'
+                            ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
+
+                    TC_this['nobj'][tt] += 1
+                    TC_this['area'][tt] += OBJ['area']
+                    TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
+                    TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
+                    if OBJ['area'] > max_area_already_used:
+                        TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
+                        TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
+                        max_area_already_used = 1.0*OBJ['area']
+
+                    TC_this['min_lon'][tt] = min((TC_this['min_lon'][tt], OBJ['min_lon']))
+                    TC_this['min_lat'][tt] = min((TC_this['min_lat'][tt], OBJ['min_lat']))
+                    TC_this['max_lon'][tt] = max((TC_this['max_lon'][tt], OBJ['max_lon']))
+                    TC_this['max_lat'][tt] = max((TC_this['max_lat'][tt], OBJ['max_lat']))
+
+                    TC_this['amean_inst_field'][tt] += OBJ['amean_inst_field'] * OBJ['area']
+                    TC_this['amean_running_field'][tt] += OBJ['amean_running_field'] * OBJ['area']
+                    TC_this['amean_filtered_running_field'][tt] += OBJ['amean_filtered_running_field'] * OBJ['area']
+                    TC_this['min_inst_field'][tt] = min((TC_this['min_inst_field'][tt], OBJ['min_inst_field']))
+                    TC_this['min_running_field'][tt] = min((TC_this['min_running_field'][tt], OBJ['min_running_field']))
+                    TC_this['min_filtered_running_field'][tt] = min((TC_this['min_filtered_running_field'][tt], OBJ['min_filtered_running_field']))
+                    TC_this['max_inst_field'][tt] = max((TC_this['max_inst_field'][tt], OBJ['max_inst_field']))
+                    TC_this['max_running_field'][tt] = max((TC_this['max_running_field'][tt], OBJ['max_running_field']))
+                    TC_this['max_filtered_running_field'][tt] = max((TC_this['max_filtered_running_field'][tt], OBJ['max_filtered_running_field']))
+
+                TC_this['centroid_lon'][tt] /= TC_this['area'][tt]
+                TC_this['centroid_lat'][tt] /= TC_this['area'][tt]
+
+                TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
+                TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
+                TC_this['amean_filtered_running_field'][tt] /= TC_this['area'][tt]
+
+            ## Least squares linear fit for propagation speed.
+            Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
+            TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
+
+            Pmeridional = np.polyfit(TC_this['timestamp'],TC_this['centroid_lat'],1)
+            TC_this['meridional_propagation_speed'] = Pmeridional[0] * 111000.0  # deg / s --> m / s
+
+            TC_all.append(TC_this)
+
+    return TC_all
+
+
+
+
 
 
 def lpt_group_array_remove_small_objects(LPT, BRANCHES, options, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):

@@ -8,6 +8,8 @@ import os
 import matplotlib.colors as colors
 import scipy.ndimage
 from netCDF4 import Dataset
+import networkx as nx
+#from networkx.drawing.nx_agraph import graphviz_layout
 
 ################################################################################
 ## These functions are used by lpt_generic_netcdf_data_driver.py
@@ -211,20 +213,75 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         dt_list = time_list
 
         ## Initialize LPT
-        LPT0, BRANCHES0 = lpt.helpers.init_lpt_group_array(dt_list, options['objdir'])
-
-        ## Remove small LPOs
-        print(('Removing objects smaller than ' + str(options['min_lp_objects_points']) + '.'), flush=True)
-        LPT0, BRANCHES0 = lpt.helpers.lpt_group_array_remove_small_objects(LPT0, BRANCHES0, options)
+        G = lpt.helpers.init_lpt_graph(dt_list, options['objdir']
+            , min_points=options['min_lp_objects_points'], fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc")
 
         ## Connect objects
         ## This is the "meat" of the LPT method: The connection in time step.
         print('Connecting objects...', flush=True)
-        LPTfb, BRANCHESfb = lpt.helpers.calc_lpt_group_array(LPT0, BRANCHES0, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
+        G = lpt.helpers.connect_lpt_graph(G, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
 
-        ## Allow center jumps.
-        print(('Allow center jumps up to ' + str(options['center_jump_max_hours']) + ' hours.'),flush=True)
-        LPT_center_jumps, BRANCHES_center_jumps = lpt.helpers.lpt_group_array_allow_center_jumps(LPTfb, BRANCHESfb, options, verbose=True)
+        plt.figure(figsize=(10,10))
+        pos=nx.get_node_attributes(G, 'pos')
+        nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
+        #plt.savefig('test.png')
+
+        ## Allow for falling below the threshold, if specified..
+        if options['fall_below_threshold_max_hours'] > 0:
+            print(('Allow for falling below the threshold up to ' + str(options['fall_below_threshold_max_hours']) + ' hours.'),flush=True)
+            G = lpt.helpers.lpt_graph_allow_falling_below_threshold(G, options, verbose=True)
+
+        plt.figure(figsize=(10,10))
+        pos=nx.get_node_attributes(G, 'pos')
+        nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
+        plt.savefig('test1.png')
+
+
+        ## Eliminate short duration systems.
+        if options['min_lpt_duration_hours'] > 0.0:
+            print(('Remove LPT shorter than ' + str(options['min_lpt_duration_hours']) + ' hours.'),flush=True)
+            G = lpt.helpers.lpt_graph_remove_short_duration_systems(G, options['min_lpt_duration_hours']
+                                    , latest_datetime = latest_lp_object_time)
+
+        print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' DAGs ("LPT groups") found.'))
+
+        plt.figure(figsize=(10,10))
+        pos=nx.get_node_attributes(G, 'pos')
+        nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
+        plt.savefig('test2.png')
+
+        if merge_split_options['allow_merge_split']:
+            print('Will split groups in to separate overlapping LPTs.')
+            if merge_split_options['split_merger_min_hours'] > 0:
+                print('Remove splits and mergers < '+str(merge_split_options['split_merger_min_hours'])+' h.')
+                G = lpt.helpers.lpt_graph_remove_short_ends(G
+                    , merge_split_options['split_merger_min_hours']
+                      - dataset['data_time_interval'])
+
+                plt.figure(figsize=(10,10))
+                pos=nx.get_node_attributes(G, 'pos')
+                nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
+                plt.savefig('test3.png')
+
+            print('--- Calculating LPT System Properties. ---')
+            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options)
+
+        else:
+            print('Splits and mergers retained as the same LPT system.')
+            print('--- Calculating LPT System Properties. ---')
+            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_without_branches(G, options)
+
+        ## Output
+        print('--- Writing output. ---',flush=True)
+
+        fn_tc_base = (options['outdir']
+                         + '/lpt_systems_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
+        lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
+        #lpt.lptio.lpt_systems_group_array_output_ascii(fn_tc_base + '.group_array.txt', LPT, BRANCHES)
+        lpt.lptio.lpt_system_tracks_output_netcdf(fn_tc_base + '.nc', TIMECLUSTERS)
+
+
+        """
 
         ## Eliminate short duration systems.
         print(('Remove LPT shorter than ' + str(options['min_lpt_duration_hours']) + ' hours.'),flush=True)
@@ -258,7 +315,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
         lpt.lptio.lpt_systems_group_array_output_ascii(fn_tc_base + '.group_array.txt', LPT, BRANCHES)
         lpt.lptio.lpt_system_tracks_output_netcdf(fn_tc_base + '.nc', TIMECLUSTERS)
-
+        """
 
         """
         LPT Plotting
