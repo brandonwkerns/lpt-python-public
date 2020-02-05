@@ -41,6 +41,8 @@ def feature_spread(array_in, npoints):
     ## (I tried using 3-D convolution here, but it took almost twice as much memory
     ##  and was slightly SLOWER than this method.)
     for tt in range(s[0]):
+        if tt % 100 == 0:
+            print(('Feature Spread: ' + str(tt) + ' of max ' + str(range(s[0])) + '.'))
         array_2d = array_in[tt,:,:]
         array_2d_new = array_2d.copy()
         unique_values = np.unique(array_2d)
@@ -648,6 +650,8 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     DS = Dataset(lpt_systems_file)
     TC={}
     TC['lptid'] = DS['lptid'][:]
+    TC['objid'] = DS['objid'][:]
+    TC['num_objects'] = DS['num_objects'][:]
     TC['i1'] = DS['lpt_begin_index'][:]
     TC['i2'] = DS['lpt_end_index'][:]
     TC['timestamp_stitched'] = DS['timestamp_stitched'][:]
@@ -664,7 +668,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
     unique_lpt_ids = np.unique(TC['lptid'])
 
-    LPT, BRANCHES = lpt.lptio.read_lpt_systems_group_array(lpt_group_file)
+    #LPT, BRANCHES = lpt.lptio.read_lpt_systems_group_array(lpt_group_file)
 
 
     ## Get LPT list if it's MJO (subset='mjo') or non MJO (subset='non_mjo') case.
@@ -683,21 +687,10 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     for this_lpt_id in unique_lpt_ids:
         print('Adding LPT system mask for lptid = ' + str(this_lpt_id) + ' (max = ' + str(np.max(unique_lpt_ids)) + ') of time period ' + YMDH1_YMDH2 + '.')
 
-        this_group = np.floor(this_lpt_id)
-        this_group_lptid_list = sorted([x for x in unique_lpt_ids if np.floor(x) == this_group])
-
-        if np.round( 100.0 * (this_group_lptid_list[0] - this_group)) > 0:
-            this_branch = int(2**(np.round( 100.0 * (this_lpt_id - this_group)) - 1))
-        else:
-            this_branch = int(2**(np.round( 1000.0 * (this_lpt_id - this_group)) - 1))
-
-        if this_branch > 0:
-            this_branch_idx = [x for x in range(len(BRANCHES)) if LPT[x,2]==this_group and (BRANCHES[x] & this_branch) > 0] # bitwise and
-        else:
-            this_branch_idx = [x for x in range(len(BRANCHES)) if LPT[x,2]==this_group]
-
-        lp_object_id_list = LPT[this_branch_idx,1]
-
+        ## Get list of LP Objects for this LPT system.
+        this_lpt_idx = np.argwhere(TC['lptid'] == this_lpt_id)[0][0]
+        print((this_lpt_idx,TC['num_objects'][this_lpt_idx]))
+        lp_object_id_list = TC['objid'][this_lpt_idx,0:int(TC['num_objects'][this_lpt_idx])]
 
         dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
         dt1 = dt.datetime.strptime(str(int(np.max(lp_object_id_list)))[0:10],'%Y%m%d%H')
