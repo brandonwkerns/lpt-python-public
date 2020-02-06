@@ -387,13 +387,13 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 mask_arrays['lon'] = DS['grid_lon'][:]
                 mask_arrays['lat'] = DS['grid_lat'][:]
                 mask_arrays_shape = [len(mask_times), len(lat), len(lon)]
-                mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape)
+                mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                 if accumulation_hours > 0 and calc_with_accumulation_period:
-                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
+                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                 if filter_stdev > 0 and calc_with_filter_radius:
-                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
+                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                     if accumulation_hours > 0 and calc_with_accumulation_period:
-                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
+                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
 
 
             ##
@@ -720,13 +720,13 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 AREA = DS['grid_area'][:]
                 mask_arrays = {}
                 mask_arrays_shape = (len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon))
-                mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape)
+                mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                 if accumulation_hours > 0 and calc_with_accumulation_period:
-                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape)
+                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                 if calc_with_filter_radius:
-                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape)
+                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                     if accumulation_hours > 0 and calc_with_accumulation_period:
-                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape)
+                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
 
             ##
             ## Get LP Object pixel information.
