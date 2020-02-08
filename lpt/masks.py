@@ -9,7 +9,7 @@ from dateutil.relativedelta import relativedelta
 from context import lpt
 import os
 import sys
-
+from scipy.sparse import csr_matrix, find
 
 ##
 ## feature spread function -- used for all of the mask functions.
@@ -57,22 +57,39 @@ def feature_spread(array_in, npoints):
     return array_out
 
 
-def add_mask_var_to_netcdf(DS, mask_var, data, dims=('time','lat','lon')):
+def add_mask_var_to_netcdf(fn, mask_var, data, memory_target_mb = 1000):
     """
-    Add a 3-D mask variable to a NetCDF file.
+    Append a 3-D mask variable to a NetCDF file.
+    FILE MUST EXIST AND HAVE mask_var DEFINED!!!
     add_mask_var_to_netcdf(DS, mask_var, data, dims=('time','lat','lon'))
 
+    For very large mask arrays, writing all at once may consume all the system memory!
+    Therefore, we write the data in batches. The batch size is determined based on
+    the specified memory target for writing.
+
     Inputs:
-        DS        is a netCDF4.Dataset file object.
+        fn        is a netCDF4.Dataset file object.
         mask_var  is a string for the variable name.
-        data      is the data to use. Should be integers.
-        dims      is a tuple of dimension names. Default: ('time','lat','lon')
+        data      is the data to use.
+        memory_target_mb  is memory target for writing to file.
     Outputs:
         -- None --
     """
-    DS.createVariable(mask_var,'i',dims,zlib=True,complevel=4)
-    DS[mask_var][:] = data
-    DS[mask_var].setncattr('units','1')
+
+    ## Figure out how many times I can write at once to honor memory target.
+    F = data[0].toarray()
+    memory_of_dense_single_time = F.size * F.itemsize / (1024*1024)
+
+    ## Use a factor of two here as memory is used both when:
+    ## -- Constructing the dense array from sparse arrays.
+    ## -- Writing to the NetCDF file.
+    batch_n_time = max(1,int(np.floor(memory_target_mb/(2*memory_of_dense_single_time))))
+
+    for tt1 in range(0,len(data),batch_n_time):
+        DS = Dataset(fn, 'r+')
+        tt2 = min(tt1 + batch_n_time, len(data))
+        DS[mask_var][tt1:tt2,:,:] = np.array([data[tt].toarray() for tt in range(tt1,tt2)], dtype='bool_')
+        DS.close()
 
 
 def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
@@ -94,6 +111,8 @@ def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
     Outputs:
         -- None --
     """
+
+
     ## Sum
     DS.createVariable(volrain_var_sum,'f4',sum_dims,fill_value=fill_value)
     DS[volrain_var_sum][:] = data_sum
@@ -609,7 +628,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , mask_output_dir = '.', verbose=True
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
-    , subset='all'):
+    , subset='all', memory_target_mb = 1000):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -719,6 +738,8 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 grand_mask_lat = DS['grid_lat'][:]
                 AREA = DS['grid_area'][:]
                 mask_arrays = {}
+
+                """
                 mask_arrays_shape = (len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon))
                 mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                 if accumulation_hours > 0 and calc_with_accumulation_period:
@@ -727,6 +748,17 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                     mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
                     if accumulation_hours > 0 and calc_with_accumulation_period:
                         mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
+                """
+
+                mask_arrays_shape2d = (len(grand_mask_lat), len(grand_mask_lon))
+                mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+                if accumulation_hours > 0 and calc_with_accumulation_period:
+                    mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+                if calc_with_filter_radius:
+                    mask_arrays['mask_with_filter_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+                    if accumulation_hours > 0 and calc_with_accumulation_period:
+                        mask_arrays['mask_with_filter_and_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+
 
             ##
             ## Get LP Object pixel information.
@@ -746,13 +778,15 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             ##
 
             ## For mask_at_end_time, just use the mask from the objects file.
-            mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
+            #mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
+            mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
 
             ## For the mask with accumulation, go backwards and fill in ones.
             if accumulation_hours > 0 and calc_with_accumulation_period:
                 n_back = int(accumulation_hours/interval_hours)
                 for ttt in range(dt_idx - n_back, dt_idx+1):
-                    mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
+                    #mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
+                    mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
 
     ##
     ## Do filter width spreading.
@@ -793,16 +827,35 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     DSnew['lat'][:] = grand_mask_lat
     DSnew['lat'].setncattr('units','degrees_north')
 
-    add_mask_var_to_netcdf(DSnew, 'mask_at_end_time', mask_arrays['mask_at_end_time'])
-    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-        add_mask_var_to_netcdf(DSnew, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'])
-    if filter_stdev > 0 and calc_with_filter_radius:
-        add_mask_var_to_netcdf(DSnew, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'])
-        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-            add_mask_var_to_netcdf(DSnew, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'])
-
     DSnew['grid_area'][:] = AREA
     DSnew['grid_area'].setncattr('units','km2')
     DSnew['grid_area'].setncattr('description','Area of each grid cell.')
 
+    DSnew.createVariable('mask_at_end_time','i1',('time','lat','lon'),zlib=True,complevel=4)
+    DSnew['mask_at_end_time'].setncattr('units','1')
+    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+        DSnew.createVariable('mask_with_accumulation','i1',('time','lat','lon'),zlib=True,complevel=4)
+        DSnew['mask_with_accumulation'].setncattr('units','1')
+    if filter_stdev > 0 and calc_with_filter_radius:
+        DSnew.createVariable('mask_with_filter_at_end_time','i1',('time','lat','lon'),zlib=True,complevel=4)
+        DSnew['mask_with_filter_at_end_time'].setncattr('units','1')
+        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+            DSnew.createVariable('mask_with_filter_and_accumulation','i1',('time','lat','lon'),zlib=True,complevel=4)
+            DSnew['mask_with_filter_and_accumulation'].setncattr('units','1')
+
     DSnew.close()
+
+    ## Writing mask variables.
+    ## Do them one at a time so it uses less memory while writing them.
+    print('- mask_at_end_time')
+    add_mask_var_to_netcdf(fn_out, 'mask_at_end_time', mask_arrays['mask_at_end_time'], memory_target_mb = memory_target_mb)
+
+    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+        print('- mask_with_accumulation')
+        add_mask_var_to_netcdf(fn_out, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'], memory_target_mb = memory_target_mb)
+    if filter_stdev > 0 and calc_with_filter_radius:
+        print('- mask_with_filter_at_end_time')
+        add_mask_var_to_netcdf(fn_out, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'], memory_target_mb = memory_target_mb)
+        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
+            print('- mask_with_filter_and_accumulation')
+            add_mask_var_to_netcdf(fn_out, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'], memory_target_mb = memory_target_mb)
