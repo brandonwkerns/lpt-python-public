@@ -14,13 +14,13 @@ from scipy.sparse import csr_matrix, find
 ##
 ## feature spread function -- used for all of the mask functions.
 ##
-def feature_spread(array_in, npoints):
+
+def feature_spread(data, npoints):
 
     ## Use convolution to expand the mask "array_in" a radius of np points.
     ## For this purpose, it takes a 3-D array with the first entry being time.
 
-    array_out = array_in.copy()
-    s = array_in.shape
+    data_new = data.copy()
 
     if type(npoints) is list:
         npx = npoints[0]
@@ -29,22 +29,25 @@ def feature_spread(array_in, npoints):
         npx = 1*npoints
         npy = 1*npoints
 
-    nt = s[0]
-
     [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
     circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
     circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
     circle_array_mask = circle_array_mask / np.sum(circle_array_mask)
 
-    ## Loop over the times.
-    ## For each time, use the convolution to "spread out" the effect of each time's field.
-    ## (I tried using 3-D convolution here, but it took almost twice as much memory
-    ##  and was slightly SLOWER than this method.)
-    for tt in range(s[0]):
+
+    for tt in range(len(data)):
+
         if tt % 100 == 0:
-            print(('Feature Spread: ' + str(tt) + ' of max ' + str(s[0]-1) + '.'))
-        array_2d = array_in[tt,:,:]
+            print(('Feature Spread: ' + str(tt) + ' of max ' + str(len(data)) + '.'))
+
+        array_2d = data[tt].toarray()
+
         array_2d_new = array_2d.copy()
+
+        ## Loop over the times.
+        ## For each time, use the convolution to "spread out" the effect of each time's field.
+        ## (I tried using 3-D convolution here, but it took almost twice as much memory
+        ##  and was slightly SLOWER than this method.)
         unique_values = np.unique(array_2d)
         unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
         for this_value in unique_values:
@@ -52,9 +55,9 @@ def feature_spread(array_in, npoints):
             starting_mask_spread = scipy.ndimage.convolve(starting_mask, circle_array_mask, mode='constant')
             array_2d_new[starting_mask_spread > 0.001] = this_value
 
-        array_out[tt,:,:] = array_2d_new
+        data_new[tt] = csr_matrix(array_2d_new)
 
-    return array_out
+    return data_new
 
 
 def add_mask_var_to_netcdf(fn, mask_var, data, memory_target_mb = 1000):
@@ -144,21 +147,6 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     """
 
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
-
-
-    # These times are for the END of accumulation time.
-    """
-    total_hours0 = (dt_end - dt_begin).total_seconds()/3600.0
-    mask_times0 = [dt_begin + dt.timedelta(hours=x) for x in np.arange(0,total_hours0+1,interval_hours)]
-
-    # These times include the accumulation period leading up to the first END of accumulation time.
-    if accumulation_hours > 0 and calc_with_accumulation_period:
-        total_hours = (dt_end - dt_begin).total_seconds()/3600.0  + accumulation_hours
-        mask_times = [dt_begin - dt.timedelta(hours=accumulation_hours) + dt.timedelta(hours=x) for x in np.arange(0,total_hours+1,interval_hours)]
-    else:
-        total_hours = (dt_end - dt_begin).total_seconds()/3600.0
-        mask_times = [dt_begin + dt.timedelta(hours=x) for x in np.arange(0,total_hours+1,interval_hours)]
-    """
 
     dt1 = dt_end
     if accumulation_hours > 0 and calc_with_accumulation_period:
@@ -739,17 +727,6 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 AREA = DS['grid_area'][:]
                 mask_arrays = {}
 
-                """
-                mask_arrays_shape = (len(grand_mask_timestamps), len(grand_mask_lat), len(grand_mask_lon))
-                mask_arrays['mask_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    mask_arrays['mask_with_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
-                if calc_with_filter_radius:
-                    mask_arrays['mask_with_filter_at_end_time'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
-                    if accumulation_hours > 0 and calc_with_accumulation_period:
-                        mask_arrays['mask_with_filter_and_accumulation'] = np.zeros(mask_arrays_shape, dtype=np.bool_)
-                """
-
                 mask_arrays_shape2d = (len(grand_mask_lat), len(grand_mask_lon))
                 mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
                 if accumulation_hours > 0 and calc_with_accumulation_period:
@@ -778,14 +755,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             ##
 
             ## For mask_at_end_time, just use the mask from the objects file.
-            #mask_arrays['mask_at_end_time'][dt_idx, jjj, iii] = 1
             mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
 
             ## For the mask with accumulation, go backwards and fill in ones.
             if accumulation_hours > 0 and calc_with_accumulation_period:
                 n_back = int(accumulation_hours/interval_hours)
                 for ttt in range(dt_idx - n_back, dt_idx+1):
-                    #mask_arrays['mask_with_accumulation'][ttt, jjj, iii] = 1
                     mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
 
     ##
@@ -849,7 +824,6 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Do them one at a time so it uses less memory while writing them.
     print('- mask_at_end_time')
     add_mask_var_to_netcdf(fn_out, 'mask_at_end_time', mask_arrays['mask_at_end_time'], memory_target_mb = memory_target_mb)
-
     if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
         print('- mask_with_accumulation')
         add_mask_var_to_netcdf(fn_out, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'], memory_target_mb = memory_target_mb)
