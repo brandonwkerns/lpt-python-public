@@ -351,7 +351,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
-
         rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_individual_lpt_masks(begin_time, end_time, dataset['data_time_interval']
@@ -375,6 +374,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
+        rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_composite_lpt_mask(begin_time, end_time, dataset['data_time_interval']
             , prod = dataset['label']
@@ -382,6 +382,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
             , mask_output_dir=objects_dir
+            , do_volrain = lpt_options['mask_calc_volrain']
+            , rain_dir = rain_dir
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB'])
@@ -395,6 +397,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
+        rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_composite_lpt_mask(begin_time, end_time, dataset['data_time_interval']
             , prod = dataset['label']
@@ -402,6 +405,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
             , mask_output_dir=objects_dir
+            , do_volrain = lpt_options['mask_calc_volrain']
+            , rain_dir = rain_dir
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
@@ -415,6 +420,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
+        rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_composite_lpt_mask(begin_time, end_time, dataset['data_time_interval']
             , prod = dataset['label']
@@ -422,6 +428,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
             , mask_output_dir=objects_dir
+            , do_volrain = lpt_options['mask_calc_volrain']
+            , rain_dir = rain_dir
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']

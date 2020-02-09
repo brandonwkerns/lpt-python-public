@@ -583,6 +583,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
             DSnew[var].setncatts({'units':'mm day-1','long_name':'LP object running mean rain rate (at end of accum time).','note':'Time is end of running mean time. Based on mask_at_end_time'})
 
+        DSnew['grid_area'][:] = AREA
+        DSnew['grid_area'].setncattr('units','km2')
+        DSnew['grid_area'].setncattr('description','Area of each grid cell.')
+
         ## Write volrain if it was calculated.
         if do_volrain:
             fields = [*VOLRAIN]
@@ -592,10 +596,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                         , field+'_tser', VOLRAIN[field+'_tser']
                         , fill_value = FILL_VALUE)
 
-        DSnew['grid_area'][:] = AREA
-        DSnew['grid_area'].setncattr('units','km2')
-        DSnew['grid_area'].setncattr('description','Area of each grid cell.')
-
+        ## Define the mask variables here.
+        ## But don't assign them yet.
         fields = [*mask_arrays]
         fields = [x for x in fields if 'mask' in x]
         for field in fields:
@@ -624,6 +626,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
+    , do_volrain=False, rain_dir = '.'
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , subset='all', memory_target_mb = 1000):
@@ -654,8 +657,8 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     grand_mask_timestamps1 = (dt_end - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
 
     grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
+    grand_mask_times = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=x) for x in grand_mask_timestamps]
     mask_arrays = None
-
 
     ## Read Stitched NetCDF data.
     DS = Dataset(lpt_systems_file)
@@ -783,6 +786,10 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         if accumulation_hours > 0 and calc_with_accumulation_period:
             mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
 
+    ## Do volumetric rain.
+    if do_volrain:
+        print('Now calculating the volumetric rain.', flush=True)
+        VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,AREA,mask_arrays,rain_dir)
 
     ##
     ## Output.
@@ -797,6 +804,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     os.remove(fn_out) if os.path.exists(fn_out) else None
     print('Writing to: ' + fn_out, flush=True)
     DSnew = Dataset(fn_out, 'w', data_model='NETCDF4', clobber=True)
+    DSnew.createDimension('n', 1)
     DSnew.createDimension('time',len(grand_mask_timestamps))
     DSnew.createDimension('lon',len(grand_mask_lon))
     DSnew.createDimension('lat',len(grand_mask_lat))
@@ -816,30 +824,27 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     DSnew['grid_area'].setncattr('units','km2')
     DSnew['grid_area'].setncattr('description','Area of each grid cell.')
 
-    DSnew.createVariable('mask_at_end_time','i1',('time','lat','lon'),zlib=True,complevel=4)
-    DSnew['mask_at_end_time'].setncattr('units','1')
-    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-        DSnew.createVariable('mask_with_accumulation','i1',('time','lat','lon'),zlib=True,complevel=4)
-        DSnew['mask_with_accumulation'].setncattr('units','1')
-    if filter_stdev > 0 and calc_with_filter_radius:
-        DSnew.createVariable('mask_with_filter_at_end_time','i1',('time','lat','lon'),zlib=True,complevel=4)
-        DSnew['mask_with_filter_at_end_time'].setncattr('units','1')
-        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-            DSnew.createVariable('mask_with_filter_and_accumulation','i1',('time','lat','lon'),zlib=True,complevel=4)
-            DSnew['mask_with_filter_and_accumulation'].setncattr('units','1')
+    ## Write volrain if it was calculated.
+    if do_volrain:
+        fields = [*VOLRAIN]
+        fields = [x for x in fields if not 'tser' in x]
+        for field in fields:
+            add_volrain_to_netcdf(DSnew, field, VOLRAIN[field]
+                    , field+'_tser', VOLRAIN[field+'_tser']
+                    , fill_value = FILL_VALUE)
 
+    ## Define the mask variables here.
+    ## But don't assign them yet.
+    fields = [*mask_arrays]
+    fields = [x for x in fields if 'mask' in x]
+    for field in fields:
+        DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
+        DSnew[field].setncattr('units','1')
     DSnew.close()
 
     ## Writing mask variables.
     ## Do them one at a time so it uses less memory while writing them.
-    print('- mask_at_end_time')
-    add_mask_var_to_netcdf(fn_out, 'mask_at_end_time', mask_arrays['mask_at_end_time'], memory_target_mb = memory_target_mb)
-    if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-        print('- mask_with_accumulation')
-        add_mask_var_to_netcdf(fn_out, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'], memory_target_mb = memory_target_mb)
-    if filter_stdev > 0 and calc_with_filter_radius:
-        print('- mask_with_filter_at_end_time')
-        add_mask_var_to_netcdf(fn_out, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'], memory_target_mb = memory_target_mb)
-        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-            print('- mask_with_filter_and_accumulation')
-            add_mask_var_to_netcdf(fn_out, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'], memory_target_mb = memory_target_mb)
+    for field in fields:
+        print('- ' + field)
+        add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
+                            , memory_target_mb = memory_target_mb)
