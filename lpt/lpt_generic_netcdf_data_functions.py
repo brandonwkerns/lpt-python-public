@@ -171,10 +171,14 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
 
+        rain_dir = dataset['raw_data_parent_dir']
+
         lpt.masks.calc_lpo_mask(begin_time, end_time, dataset['data_time_interval']
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , mask_output_dir=objects_dir
+            , do_volrain = lpo_options['mask_calc_volrain']
+            , rain_dir = rain_dir
             , calc_with_filter_radius = lpo_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpo_options['mask_calc_with_accumulation_period']
             , memory_target_mb = lpo_options['target_memory_for_writing_masks_MB'])

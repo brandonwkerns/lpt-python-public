@@ -96,7 +96,8 @@ lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
 
 ## LPO Mask Settings.
-lpo_options['do_lpo_mask'] = True           # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
+lpo_options['do_lpo_mask'] = True                         # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
+lpo_options['mask_calc_volrain'] = True                   # Whether to calculate a volumetric rain and include with mask files.
 lpo_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpo_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
