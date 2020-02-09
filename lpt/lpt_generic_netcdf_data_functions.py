@@ -176,7 +176,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , mask_output_dir=objects_dir
             , calc_with_filter_radius = lpo_options['mask_calc_with_filter_radius']
-            , calc_with_accumulation_period = lpo_options['mask_calc_with_accumulation_period'])
+            , calc_with_accumulation_period = lpo_options['mask_calc_with_accumulation_period']
+            , memory_target_mb = lpo_options['target_memory_for_writing_masks_MB'])
 
 
     """
