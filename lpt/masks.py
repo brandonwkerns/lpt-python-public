@@ -583,58 +583,32 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
             DSnew[var].setncatts({'units':'mm day-1','long_name':'LP object running mean rain rate (at end of accum time).','note':'Time is end of running mean time. Based on mask_at_end_time'})
 
-
+        ## Write volrain if it was calculated.
         if do_volrain:
-            add_volrain_to_netcdf(DSnew, 'volrain_global', VOLRAIN['volrain_global']
-                    , 'volrain_global_tser', VOLRAIN['volrain_global_tser']
-                    , fill_value = FILL_VALUE)
-            add_volrain_to_netcdf(DSnew, 'volrain_at_end_time', VOLRAIN['volrain_at_end_time']
-                    , 'volrain_at_end_time_tser', VOLRAIN['volrain_at_end_time_tser']
-                    , fill_value = FILL_VALUE)
-            if accumulation_hours > 0 and calc_with_accumulation_period:
-                add_volrain_to_netcdf(DSnew, 'volrain_with_accumulation', VOLRAIN['volrain_with_accumulation']
-                        , 'volrain_with_accumulation_tser', VOLRAIN['volrain_with_accumulation_tser']
+            fields = [*VOLRAIN]
+            fields = [x for x in fields if not 'tser' in x]
+            for field in fields:
+                add_volrain_to_netcdf(DSnew, field, VOLRAIN[field]
+                        , field+'_tser', VOLRAIN[field+'_tser']
                         , fill_value = FILL_VALUE)
-            if filter_stdev > 0 and calc_with_filter_radius:
-                add_volrain_to_netcdf(DSnew, 'volrain_with_filter_at_end_time', VOLRAIN['volrain_with_filter_at_end_time']
-                        , 'volrain_with_filter_at_end_time_tser', VOLRAIN['volrain_with_filter_at_end_time_tser']
-                        , fill_value = FILL_VALUE)
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    add_volrain_to_netcdf(DSnew, 'volrain_with_filter_and_accumulation', VOLRAIN['volrain_with_filter_and_accumulation']
-                            , 'volrain_with_filter_and_accumulation_tser', VOLRAIN['volrain_with_filter_and_accumulation_tser']
-                            , fill_value = FILL_VALUE)
 
         DSnew['grid_area'][:] = AREA
         DSnew['grid_area'].setncattr('units','km2')
         DSnew['grid_area'].setncattr('description','Area of each grid cell.')
 
-        DSnew.createVariable('mask_at_end_time','i1',('time','lat','lon'),zlib=True,complevel=4)
-        DSnew['mask_at_end_time'].setncattr('units','1')
-        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-            DSnew.createVariable('mask_with_accumulation','i1',('time','lat','lon'),zlib=True,complevel=4)
-            DSnew['mask_with_accumulation'].setncattr('units','1')
-        if filter_stdev > 0 and calc_with_filter_radius:
-            DSnew.createVariable('mask_with_filter_at_end_time','i1',('time','lat','lon'),zlib=True,complevel=4)
-            DSnew['mask_with_filter_at_end_time'].setncattr('units','1')
-            if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-                DSnew.createVariable('mask_with_filter_and_accumulation','i1',('time','lat','lon'),zlib=True,complevel=4)
-                DSnew['mask_with_filter_and_accumulation'].setncattr('units','1')
-
+        fields = [*mask_arrays]
+        fields = [x for x in fields if 'mask' in x]
+        for field in fields:
+            DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
+            DSnew[field].setncattr('units','1')
         DSnew.close()
 
         ## Writing mask variables.
         ## Do them one at a time so it uses less memory while writing them.
-        print('- mask_at_end_time')
-        add_mask_var_to_netcdf(fn_out, 'mask_at_end_time', mask_arrays['mask_at_end_time'], memory_target_mb = memory_target_mb)
-        if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-            print('- mask_with_accumulation')
-            add_mask_var_to_netcdf(fn_out, 'mask_with_accumulation', mask_arrays['mask_with_accumulation'], memory_target_mb = memory_target_mb)
-        if filter_stdev > 0 and calc_with_filter_radius:
-            print('- mask_with_filter_at_end_time')
-            add_mask_var_to_netcdf(fn_out, 'mask_with_filter_at_end_time', mask_arrays['mask_with_filter_at_end_time'], memory_target_mb = memory_target_mb)
-            if accumulation_hours > 0 and accumulation_hours > 0 and calc_with_accumulation_period:
-                print('- mask_with_filter_and_accumulation')
-                add_mask_var_to_netcdf(fn_out, 'mask_with_filter_and_accumulation', mask_arrays['mask_with_filter_and_accumulation'], memory_target_mb = memory_target_mb)
+        for field in fields:
+            print('- ' + field)
+            add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
+                                , memory_target_mb = memory_target_mb)
 
 
 ################################################################################
