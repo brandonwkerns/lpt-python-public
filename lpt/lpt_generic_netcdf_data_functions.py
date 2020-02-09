@@ -318,17 +318,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
     if mjo_id_options['do_mjo_id']:
 
-        """
-        begin_tracking_time = begin_time
-        latest_lp_object_time = end_time
-
-        YMDHb = begin_time.strftime('%Y%m%d%H')
-        YMDHb_fancy = begin_time.strftime('%Y-%m-%d %H:00 UTC')
-
-        YMDH = end_time.strftime('%Y%m%d%H')
-        YMDH_fancy = end_time.strftime('%Y-%m-%d %H:00 UTC')
-        """
-
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
         print(('Doing MJO Identification for: '
                 + begin_time.strftime('%Y%m%d%H')
@@ -373,7 +362,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , do_volrain = lpt_options['mask_calc_volrain']
             , rain_dir = rain_dir
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
-            , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period'])
+            , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
+            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB'])
 
 
     if lpt_options['do_lpt_composite_mask']:
@@ -413,6 +403,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , mask_output_dir=objects_dir
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
+            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
             , subset='mjo')
 
     if lpt_options['do_non_mjo_lpt_composite_mask']:
@@ -432,4 +423,5 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , mask_output_dir=objects_dir
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
+            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
             , subset='non_mjo')
