@@ -9,7 +9,10 @@ from dateutil.relativedelta import relativedelta
 from context import lpt
 import os
 import sys
-from scipy.sparse import csr_matrix, find
+from scipy.sparse import csr_matrix, find, SparseEfficiencyWarning
+import warnings
+warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
+
 
 ##
 ## feature spread function -- used for all of the mask functions.
@@ -60,7 +63,22 @@ def feature_spread(data, npoints):
     return data_new
 
 
-def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, rain_dir):
+def handle_variable_names(dataset):
+    ## Extract variable names from the dataset dict if specified
+    ## Otherwise, return a default tuple of variable names.
+    if (('longitude_variable_name' in dataset) and
+        ('latitude_variable_name' in dataset) and
+        ('field_variable_name' in dataset)):
+
+        variable_names = (dataset['longitude_variable_name']
+                , dataset['latitude_variable_name']
+                , dataset['field_variable_name'])
+    else:
+        variable_names = ('lon','lat','rain')
+    return variable_names
+
+
+def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
 
     mask_type_list = [*mask_arrays]
     mask_type_list = [x for x in mask_type_list if 'mask' in x]
@@ -85,7 +103,16 @@ def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, rain_dir):
         this_dt = mask_times[tt]
 
         ## Get rain.
-        RAIN = rain_read_function(this_dt, verbose=False)
+        #RAIN = rain_read_function(this_dt, verbose=False)
+
+        variable_names =  handle_variable_names(dataset_dict)
+
+        RAIN = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
+                , variable_names = variable_names
+                , data_dir=dataset_dict['raw_data_parent_dir']
+                , fmt=dataset_dict['file_name_format']
+                , verbose=dataset_dict['verbose'])
+
         precip = RAIN['data'][:]
         precip[~np.isfinite(precip)] = 0.0
         precip[precip < -0.01] = 0.0
@@ -182,7 +209,7 @@ def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
 
 def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'
-    , do_volrain=False, rain_dir = '.'
+    , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , memory_target_mb = 1000):
@@ -268,7 +295,15 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ## Do filter width spreading.
     ##
 
-    if filter_stdev > 0 and calc_with_filter_radius:
+    do_filter = False
+    if type(filter_stdev) is list:
+        if filter_stdev[0] > 0 and calc_with_filter_radius:
+            do_filter = True
+    else:
+        if filter_stdev > 0 and calc_with_filter_radius:
+            do_filter = True
+
+    if do_filter:
         print('Filter width spreading...this may take awhile.', flush=True)
         mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
         if accumulation_hours > 0 and calc_with_accumulation_period:
@@ -277,7 +312,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
-        VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,rain_dir)
+        VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict)
 
     ##
     ## Output.
@@ -346,7 +381,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
-    , do_volrain=False, rain_dir = '.'
+    , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , memory_target_mb = 1000):
@@ -508,7 +543,14 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Do filter width spreading.
         ##
 
-        if filter_stdev > 0 and calc_with_filter_radius:
+        do_filter = False
+        if type(filter_stdev) is list:
+            if filter_stdev[0] > 0 and calc_with_filter_radius:
+                do_filter = True
+        else:
+            if filter_stdev > 0 and calc_with_filter_radius:
+                do_filter = True
+        if do_filter:
             print('Filter width spreading...this may take awhile.', flush=True)
             mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
             if accumulation_hours > 0 and calc_with_accumulation_period:
@@ -517,7 +559,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Do volumetric rain.
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
-            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,rain_dir)
+            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict)
 
 
         ##
@@ -625,7 +667,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
-    , do_volrain=False, rain_dir = '.'
+    , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , subset='all', memory_target_mb = 1000):
@@ -779,7 +821,14 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Do filter width spreading.
     ##
 
-    if filter_stdev > 0 and calc_with_filter_radius:
+    do_filter = False
+    if type(filter_stdev) is list:
+        if filter_stdev[0] > 0 and calc_with_filter_radius:
+            do_filter = True
+    else:
+        if filter_stdev > 0 and calc_with_filter_radius:
+            do_filter = True
+    if do_filter:
         print('Filter width spreading...this may take awhile.', flush=True)
         mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
         if accumulation_hours > 0 and calc_with_accumulation_period:
@@ -788,7 +837,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
-        VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,AREA,mask_arrays,rain_dir)
+        VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,AREA,mask_arrays,dataset_dict)
 
     ##
     ## Output.
