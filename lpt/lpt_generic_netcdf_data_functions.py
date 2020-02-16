@@ -243,12 +243,12 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             print('Will split groups in to separate overlapping LPTs.',flush=True)
             if merge_split_options['split_merger_min_hours'] > 0:
                 print('Remove splits and mergers < '+str(merge_split_options['split_merger_min_hours'])+' h.', flush=True)
-                print('This step may take a while.', flush=True)
                 G = lpt.helpers.lpt_graph_remove_short_ends(G
                     , merge_split_options['split_merger_min_hours']
                       - dataset['data_time_interval'])
 
             print('--- Calculating LPT System Properties. ---', flush=True)
+            print('    !!! This step may take a while !!!', flush=True)
             TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options)
 
         else:

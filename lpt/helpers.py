@@ -548,10 +548,9 @@ def lpt_graph_remove_short_duration_systems(G, min_duration
     return G
 
 
+def get_short_ends(G):
 
-def get_list_of_path_graphs(G):
-
-    Plist=[] # initialize empty list.
+    Grev = G.reverse() # Reversed graph is used for splits below.
 
     ## Break in to individual paths (e.g., LPT branches).
     roots = []
@@ -562,12 +561,37 @@ def get_list_of_path_graphs(G):
         elif G.out_degree(node) == 0: # it's a leaf
             leaves.append(node)
 
+    ## Root short ends -- mergers.
+    Plist_mergers = []
     for root in roots:
-        for leaf in leaves:
-            for path in nx.all_simple_paths(G, source=root, target=leaf):
-                Plist.append(G.subgraph(path).copy())  # Add to list.
+        this_short_end = [root]
+        this_node = root
+        more_to_do = True
+        while more_to_do:
+            more_to_do = False
+            next_node = list(G[this_node])[0]
+            this_short_end.append(next_node)
+            if G.in_degree(next_node) == 1 and G.out_degree(next_node) == 1:
+                this_node = next_node
+                more_to_do = True
+        Plist_mergers.append(this_short_end)
 
-    return Plist
+    ## Leaf short ends -- splits.
+    Plist_splits = []
+    for leaf in leaves:
+        this_short_end = [leaf]
+        this_node = leaf
+        more_to_do = True
+        while more_to_do:
+            more_to_do = False
+            next_node = list(Grev[this_node])[0]
+            this_short_end.append(next_node)
+            if Grev.in_degree(next_node) == 1 and Grev.out_degree(next_node) == 1:
+                this_node = next_node
+                more_to_do = True
+        Plist_splits.append(this_short_end)
+
+    return (Plist_mergers, Plist_splits)
 
 
 def lpt_graph_remove_short_ends(G, min_duration_to_keep):
@@ -580,55 +604,61 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
     ## Loop over each DAG
     for kk in range(len(SG)):
         print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
+        areas = nx.get_node_attributes(SG[kk],'area') # used for tie breaker if same duration
 
-        cycles = nx.cycle_basis(nx.to_undirected(SG[kk]))
-        cycles1 = sorted([item for sublist in cycles for item in sublist]) #list of lists --> 1D list
-        print('    It has ' + str(len(cycles1)) + ' cycles. Searching for paths.', flush=True)
+        Plist_mergers, Plist_splits = get_short_ends(SG[kk])
+        print('----> Found '+str(len(Plist_mergers))+' merge ends and '+str(len(Plist_mergers))+' split ends.',flush=True)
 
         nodes_to_remove = []
+        ## Handle mergers.
+        for iiii in range(len(Plist_mergers)):
+            path1 = Plist_mergers[iiii]
+            # Don't use the last node, as it intersects the paths I want to keep.
+            dur1 = (get_objid_datetime(path1[-2]) - get_objid_datetime(path1[0])).total_seconds()/3600.0
 
-        Plist = get_list_of_path_graphs(SG[kk])
-        if len(Plist) == 1:
-            print('----> Found '+str(len(Plist))+' path.',flush=True)
-        else:
-            print('----> Found '+str(len(Plist))+' paths.',flush=True)
+            ## Check whether intersections with any others
+            override_removal = False
+            others = list(range(len(Plist_mergers)))
+            others.remove(iiii)
+            for jjjj in others:
+                path2 = Plist_mergers[jjjj]
+                if path1[-1] == path2[-1]:
+                    dur2 = (get_objid_datetime(path2[-2]) - get_objid_datetime(path2[0])).total_seconds()/3600.0
+                    if dur1 > dur2:
+                        override_removal = True
+                    elif dur1 == dur2:
+                        integrate_area1 = np.nansum([areas[x] for x in path1])
+                        integrate_area2 = np.nansum([areas[x] for x in path2])
+                        if integrate_area1 >= integrate_area2:
+                            override_removal = True
+            if dur1 < min_duration_to_keep + 0.1 and not override_removal:
+                ## Make sure I wouldn't remove any parts of the cycles
+                nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
 
-        ## Compare the paths to eachother.
-        for iiii in range(len(Plist)-1):
-            if iiii % 50 == 0:
-                print('----> Doing '+str(iiii),flush=True)
-            path1 = Plist[iiii]
-            for jjjj in range(iiii+1,len(Plist)):
-                #if jjjj == iiii:
-                #    continue
-                path2 = Plist[jjjj]
+        ## Handle splits. NOTE: The ordering here is REVERSED in time.
+        for iiii in range(len(Plist_splits)):
+            path1 = Plist_splits[iiii]
+            # Don't use the last node, as it intersects the paths I want to keep.
+            dur1 = (get_objid_datetime(path1[0]) - get_objid_datetime(path1[-2])).total_seconds()/3600.0
 
-                ## Check whether the pair of paths splits and re-joins.
-                ## If this occurs, the undirected composite
-                ## of the two graphs will have a loop, e.g., it will be cyclic.
-                composite_graph = nx.compose(nx.to_undirected(path1), nx.to_undirected(path2))
-                if nx.is_tree(composite_graph):
-
-                    nodes1 = set(path1.nodes())
-                    nodes2 = set(path2.nodes())
-
-                    if len(nodes1.intersection(nodes2)) > 0:
-
-                        diff1 = sorted(list(nodes1 - nodes2))
-                        diff2 = sorted(list(nodes2 - nodes1))
-                        dur1 = (get_objid_datetime(diff1[-1]) - get_objid_datetime(diff1[0])).total_seconds()/3600.0
-                        dur2 = (get_objid_datetime(diff2[-1]) - get_objid_datetime(diff2[0])).total_seconds()/3600.0
-
-                        if dur1 >= dur2:
-                            if dur2 < min_duration_to_keep + 0.1:
-                                ## Make sure I wouldn't remove any parts of the cycles
-                                if len(set(diff2).intersection(set(cycles1))) == 0:
-                                    nodes_to_remove += diff2
-                        else:
-                            if dur1 < min_duration_to_keep + 0.1:
-                                ## Make sure I wouldn't remove any parts of the cycles
-                                if len(set(diff1).intersection(set(cycles1))) == 0:
-                                    nodes_to_remove += diff1
+            ## Check whether intersections with any others
+            override_removal = False
+            others = list(range(len(Plist_splits)))
+            others.remove(iiii)
+            for jjjj in others:
+                path2 = Plist_splits[jjjj]
+                if path1[-1] == path2[-1]:
+                    dur2 = (get_objid_datetime(path2[0]) - get_objid_datetime(path2[-2])).total_seconds()/3600.0
+                    if dur1 > dur2:
+                        override_removal = True
+                    elif dur1 == dur2:
+                        integrate_area1 = np.nansum([areas[x] for x in path1])
+                        integrate_area2 = np.nansum([areas[x] for x in path2])
+                        if integrate_area1 >= integrate_area2:
+                            override_removal = True
+            if dur1 < min_duration_to_keep + 0.1 and not override_removal:
+                ## Make sure I wouldn't remove any parts of the cycles
+                nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
 
         G.remove_nodes_from(nodes_to_remove)
 
@@ -742,6 +772,30 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
 
 
 
+def get_list_of_path_graphs(G):
+
+    Plist=[] # initialize empty list.
+
+    ## Break in to individual paths (e.g., LPT branches).
+    roots = []
+    leaves = []
+    for node in G.nodes:
+        if G.in_degree(node) == 0: # it's a root
+            roots.append(node)
+        elif G.out_degree(node) == 0: # it's a leaf
+            leaves.append(node)
+
+    iii=-1
+    for root in roots:
+        iii+=1
+        print(('    root ' + str(iii) + ' of max ' + str(len(roots)-1) + '.'), flush=True)
+        for leaf in leaves:
+            for path in nx.all_simple_paths(G, source=root, target=leaf):
+                Plist.append(G.subgraph(path).copy())  # Add to list.
+
+    return Plist
+
+
 def get_list_of_path_graphs_rejoin_cycles(G):
 
     #########################################################
@@ -764,14 +818,11 @@ def get_list_of_path_graphs_rejoin_cycles(G):
             ##  Use XOR on the set of nodes.
             include_it = True
             for P in Plist_new:
-                print(len(set(Plist[ii].nodes()) ^ set(P.nodes())))
                 if len(set(Plist[ii].nodes()) ^ set(P.nodes())) == 0:
                     include_it = False
                     break
             if include_it:
                 Plist_new.append(Plist[ii])
-
-        print((ii, Plist_new))
 
     return Plist_new
 
@@ -791,9 +842,9 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
         Plist = get_list_of_path_graphs_rejoin_cycles(SG[kk])
 
         if len(Plist) == 1:
-            print('----> Found '+str(len(Plist))+' path.',flush=True)
+            print('----> Found '+str(len(Plist))+' LPT system.',flush=True)
         else:
-            print('----> Found '+str(len(Plist))+' paths.',flush=True)
+            print('----> Found '+str(len(Plist))+' LPT systems.',flush=True)
 
 
         ## Get "timeclusters" for each branch.
