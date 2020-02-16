@@ -9,7 +9,6 @@ import matplotlib.colors as colors
 import scipy.ndimage
 from netCDF4 import Dataset
 import networkx as nx
-#from networkx.drawing.nx_agraph import graphviz_layout
 
 ################################################################################
 ## These functions are used by lpt_generic_netcdf_data_driver.py
@@ -223,55 +222,38 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         ## This is the "meat" of the LPT method: The connection in time step.
         print('Connecting objects...', flush=True)
         G = lpt.helpers.connect_lpt_graph(G, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
-
-        plt.figure(figsize=(10,10))
-        pos=nx.get_node_attributes(G, 'pos')
-        nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
-        #plt.savefig('test.png')
+        print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' LPT groups found.'), flush=True)
+        sys.stdout.flush()
 
         ## Allow for falling below the threshold, if specified..
         if options['fall_below_threshold_max_hours'] > 0:
             print(('Allow for falling below the threshold up to ' + str(options['fall_below_threshold_max_hours']) + ' hours.'),flush=True)
             G = lpt.helpers.lpt_graph_allow_falling_below_threshold(G, options, verbose=True)
-
-        plt.figure(figsize=(10,10))
-        pos=nx.get_node_attributes(G, 'pos')
-        nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
-        plt.savefig('test1.png')
-
+            print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' LPT groups left.'), flush=True)
 
         ## Eliminate short duration systems.
         if options['min_lpt_duration_hours'] > 0.0:
             print(('Remove LPT shorter than ' + str(options['min_lpt_duration_hours']) + ' hours.'),flush=True)
             G = lpt.helpers.lpt_graph_remove_short_duration_systems(G, options['min_lpt_duration_hours']
                                     , latest_datetime = latest_lp_object_time)
+            print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' LPT groups left.'), flush=True)
 
-        print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' DAGs ("LPT groups") found.'))
-
-        plt.figure(figsize=(10,10))
-        pos=nx.get_node_attributes(G, 'pos')
-        nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
-        plt.savefig('test2.png')
 
         if merge_split_options['allow_merge_split']:
-            print('Will split groups in to separate overlapping LPTs.')
+            print('Will split groups in to separate overlapping LPTs.',flush=True)
             if merge_split_options['split_merger_min_hours'] > 0:
-                print('Remove splits and mergers < '+str(merge_split_options['split_merger_min_hours'])+' h.')
+                print('Remove splits and mergers < '+str(merge_split_options['split_merger_min_hours'])+' h.', flush=True)
+                print('This step may take a while.', flush=True)
                 G = lpt.helpers.lpt_graph_remove_short_ends(G
                     , merge_split_options['split_merger_min_hours']
                       - dataset['data_time_interval'])
 
-                plt.figure(figsize=(10,10))
-                pos=nx.get_node_attributes(G, 'pos')
-                nx.draw(G, pos, with_labels=False, arrows=True, node_size=10)
-                plt.savefig('test3.png')
-
-            print('--- Calculating LPT System Properties. ---')
+            print('--- Calculating LPT System Properties. ---', flush=True)
             TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options)
 
         else:
-            print('Splits and mergers retained as the same LPT system.')
-            print('--- Calculating LPT System Properties. ---')
+            print('Splits and mergers retained as the same LPT system.', flush=True)
+            print('--- Calculating LPT System Properties. ---', flush=True)
             TIMECLUSTERS = lpt.helpers.calc_lpt_properties_without_branches(G, options)
 
         ## Output
