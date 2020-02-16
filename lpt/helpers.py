@@ -548,52 +548,6 @@ def lpt_graph_remove_short_duration_systems(G, min_duration
     return G
 
 
-def init_lpt_group_array(dt_list, objdir, min_points = 0, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
-    """
-    "LPT" is a 2-D "group" array (np.int64) with columns: [timestamp, objid, lpt_group_id, begin_point, end_point, split_point]
-    -- timestamp = Linux time stamp (e.g., seconds since 0000 UTC 1970-1-1)
-    -- objid = LP object id (YYYYMMDDHHnnnn)
-    -- lpt_group_id = LPT group id, connected LP objects have a common LPT group id.
-    -- begin point = 1 if it is the beginning of a track. 0 otherwise.
-    -- end point = 1 if no tracks were connected to it, 0 otherwise.
-    -- split point = 1 if split detected, 0 otherwise.
-
-    BRANCHES is a 1-D native Python list with native Python int values.
-    This is needed because BRANCHES is bitwise, and there can be more than 64 branches in a group.
-    -- branches = bitwise binary starts from 1 at each branch. Mergers will have separate branch numbers.
-                   overlapping portions will have multiple branch numbers associated with them.
-    """
-
-    LPT = []  # Create this as a list, then conert to np.int64 array.
-    BRANCHES = []  # This will stay as a native Python list.
-
-    for this_dt in dt_list:
-
-        print(this_dt)
-        fn = (objdir + this_dt.strftime(fmt))
-        print(fn)
-        try:
-            DS = Dataset(fn)
-            try:
-                id_list = DS['objid'][:]
-                pixels_x = DS['pixels_x'][:]
-            except IndexError:
-                print('WARNING: No LPO at this time: ' + str(this_dt),flush=True)
-                id_list = [] # In case of no LPOs at this time.
-            DS.close()
-
-            for ii in range(len(id_list)):
-                npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
-                if npts >= min_points:
-                    LPT.append([int((this_dt - dt.datetime(1970,1,1,0,0,0)).total_seconds()), int(id_list[ii]), -1, 0, 1, 0])
-                    BRANCHES.append(int(0))
-
-        except FileNotFoundError:
-            print('WARNING: Missing this file!',flush=True)
-
-    return (np.int_(LPT), BRANCHES)
-
-
 
 def get_list_of_path_graphs(G):
 
