@@ -41,7 +41,7 @@ def feature_spread(data, npoints):
     for tt in range(len(data)):
 
         if tt % 100 == 0:
-            print(('Feature Spread: ' + str(tt) + ' of max ' + str(len(data)) + '.'))
+            print(('Feature Spread: ' + str(tt) + ' of max ' + str(len(data)) + '.'),flush=True)
 
         array_2d = data[tt].toarray()
 
@@ -843,11 +843,11 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Output.
     ##
     if subset == 'mjo':
-        fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'_mjo_lpt.nc')
+        fn_out = (mask_output_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'_mjo_lpt.nc')
     elif subset == 'non_mjo':
-        fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'_non_mjo_lpt.nc')
+        fn_out = (mask_output_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'_non_mjo_lpt.nc')
     else:
-        fn_out = (lpt_systems_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'.nc')
+        fn_out = (mask_output_dir+'/lpt_composite_mask_'+YMDH1_YMDH2+'.nc')
 
     os.remove(fn_out) if os.path.exists(fn_out) else None
     print('Writing to: ' + fn_out, flush=True)

@@ -335,14 +335,13 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
-        rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_individual_lpt_masks(begin_time, end_time, dataset['data_time_interval']
             , prod = dataset['label']
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
-            , mask_output_dir=objects_dir
+            , mask_output_dir=options['outdir']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
@@ -364,7 +363,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
-            , mask_output_dir=objects_dir
+            , mask_output_dir=options['outdir']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
@@ -380,14 +379,13 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
-        rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_composite_lpt_mask(begin_time, end_time, dataset['data_time_interval']
             , prod = dataset['label']
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
-            , mask_output_dir=objects_dir
+            , mask_output_dir=options['outdir']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
@@ -403,14 +401,13 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                         + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                         + '/thresh' + str(int(lpo_options['thresh']))
                         + '/objects/')
-        rain_dir = dataset['raw_data_parent_dir']
 
         lpt.masks.calc_composite_lpt_mask(begin_time, end_time, dataset['data_time_interval']
             , prod = dataset['label']
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir']
-            , mask_output_dir=objects_dir
+            , mask_output_dir=options['outdir']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
