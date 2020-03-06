@@ -64,8 +64,16 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None, verbose=Fal
     props['end_indx'] = np.array(indx2)[:,0].astype(int)
     props['begin_lon'] = lon[props['begin_indx']]
     props['end_lon'] = lon[props['end_indx']]
+    #print(props['begin_indx'])
+    #props['min_lon'] = np.array([np.nanmin(lon[props['begin_indx'][x]:props['end_indx'][x]+1]) for x in range(len(props['begin_indx'])) ])
+    #props['max_lon'] = np.array([np.nanmax(lon[props['begin_indx'][x]:props['end_indx'][x]+1]) for x in range(len(props['begin_indx'])) ])
     props['lon_propagation'] = lon[props['end_indx']] - lon[props['begin_indx']]
     props['total_zonal_spd'] = linregress(hours_since_beginning,lon)[0] * (111000 / 3600.0 )
+
+    min_lon,max_lon,indx1, indx2 = ndimage.extrema(lon, label_im, range(1,nE+1))
+    props['min_lon'] = min_lon
+    props['max_lon'] = max_lon
+
 
     props['segment_zonal_spd'] = 0.0 * np.arange(nE)
     for iii in range(nE):
@@ -225,32 +233,25 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
                     ## To determine whether it gets conquered, use the neighboring periods.
                     if ii == 0:  # On left side, compare the time period to the right.
                         continue
-                        #if statsEW['duration'].values[ii] < statsEW['duration'].values[ii+1]:
-                        #    conquer = True
-                        #if abs(statsEW['lon_propagation'].values[ii]) < abs(statsEW['lon_propagation'].values[ii+1]):
-                        #    conquer = True
 
                     elif ii == len(sort_indices)-1:  # On right side, compare the time period to the left.
                         continue
-                        #if statsEW['duration'].values[ii] < statsEW['duration'].values[ii-1]:
-                        #    conquer = True
-                        #if abs(statsEW['lon_propagation'].values[ii]) < abs(statsEW['lon_propagation'].values[ii-1]):
-                        #    conquer = True
 
                     else:  # Somewhere in interior. Compare the time periods to the left and right.
-                        if statsEW['duration'].values[ii] < statsEW['duration'].values[ii+1] and statsEW['duration'].values[ii] < statsEW['duration'].values[ii-1]:
+                        if statsEW['duration'].values[ii] <= statsEW['duration'].values[ii+1] and statsEW['duration'].values[ii] < statsEW['duration'].values[ii-1]:
                             conquer = True
-                        if abs(statsEW['lon_propagation'].values[ii]) < abs(statsEW['lon_propagation'].values[ii+1]) and abs(statsEW['lon_propagation'].values[ii]) < abs(statsEW['lon_propagation'].values[ii-1]):
+                        if abs(statsEW['lon_propagation'].values[ii]) <= abs(statsEW['lon_propagation'].values[ii+1]) and abs(statsEW['lon_propagation'].values[ii]) < abs(statsEW['lon_propagation'].values[ii-1]):
                             conquer = True
 
                         ## Check "backtrack allowance"
                         if statsEW['east_prop'].values[ii]:
                             ## Check for net westward progression
-                            if (statsEW['end_lon'].values[ii+1] - statsEW['end_lon'].values[ii-1]) > opts['backtrack_allowance']:
+                            if (statsEW['min_lon'].values[ii+1] - statsEW['min_lon'].values[ii-1]) > opts['backtrack_allowance']:
                                 conquer = False
+                                print('Prevent conquer due to lon propagation.')
                         else:
                             ## Check for net eastward progression
-                            if (statsEW['end_lon'].values[ii+1] - statsEW['end_lon'].values[ii-1]) < -1*opts['backtrack_allowance']:
+                            if (statsEW['max_lon'].values[ii+1] - statsEW['max_lon'].values[ii-1]) < -1*opts['backtrack_allowance']:
                                 conquer = False
 
             if conquer:
@@ -344,6 +345,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
 
 
     ## Search for an MJO within each group.
+    #for this_group in [149]:
     for this_group in sorted(np.unique(f['group'])):
 
         print(('----------- Group #' + str(this_group) + ' -----------'), flush=True)
@@ -484,72 +486,109 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
             ## If I am here, there were east propagation periods.
             ## If any of them qualified as an MJO:
             ## - Figure out which one is the domimant east propagation period
-            ## - Write to MJO LPT file.
+            ## - Write to MJO LPT file OR to MJO group "extras".
             ## Otherwise:
             ## - Write to the non MJO LPT file.
 
             if east_prop_group_df['meets_mjo_criteria'].any():
 
+                lpts_in_group_with_mjo_eprop = east_prop_group_df[east_prop_group_df['meets_mjo_criteria']]['lptid'].values
+                print(lpts_in_group_with_mjo_eprop)
+                ## TODO: Allow multiple MJO eprop per one LPT. Allow multiple LPT in group of LPTs.
+
                 ## Sort the data frame to figure out which should be used for the MJO.
                 east_prop_group_df_sort = east_prop_group_df.sort_values(['meets_mjo_criteria','duration','area_times_speed'],ascending=False)
 
-                print('LPT ID ' + str(east_prop_group_df_sort['lptid'].values[0]) + ' is selected as an MJO event.')
-                jjj = np.where(f['lptid'] == east_prop_group_df_sort['lptid'].values[0])[0][0]
-                i1 = f['i1'][jjj]
-                i2 = f['i2'][jjj]
-                this_lpt_time = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) for x in ts[i1:i2+1]]
 
-                ii1 = east_prop_group_df_sort['begin_indx'].values[0]
-                ii2 = east_prop_group_df_sort['end_indx'].values[0]
+                for jj in range(len(east_prop_group_df_sort.index)):
+                    ## Check whether it is already represented.
+                    ## It is already represented if:
+                    ##    The identical east propagation period has already been used as part of another LPT.
+                    already_used = False
+                    if jj > 0:
 
-                year11 = east_prop_group_df_sort['year_begin'].values[0]
-                month11 = east_prop_group_df_sort['month_begin'].values[0]
-                day11 = east_prop_group_df_sort['day_begin'].values[0]
-                hour11 = east_prop_group_df_sort['hour_begin'].values[0]
-                year22 = east_prop_group_df_sort['year_end'].values[0]
-                month22 = east_prop_group_df_sort['month_end'].values[0]
-                day22 = east_prop_group_df_sort['day_end'].values[0]
-                hour22 = east_prop_group_df_sort['hour_end'].values[0]
+                        jjj = np.where(f['lptid'] == east_prop_group_df_sort['lptid'].values[jj])[0][0]
+                        i1 = f['i1'][jjj]+east_prop_group_df_sort['begin_indx'].values[jj]
+                        i2 = f['i1'][jjj]+east_prop_group_df_sort['end_indx'].values[jj]
+                        points1 =  pd.DataFrame.from_dict({'ts':ts[i1:i2+1]
+                                                , 'lon':f['lon'][i1:i2+1]
+                                                , 'lat':f['lat'][i1:i2+1]})
 
-                FOUT_mjo_lpt += [ [dateint1, dateint2, east_prop_group_df_sort['lptid'].values[0], this_group
-                                    , east_prop_group_df_sort['total_duration'].values[0]
-                                    , east_prop_group_df_sort['total_zonal_spd'].values[0]
-                                    , year11, month11, day11, hour11
-                                    , year22, month22, day22, hour22
-                                    , east_prop_group_df_sort['begin_indx'].values[0]
-                                    , east_prop_group_df_sort['end_indx'].values[0]
-                                    , east_prop_group_df_sort['segment_zonal_spd'].values[0]
-                                    , east_prop_group_df_sort['duration'].values[0]
-                                    , this_lpt_time[ii1].year, this_lpt_time[ii1].month, this_lpt_time[ii1].day, this_lpt_time[ii1].hour
-                                    , this_lpt_time[ii2].year, this_lpt_time[ii2].month, this_lpt_time[ii2].day, this_lpt_time[ii2].hour
-                                    , east_prop_group_df_sort['begin_lon'].values[0]
-                                    , east_prop_group_df_sort['end_lon'].values[0]
-                                ] ]
+                        for jj0 in range(0,jj):
+                            jjj = np.where(f['lptid'] == east_prop_group_df_sort['lptid'].values[jj0])[0][0]
+                            i1 = f['i1'][jjj]+east_prop_group_df_sort['begin_indx'].values[jj0]
+                            i2 = f['i1'][jjj]+east_prop_group_df_sort['end_indx'].values[jj0]
+                            points0 =  pd.DataFrame.from_dict({'ts':ts[i1:i2+1]
+                                                    , 'lon':f['lon'][i1:i2+1]
+                                                    , 'lat':f['lat'][i1:i2+1]})
 
-                ##TO DO: Add the others to MJO LPT group but not the identified MJO LPT.
-                if east_prop_group_df_sort.shape[0] > 1:
-                    for jj in range(1,east_prop_group_df_sort.shape[0]):
 
-                        year11 = east_prop_group_df['year_begin'].values[jj]
-                        month11 = east_prop_group_df['month_begin'].values[jj]
-                        day11 = east_prop_group_df['day_begin'].values[jj]
-                        hour11 = east_prop_group_df['hour_begin'].values[jj]
+                            points_merge = pd.merge(points0, points1
+                                                        , how='inner'
+                                                        , on=['ts','lon','lat'])
+                            print(points_merge)
+                            if len(points_merge.index) > 0:
+                                already_used = True
+                                break
 
-                        year22 = east_prop_group_df['year_end'].values[jj]
-                        month22 = east_prop_group_df['month_end'].values[jj]
-                        day22 = east_prop_group_df['day_end'].values[jj]
-                        hour22 = east_prop_group_df['hour_end'].values[jj]
+                    if not already_used and east_prop_group_df_sort['meets_mjo_criteria'].values[jj]:
+
+                        print('LPT ID ' + str(east_prop_group_df_sort['lptid'].values[jj]) + ' is selected as an MJO event.')
+                        jjj = np.where(f['lptid'] == east_prop_group_df_sort['lptid'].values[jj])[0][0]
+                        i1 = f['i1'][jjj]
+                        i2 = f['i2'][jjj]
+                        this_lpt_time = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) for x in ts[i1:i2+1]]
+
+                        ii1 = east_prop_group_df_sort['begin_indx'].values[jj]
+                        ii2 = east_prop_group_df_sort['end_indx'].values[jj]
+
+                        year11 = east_prop_group_df_sort['year_begin'].values[jj]
+                        month11 = east_prop_group_df_sort['month_begin'].values[jj]
+                        day11 = east_prop_group_df_sort['day_begin'].values[jj]
+                        hour11 = east_prop_group_df_sort['hour_begin'].values[jj]
+                        year22 = east_prop_group_df_sort['year_end'].values[jj]
+                        month22 = east_prop_group_df_sort['month_end'].values[jj]
+                        day22 = east_prop_group_df_sort['day_end'].values[jj]
+                        hour22 = east_prop_group_df_sort['hour_end'].values[jj]
+
+                        FOUT_mjo_lpt += [ [dateint1, dateint2, east_prop_group_df_sort['lptid'].values[jj], this_group
+                                            , east_prop_group_df_sort['total_duration'].values[jj]
+                                            , east_prop_group_df_sort['total_zonal_spd'].values[jj]
+                                            , year11, month11, day11, hour11
+                                            , year22, month22, day22, hour22
+                                            , east_prop_group_df_sort['begin_indx'].values[jj]
+                                            , east_prop_group_df_sort['end_indx'].values[jj]
+                                            , east_prop_group_df_sort['segment_zonal_spd'].values[jj]
+                                            , east_prop_group_df_sort['duration'].values[jj]
+                                            , this_lpt_time[ii1].year, this_lpt_time[ii1].month, this_lpt_time[ii1].day, this_lpt_time[ii1].hour
+                                            , this_lpt_time[ii2].year, this_lpt_time[ii2].month, this_lpt_time[ii2].day, this_lpt_time[ii2].hour
+                                            , east_prop_group_df_sort['begin_lon'].values[jj]
+                                            , east_prop_group_df_sort['end_lon'].values[jj]
+                                        ] ]
+
+                    else:
+
+                        year11 = east_prop_group_df_sort['year_begin'].values[jj]
+                        month11 = east_prop_group_df_sort['month_begin'].values[jj]
+                        day11 = east_prop_group_df_sort['day_begin'].values[jj]
+                        hour11 = east_prop_group_df_sort['hour_begin'].values[jj]
+
+                        year22 = east_prop_group_df_sort['year_end'].values[jj]
+                        month22 = east_prop_group_df_sort['month_end'].values[jj]
+                        day22 = east_prop_group_df_sort['day_end'].values[jj]
+                        hour22 = east_prop_group_df_sort['hour_end'].values[jj]
 
                         ## Check whether this one has already been added.
                         if len(FOUT_mjo_group_extra_lpt) > 0:
-                            if east_prop_group_df['lptid'].values[jj] in np.array(FOUT_mjo_group_extra_lpt)[:,2]:
+                            if east_prop_group_df_sort['lptid'].values[jj] in np.array(FOUT_mjo_group_extra_lpt)[:,2]:
                                 continue
-                            if east_prop_group_df['lptid'].values[jj] in np.array(FOUT_mjo_lpt)[:,2]:
+                        if len(FOUT_mjo_lpt) > 0:
+                            if east_prop_group_df_sort['lptid'].values[jj] in np.array(FOUT_mjo_lpt)[:,2]:
                                 continue
 
-                        FOUT_mjo_group_extra_lpt += [ [dateint1, dateint2, east_prop_group_df['lptid'].values[jj], this_group
-                                                , east_prop_group_df['total_duration'].values[jj]
-                                                , east_prop_group_df['total_zonal_spd'].values[jj]
+                        FOUT_mjo_group_extra_lpt += [ [dateint1, dateint2, east_prop_group_df_sort['lptid'].values[jj], this_group
+                                                , east_prop_group_df_sort['total_duration'].values[jj]
+                                                , east_prop_group_df_sort['total_zonal_spd'].values[jj]
                                                 , year11, month11, day11, hour11
                                                 , year22, month22, day22, hour22
                                                 , -999, -999, -999, -999
