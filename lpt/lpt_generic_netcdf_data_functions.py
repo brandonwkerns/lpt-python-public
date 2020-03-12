@@ -81,11 +81,19 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 count = 0
 
                 for this_dt in reversed(dt_list):
-                    DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
-                            , variable_names = variable_names
-                            , data_dir=dataset['raw_data_parent_dir']
-                            , fmt=dataset['file_name_format']
-                            , verbose=dataset['verbose'])
+                    ## Read in data according to specified raw_data_format.
+                    if dataset['raw_data_format'] == 'generic_netcdf':
+                        DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
+                                , variable_names = variable_names
+                                , data_dir=dataset['raw_data_parent_dir']
+                                , fmt=dataset['file_name_format']
+                                , verbose=dataset['verbose'])
+                    elif dataset['raw_data_format'] == 'cmorph':
+                        DATA_RAW = lpt.readdata.read_cmorph_at_datetime(this_dt, verbose=dataset['verbose'])
+                        DATA_RAW['data'] = np.ma.masked_array(DATA_RAW['precip'])
+                    else:
+                        print((dataset['raw_data_format'] + ' is not a valid raw_data_format!'))
+
                     DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
                     DATA_RAW['data'][~np.isfinite(DATA_RAW['data'])] = 0.0
                     if count < 1:
@@ -346,6 +354,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , dataset_dict = dataset
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
+            , begin_lptid = lpt_options['individual_masks_begin_lptid']
+            , end_lptid = lpt_options['individual_masks_end_lptid']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB'])
 
 
