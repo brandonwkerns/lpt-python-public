@@ -619,7 +619,6 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
 
                 merger_datetimes = [get_objid_datetime(x[-1]) for x in Plist_mergers]
                 merger_timestamps = np.array([(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600 for x in merger_datetimes])
-                print(merger_datetimes, merger_timestamps)
                 for iiii in range(len(Plist_mergers)):
                     path1 = Plist_mergers[iiii]
                     # Don't use the last node, as it intersects the paths I want to keep.
@@ -629,9 +628,11 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                     override_removal = False
                     others = list(range(len(Plist_mergers)))
                     others.remove(iiii)
+                    found_intersecting_short_end = False
                     for jjjj in others:
                         path2 = Plist_mergers[jjjj]
                         if path1[-1] == path2[-1]: #Make sure I am comparing short ends that TOUCH.
+                            found_intersecting_short_end = True
                             dur2 = (get_objid_datetime(path2[-2]) - get_objid_datetime(path2[0])).total_seconds()/3600.0
                             if dur1 > dur2:
                                 override_removal = True
@@ -641,10 +642,10 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                                 integrate_area2 = np.nansum([areas[x] for x in path2])
                                 if integrate_area1 >= integrate_area2:
                                     override_removal = True
-                        else:
-                            # Check if it is the earliest merger time.
-                            if merger_timestamps[iiii] == np.min(merger_timestamps):
-                                override_removal = True
+                    if not found_intersecting_short_end:
+                        # Check if it is the earliest merger time.
+                        if merger_timestamps[iiii] == np.min(merger_timestamps):
+                            override_removal = True
 
                     if dur1 < min_duration_to_keep + 0.1 and not override_removal:
                         ## Make sure I wouldn't remove any parts of the cycles
@@ -665,10 +666,12 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                     override_removal = False
                     others = list(range(len(Plist_splits)))
                     others.remove(iiii)
+                    found_intersecting_short_end = False
                     for jjjj in others:
                         path2 = Plist_splits[jjjj]
                         if path1[-1] == path2[-1]:  #Make sure I am comparing short ends that TOUCH.
                                                     # using index [-1] works here because order is reversed, from get_short_ends
+                            found_intersecting_short_end = True
                             dur2 = (get_objid_datetime(path2[0]) - get_objid_datetime(path2[-2])).total_seconds()/3600.0
                             if dur1 > dur2:
                                 override_removal = True
@@ -678,10 +681,11 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                                 integrate_area2 = np.nansum([areas[x] for x in path2])
                                 if integrate_area1 >= integrate_area2:
                                     override_removal = True
-                        else:
-                            # Check if it is the latest split time.
-                            if split_timestamps[iiii] == np.max(split_timestamps):
-                                override_removal = True
+                    if not found_intersecting_short_end:
+                        # Check if it is the latest split time.
+                        if split_timestamps[iiii] == np.max(split_timestamps):
+                            override_removal = True
+
 
                     if dur1 < min_duration_to_keep + 0.1 and not override_removal:
                         ## Make sure I wouldn't remove any parts of the cycles
