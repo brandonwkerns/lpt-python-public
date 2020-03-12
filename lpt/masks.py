@@ -384,6 +384,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
+    , begin_lptid = 0, end_lptid = 10000
     , memory_target_mb = 1000):
 
     """
@@ -429,6 +430,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     unique_lpt_ids = np.unique(F['lptid'][:])
 
     for this_lpt_id in unique_lpt_ids:
+        if int(np.floor(this_lpt_id)) < int(np.floor(begin_lptid)) or int(np.floor(this_lpt_id)) > int(np.floor(end_lptid)):
+            continue
         print('Calculating LPT system mask for lptid = ' + str(this_lpt_id) + ' of time period ' + YMDH1_YMDH2 + '.')
 
         ## Get list of LP Objects for this LPT system.
