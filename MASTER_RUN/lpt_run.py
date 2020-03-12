@@ -47,6 +47,7 @@ dataset={}
 #dataset['raw_data_parent_dir'] = '/home/orca/bkerns/lib/lpt/lpt-matlab/data/s2s_ctl_init2013122500/interim/gridded_rain_rates'
 dataset['label'] = 's2s_combine_37'
 dataset['raw_data_parent_dir'] = '/home/disk/orca/zyw3/research/lpt-matlab-bkern-20181129-025/lpt-matlab/data/s2s_combine_37/interim/gridded_rain_rates/'
+dataset['raw_data_format'] = 'generic_netcdf'
 dataset['file_name_format'] = 'gridded_rain_rates_%Y%m%d%H.nc'
 dataset['data_time_interval'] = 6           # Time resolution of the data in hours.
 dataset['verbose'] = True
