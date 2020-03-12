@@ -512,13 +512,13 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
                         frac2 = overlapping_frac2[kkkk_idx, llll_idx]
 
                         if n_overlap >= options['min_overlap_points']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!')
+                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
                             G.add_edge(kkkk,llll)
                         elif 1.0*frac1 > options['min_overlap_frac']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!')
+                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
                             G.add_edge(kkkk,llll)
                         elif 1.0*frac2 > options['min_overlap_frac']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!')
+                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
                             G.add_edge(kkkk,llll)
 
     return G
@@ -603,64 +603,96 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
 
     ## Loop over each DAG
     for kk in range(len(SG)):
-        print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
-        areas = nx.get_node_attributes(SG[kk],'area') # used for tie breaker if same duration
+        more_to_do = True
+        while more_to_do:
+            more_to_do = False
 
-        Plist_mergers, Plist_splits = get_short_ends(SG[kk])
-        print('----> Found '+str(len(Plist_mergers))+' merge ends and '+str(len(Plist_mergers))+' split ends.',flush=True)
+            print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
+            areas = nx.get_node_attributes(SG[kk],'area') # used for tie breaker if same duration
 
-        nodes_to_remove = []
-        ## Handle mergers.
-        for iiii in range(len(Plist_mergers)):
-            path1 = Plist_mergers[iiii]
-            # Don't use the last node, as it intersects the paths I want to keep.
-            dur1 = (get_objid_datetime(path1[-2]) - get_objid_datetime(path1[0])).total_seconds()/3600.0
+            Plist_mergers, Plist_splits = get_short_ends(SG[kk])
+            print('----> Found '+str(len(Plist_mergers))+' merge ends and '+str(len(Plist_splits))+' split ends.',flush=True)
 
-            ## Check whether intersections with any others
-            override_removal = False
-            others = list(range(len(Plist_mergers)))
-            others.remove(iiii)
-            for jjjj in others:
-                path2 = Plist_mergers[jjjj]
-                if path1[-1] == path2[-1]:
-                    dur2 = (get_objid_datetime(path2[-2]) - get_objid_datetime(path2[0])).total_seconds()/3600.0
-                    if dur1 > dur2:
-                        override_removal = True
-                    elif dur1 == dur2:
-                        integrate_area1 = np.nansum([areas[x] for x in path1])
-                        integrate_area2 = np.nansum([areas[x] for x in path2])
-                        if integrate_area1 >= integrate_area2:
-                            override_removal = True
-            if dur1 < min_duration_to_keep + 0.1 and not override_removal:
-                ## Make sure I wouldn't remove any parts of the cycles
-                nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
+            nodes_to_remove = []
+            ## Handle mergers.
+            if len(Plist_mergers) > 1: # Don't bother if only one root short end.
 
-        ## Handle splits. NOTE: The ordering here is REVERSED in time.
-        for iiii in range(len(Plist_splits)):
-            path1 = Plist_splits[iiii]
-            # Don't use the last node, as it intersects the paths I want to keep.
-            dur1 = (get_objid_datetime(path1[0]) - get_objid_datetime(path1[-2])).total_seconds()/3600.0
+                merger_datetimes = [get_objid_datetime(x[-1]) for x in Plist_mergers]
+                merger_timestamps = np.array([(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600 for x in merger_datetimes])
+                print(merger_datetimes, merger_timestamps)
+                for iiii in range(len(Plist_mergers)):
+                    path1 = Plist_mergers[iiii]
+                    # Don't use the last node, as it intersects the paths I want to keep.
+                    dur1 = (get_objid_datetime(path1[-2]) - get_objid_datetime(path1[0])).total_seconds()/3600.0
 
-            ## Check whether intersections with any others
-            override_removal = False
-            others = list(range(len(Plist_splits)))
-            others.remove(iiii)
-            for jjjj in others:
-                path2 = Plist_splits[jjjj]
-                if path1[-1] == path2[-1]:
-                    dur2 = (get_objid_datetime(path2[0]) - get_objid_datetime(path2[-2])).total_seconds()/3600.0
-                    if dur1 > dur2:
-                        override_removal = True
-                    elif dur1 == dur2:
-                        integrate_area1 = np.nansum([areas[x] for x in path1])
-                        integrate_area2 = np.nansum([areas[x] for x in path2])
-                        if integrate_area1 >= integrate_area2:
-                            override_removal = True
-            if dur1 < min_duration_to_keep + 0.1 and not override_removal:
-                ## Make sure I wouldn't remove any parts of the cycles
-                nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
+                    ## Check whether intersections with any others
+                    override_removal = False
+                    others = list(range(len(Plist_mergers)))
+                    others.remove(iiii)
+                    for jjjj in others:
+                        path2 = Plist_mergers[jjjj]
+                        if path1[-1] == path2[-1]: #Make sure I am comparing short ends that TOUCH.
+                            dur2 = (get_objid_datetime(path2[-2]) - get_objid_datetime(path2[0])).total_seconds()/3600.0
+                            if dur1 > dur2:
+                                override_removal = True
+                            elif dur1 == dur2:
+                                ## Tiebreaker is integrated area in time.
+                                integrate_area1 = np.nansum([areas[x] for x in path1])
+                                integrate_area2 = np.nansum([areas[x] for x in path2])
+                                if integrate_area1 >= integrate_area2:
+                                    override_removal = True
+                        else:
+                            # Check if it is the earliest merger time.
+                            if merger_timestamps[iiii] == np.min(merger_timestamps):
+                                override_removal = True
 
-        G.remove_nodes_from(nodes_to_remove)
+                    if dur1 < min_duration_to_keep + 0.1 and not override_removal:
+                        ## Make sure I wouldn't remove any parts of the cycles
+                        nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
+
+            ## Handle splits. NOTE: The ordering here is REVERSED in time.
+            if len(Plist_splits) > 1: # Don't bother if only one leaf short end.
+
+                split_datetimes = [get_objid_datetime(x[-1]) for x in Plist_splits]
+                split_timestamps = np.array([(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600 for x in split_datetimes])
+
+                for iiii in range(len(Plist_splits)):
+                    path1 = Plist_splits[iiii]
+                    # Don't use the last node, as it intersects the paths I want to keep.
+                    dur1 = (get_objid_datetime(path1[0]) - get_objid_datetime(path1[-2])).total_seconds()/3600.0
+
+                    ## Check whether intersections with any others
+                    override_removal = False
+                    others = list(range(len(Plist_splits)))
+                    others.remove(iiii)
+                    for jjjj in others:
+                        path2 = Plist_splits[jjjj]
+                        if path1[-1] == path2[-1]:  #Make sure I am comparing short ends that TOUCH.
+                                                    # using index [-1] works here because order is reversed, from get_short_ends
+                            dur2 = (get_objid_datetime(path2[0]) - get_objid_datetime(path2[-2])).total_seconds()/3600.0
+                            if dur1 > dur2:
+                                override_removal = True
+                            elif dur1 == dur2:
+                                ## Tiebreaker is integrated area in time.
+                                integrate_area1 = np.nansum([areas[x] for x in path1])
+                                integrate_area2 = np.nansum([areas[x] for x in path2])
+                                if integrate_area1 >= integrate_area2:
+                                    override_removal = True
+                        else:
+                            # Check if it is the latest split time.
+                            if split_timestamps[iiii] == np.max(split_timestamps):
+                                override_removal = True
+
+                    if dur1 < min_duration_to_keep + 0.1 and not override_removal:
+                        ## Make sure I wouldn't remove any parts of the cycles
+                        nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
+
+            if len(nodes_to_remove) > 0:
+                G.remove_nodes_from(nodes_to_remove)
+                SG[kk].remove_nodes_from(nodes_to_remove)
+                more_to_do = True
+
+            more_to_do = False
 
     return G
 
