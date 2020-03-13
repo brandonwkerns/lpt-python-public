@@ -61,17 +61,65 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         fig1 = plt.figure(1, figsize = (8.5,4))
         fig2 = plt.figure(2, figsize = (8.5,11))
 
+
+
+    """
+    Data read function.
+    Define data_read_function based on the spcified data input type.
+    """
+
+
+    ## Read in data according to specified raw_data_format.
+    if dataset['raw_data_format'] == 'generic_netcdf':
+        def data_read_function(this_dt):
+            DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
+                    , variable_names = variable_names
+                    , data_dir=dataset['raw_data_parent_dir']
+                    , fmt=dataset['file_name_format']
+                    , verbose=dataset['verbose'])
+            return DATA_RAW
+
+    elif dataset['raw_data_format'] == 'cmorph':
+        def data_read_function(this_dt):
+            DATA_RAW = lpt.readdata.read_cmorph_at_datetime(this_dt, verbose=dataset['verbose'])
+            DATA_RAW['data'] = np.ma.masked_array(DATA_RAW['precip'])
+            return DATA_RAW
+    else:
+        print(('ERROR! '+dataset['raw_data_format'] + ' is not a valid raw_data_format!'), flush=True)
+        return
+
+
+
     if lpo_options['do_lpo_calc']:
 
         for end_of_accumulation_time in time_list:
 
+            YMDH = end_of_accumulation_time.strftime('%Y%m%d%H')
+            YMDH_fancy = end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC')
+
+            beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
+            print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
+                    + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
+
+            """
+            Check whether the output file already exists.
+            If it does and lpo_options['overwrite_existing_files'] is set to False,
+            Skip processing this time.
+            """
+            objects_dir = (output['data_dir'] + '/' + dataset['label']
+                            + '/' + filter_str(lpo_options['filter_stdev'])
+                            + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                            + '/thresh' + str(int(lpo_options['thresh']))
+                            + '/objects/'
+                            + end_of_accumulation_time.strftime(output['sub_directory_format']))
+            objects_fn = (objects_dir + '/objects_' + YMDH)
+            if not lpo_options['overwrite_existing_files'] and os.path.exists(objects_fn):
+                print('-- This time already has LPO step done. Skipping.')
+                continue
+
+
             try:
 
-                YMDH = end_of_accumulation_time.strftime('%Y%m%d%H')
-                YMDH_fancy = end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC')
-
-                beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
-                print((beginning_of_accumulation_time, end_of_accumulation_time))
                 dt_list = [beginning_of_accumulation_time
                     + dt.timedelta(hours=x) for x in np.double(np.arange(0,lpo_options['accumulation_hours']
                                                       + dataset['data_time_interval'],dataset['data_time_interval']))]
@@ -81,19 +129,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 count = 0
 
                 for this_dt in reversed(dt_list):
-                    ## Read in data according to specified raw_data_format.
-                    if dataset['raw_data_format'] == 'generic_netcdf':
-                        DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
-                                , variable_names = variable_names
-                                , data_dir=dataset['raw_data_parent_dir']
-                                , fmt=dataset['file_name_format']
-                                , verbose=dataset['verbose'])
-                    elif dataset['raw_data_format'] == 'cmorph':
-                        DATA_RAW = lpt.readdata.read_cmorph_at_datetime(this_dt, verbose=dataset['verbose'])
-                        DATA_RAW['data'] = np.ma.masked_array(DATA_RAW['precip'])
-                    else:
-                        print((dataset['raw_data_format'] + ' is not a valid raw_data_format!'))
-
+                    DATA_RAW = data_read_function(this_dt)
                     DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
                     DATA_RAW['data'][~np.isfinite(DATA_RAW['data'])] = 0.0
                     if count < 1:
@@ -101,7 +137,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                     else:
                         data_collect += DATA_RAW['data']
                     count += 1
-                    print(np.max(data_collect))
 
                 DATA_RUNNING = (data_collect/count) * lpo_options['multiply_factor'] # Get to the units you want for objects.
                 print('Running mean done.',flush=True)
@@ -125,15 +160,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 """
                 Object Output files
                 """
-                objects_dir = (output['data_dir'] + '/' + dataset['label']
-                                + '/' + filter_str(lpo_options['filter_stdev'])
-                                + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
-                                + '/thresh' + str(int(lpo_options['thresh']))
-                                + '/objects/'
-                                + end_of_accumulation_time.strftime(output['sub_directory_format']))
 
                 os.makedirs(objects_dir, exist_ok = True)
-                objects_fn = (objects_dir + '/objects_' + YMDH)
                 lpt.lptio.lp_objects_output_ascii(objects_fn, OBJ)
                 lpt.lptio.lp_objects_output_netcdf(objects_fn + '.nc', OBJ)
 
@@ -283,12 +311,15 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             timelon_rain = []
             for this_dt in dt_list:
+                DATA_RAW = data_read_function(this_dt)
+
+                """
                 DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
                         , variable_names = variable_names
                         , data_dir=dataset['raw_data_parent_dir']
                         , fmt=dataset['file_name_format']
                         , verbose=dataset['verbose'])
-
+                """
                 lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
                 timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
 

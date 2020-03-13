@@ -95,6 +95,7 @@ lpo_options['min_points'] = 400             # Throw away LP objects smaller than
 # !!! the ACCUMULATION_PERIOD time prior to the initial time.  !!!
 lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
+lpo_options['overwrite_existing_files'] = False
 
 ## LPO Mask Settings.
 lpo_options['do_lpo_mask'] = True                         # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
