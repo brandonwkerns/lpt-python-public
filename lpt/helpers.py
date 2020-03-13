@@ -604,17 +604,18 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
     CC = list(nx.connected_components(nx.to_undirected(G)))
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
-    ## Loop over each DAG
+    ## Loop over each DAG (LPG Group)
     for kk in range(len(SG)):
         more_to_do = True
+        print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
+        niter = 0
         while more_to_do:
+            niter += 1
             more_to_do = False
-
-            print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
             areas = nx.get_node_attributes(SG[kk],'area') # used for tie breaker if same duration
 
             Plist_mergers, Plist_splits = get_short_ends(SG[kk])
-            print('----> Found '+str(len(Plist_mergers))+' merge ends and '+str(len(Plist_splits))+' split ends.',flush=True)
+            print('----> Iteration #'+str(niter)+': Found '+str(len(Plist_mergers))+' merge ends and '+str(len(Plist_splits))+' split ends.',flush=True)
 
             nodes_to_remove = []
             ## Handle mergers.
@@ -650,7 +651,13 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                         if merger_timestamps[iiii] == np.min(merger_timestamps):
                             override_removal = True
 
-                    if dur1 < min_duration_to_keep + 0.1 and not override_removal:
+                    if dur1 < min_duration_to_keep - 0.01 and not override_removal:
+                        ## NOTE: KC20 code used min_duration_to_keep PLUS 0.1 above.
+                        ##       Hence, the parameter wasn't strictly the *minimum*
+                        ##       duration to keep a branch, since short ends
+                        ##       with duration *exactly* equal to min_duration_to_keep
+                        ##       would have been discarded.
+
                         ## Make sure I wouldn't remove any parts of the cycles
                         nodes_to_remove += path1[:-1] # Don't remove the last one. It intersects the paths I want to keep.
 
@@ -698,8 +705,6 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                 G.remove_nodes_from(nodes_to_remove)
                 SG[kk].remove_nodes_from(nodes_to_remove)
                 more_to_do = True
-
-            more_to_do = False
 
     return G
 
