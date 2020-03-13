@@ -258,7 +258,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         ## This is the "meat" of the LPT method: The connection in time step.
         print('Connecting objects...', flush=True)
         G = lpt.helpers.connect_lpt_graph(G, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
-        print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' LPT groups found.'), flush=True)
+        print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' initial LPT groups found.'), flush=True)
         sys.stdout.flush()
 
         ## Allow for falling below the threshold, if specified..
