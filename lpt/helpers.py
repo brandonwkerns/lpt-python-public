@@ -56,7 +56,10 @@ def identify_lp_objects(field, threshold, min_points=1
     throw_away = [x for x in range(1, nb_labels+1) if label_points[x] < min_points]
     if len(throw_away) > 0:
         if verbose:
-            print('Discarding ' + str(len(throw_away)) + ' features that were < ' + str(min_points) + ' points.',flush=True)
+            if str(len(throw_away)) == 1:
+                print('Discarding ' + str(len(throw_away)) + ' feature that was < ' + str(min_points) + ' points.',flush=True)
+            else:
+                print('Discarding ' + str(len(throw_away)) + ' features that were < ' + str(min_points) + ' points.',flush=True)
         for nn in throw_away:
             label_im[label_im == nn] = 0
 
