@@ -847,13 +847,31 @@ def get_list_of_path_graphs_rejoin_cycles(G):
     ## 2. Remove duplicate paths.
 
     cycles = nx.cycle_basis(nx.to_undirected(G))
+    if len(cycles) > 1:
+        ## In some cases, there are cycles that touch eathother. Cycles that toush are treated
+        ##   together all at once, and hence need to be combined.
+        for cc in range(len(cycles)):
+            for cccc in range(len(cycles)):
+                if cccc == cc:
+                    continue
+                if len(set(cycles[cc]).intersection(set(cycles[cccc]))) > 0:
+                    cycles[cc] = list(set(cycles[cc]).union(set(cycles[cccc])))
+                    cycles[cccc] = list(set(cycles[cc]).union(set(cycles[cccc])))
+
     Plist = get_list_of_path_graphs(G)
 
     for ii in range(len(Plist)):
         for C in cycles:
-            if len(set(C).intersection(set(Plist[ii].nodes()))) > 0:
-                Plist[ii].add_nodes_from(C)  #Only nodes are copied. But that's all I need.
+            intersection_nodes = set(C).intersection(set(Plist[ii].nodes()))
+            intersecton_times = [get_objid_datetime(x) for x in intersection_nodes]
+            if len(intersection_nodes) > 0:
+                Cadd = []
+                for this_node in C:
+                    if get_objid_datetime(this_node) in intersecton_times:
+                        Cadd.append(this_node)
+                Plist[ii].add_nodes_from(Cadd)  #Only nodes are copied, not edges. But that's all I need.
 
+    ## This step eliminates duplicates.
     for ii in range(len(Plist)):
         if ii == 0:
             Plist_new = [Plist[ii]]
@@ -883,6 +901,7 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
     for kk in range(len(SG)):
         print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
 
+        #Plist = get_list_of_path_graphs(SG[kk])
         Plist = get_list_of_path_graphs_rejoin_cycles(SG[kk])
 
         if len(Plist) == 1:
