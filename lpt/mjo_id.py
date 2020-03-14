@@ -215,7 +215,8 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
         statsEW.sort_values('begin_indx',inplace=True)
         statsEW.index = range(len(statsEW.index))
 
-        sort_indices = statsEW['duration'].values.argsort()
+        #sort_indices = statsEW['duration'].values.argsort()
+        sort_indices = statsEW.sort_values(['duration','east_prop']).index
 
         for ii in sort_indices:
             conquer = False  # Start by assuming no conquer.
@@ -345,7 +346,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
 
 
     ## Search for an MJO within each group.
-    #for this_group in [149]:
+    #for this_group in [234]:
     for this_group in sorted(np.unique(f['group'])):
 
         print(('----------- Group #' + str(this_group) + ' -----------'), flush=True)
@@ -497,8 +498,8 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                 ## TODO: Allow multiple MJO eprop per one LPT. Allow multiple LPT in group of LPTs.
 
                 ## Sort the data frame to figure out which should be used for the MJO.
-                east_prop_group_df_sort = east_prop_group_df.sort_values(['meets_mjo_criteria','duration','area_times_speed'],ascending=False)
-
+                east_prop_group_df_sort = east_prop_group_df.sort_values(['meets_mjo_criteria','duration','total_duration','area_times_speed'],ascending=False)
+                print(east_prop_group_df_sort[east_prop_group_df_sort['lptid'] == 234.2])
 
                 for jj in range(len(east_prop_group_df_sort.index)):
                     ## Check whether it is already represented.
@@ -526,7 +527,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                             points_merge = pd.merge(points0, points1
                                                         , how='inner'
                                                         , on=['ts','lon','lat'])
-                            print(points_merge)
                             if len(points_merge.index) > 0:
                                 already_used = True
                                 break
