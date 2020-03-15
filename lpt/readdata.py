@@ -9,7 +9,45 @@ import glob
 """
 This module contains functions for reading external data
 to use with LPT.
+
+The data_read_function is called at various points in other LPT functions.
+
+To add a new data set, do the following:
+1) Write a read function similar to read_generic_netcdf below.
+2) Add an "elif" option that calls that function in data_read
 """
+
+
+################################################################################
+
+def data_read(datetime_to_read, dataset_options_dict):
+    """
+    Rain read function. Get rain data at datetime datetime_to_read.
+    Based on the oprions in dataset_options_dict, it will look in the data directory
+    and use the rain function specified below.
+
+    To add a dataset type, add an elif block to this function.
+
+    The function is expected to return a dictionary with keys 'lon', 'lat', and 'data'
+    """
+    if dataset_options_dict['raw_data_format'] == 'generic_netcdf':
+        DATA = read_generic_netcdf_at_datetime(datetime_to_read
+                , variable_names = variable_names
+                , data_dir = dataset_options_dict['raw_data_parent_dir']
+                , fmt = dataset_options_dict['file_name_format']
+                , verbose = dataset_options_dict['verbose'])
+
+    elif dataset_options_dict['raw_data_format'] == 'cmorph':
+        DATA = read_cmorph_at_datetime(datetime_to_read
+                , verbose = dataset_options_dict['verbose'])
+            #DATA_RAW['data'] = np.ma.masked_array(DATA_RAW['precip'])
+            #return DATA_RAW
+
+    else:
+        print(('ERROR! '+dataset['raw_data_format'] + ' is not a valid raw_data_format!'), flush=True)
+        DATA = None
+
+    return DATA
 
 ################################################################################
 ## Read functions for generic NetCDF data.
@@ -101,13 +139,13 @@ def read_cmorph_rt_bin(fn, area=[0,360,-90,90]):
     fid = open(fn,'rb')
 
     ## GrADS uses FORTRAN REAL values, which is np.float32 for Python.
-    DATA['precip'] = np.fromfile(fid, dtype=np.float32, count=2*4948*1649)
+    DATA['data'] = np.fromfile(fid, dtype=np.float32, count=2*4948*1649)
     if sys.byteorder == 'big': # Data is little endian.
-        DATA['precip'] = DATA['precip'].byteswap()
+        DATA['data'] = DATA['data'].byteswap()
 
     ## Shape and scale the data.
-    DATA['precip'] = np.reshape(np.double(DATA['precip']), [2, 1649, 4948])
-    DATA['precip'][DATA['precip'] < -0.001] = 0.0 # Usually, missing high latitude data.
+    DATA['data'] = np.reshape(np.double(DATA['data']), [2, 1649, 4948])
+    DATA['data'][DATA['data'] < -0.001] = 0.0 # Usually, missing high latitude data.
     fid.close()
 
     ## Cut out area.
@@ -116,8 +154,8 @@ def read_cmorph_rt_bin(fn, area=[0,360,-90,90]):
 
     DATA['lon'] = DATA['lon'][keep_lon[0]:keep_lon[-1]]
     DATA['lat'] = DATA['lat'][keep_lat[0]:keep_lat[-1]]
-    DATA['precip'] = DATA['precip'][:, keep_lat[0]:keep_lat[-1], keep_lon[0]:keep_lon[-1]]
-    DATA['precip'] = 0.5*(DATA['precip'][0,:,:] + DATA['precip'][1,:,:])
+    DATA['data'] = DATA['data'][:, keep_lat[0]:keep_lat[-1], keep_lon[0]:keep_lon[-1]]
+    DATA['data'] = 0.5*(DATA['data'][0,:,:] + DATA['data'][1,:,:])
 
     return DATA
 
