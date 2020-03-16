@@ -1,4 +1,5 @@
 import numpy as np
+from numpy import ma
 from netCDF4 import Dataset
 import struct
 import sys
@@ -14,15 +15,15 @@ The data_read_function is called at various points in other LPT functions.
 
 To add a new data set, do the following:
 1) Write a read function similar to read_generic_netcdf below.
-2) Add an "elif" option that calls that function in data_read
+2) Add an "elif" option that calls that function in readdata
 """
 
 
 ################################################################################
 
-def data_read(datetime_to_read, dataset_options_dict):
+def readdata(datetime_to_read, dataset_options_dict):
     """
-    Rain read function. Get rain data at datetime datetime_to_read.
+    Main data read function. Get data at datetime datetime_to_read.
     Based on the oprions in dataset_options_dict, it will look in the data directory
     and use the rain function specified below.
 
@@ -31,6 +32,9 @@ def data_read(datetime_to_read, dataset_options_dict):
     The function is expected to return a dictionary with keys 'lon', 'lat', and 'data'
     """
     if dataset_options_dict['raw_data_format'] == 'generic_netcdf':
+        variable_names = (dataset_options_dict['longitude_variable_name']
+                , dataset_options_dict['latitude_variable_name']
+                , dataset_options_dict['field_variable_name'])
         DATA = read_generic_netcdf_at_datetime(datetime_to_read
                 , variable_names = variable_names
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
@@ -39,9 +43,11 @@ def data_read(datetime_to_read, dataset_options_dict):
 
     elif dataset_options_dict['raw_data_format'] == 'cmorph':
         DATA = read_cmorph_at_datetime(datetime_to_read
+                , data_dir = dataset_options_dict['raw_data_parent_dir']
+                , fmt = dataset_options_dict['file_name_format']
                 , verbose = dataset_options_dict['verbose'])
-            #DATA_RAW['data'] = np.ma.masked_array(DATA_RAW['precip'])
-            #return DATA_RAW
+
+    ## -- Add an elif block here for new datasets. --
 
     else:
         print(('ERROR! '+dataset['raw_data_format'] + ' is not a valid raw_data_format!'), flush=True)
@@ -161,7 +167,9 @@ def read_cmorph_rt_bin(fn, area=[0,360,-90,90]):
 
 
 
-def read_cmorph_at_datetime(dt, force_rt=False, verbose=False, area=[0,360,-90,90]):
+def read_cmorph_at_datetime(dt_this, force_rt=False, data_dir='.'
+        , fmt='CMORPH_V0.x_RT_8km-30min_%Y%m%d%H'
+        , verbose=False, area=[0,360,-90,90]):
 
     """
     DATA = read_cmorph_at_datetime(dt, force_rt=False, verbose=False)
@@ -174,29 +182,13 @@ def read_cmorph_at_datetime(dt, force_rt=False, verbose=False, area=[0,360,-90,9
     However, if force_rt = True, it just uses the realtime product.
     """
 
-    YYYY = dt.strftime("%Y")
-    MM = dt.strftime("%m")
-    DD = dt.strftime("%d")
-    HH = dt.strftime("%H")
-    YMD = YYYY + MM + DD
-
     ## First try research product
-    fn = ('/home/orca/data/satellite/cmorph/'
-       + YYYY+'/'+MM+'/'+YMD+'/3B42.'+YMD+'.'+HH+'.7.HDF') #TODO: Update this for CMORPH final product.
+    fn = (data_dir + '/' + dt_this.strftime(fmt))
+    if verbose:
+        print(fn)
+    DATA = read_cmorph_rt_bin(fn)
 
-    DATA=None
-    if os.path.exists(fn) and not force_rt:
-        if verbose:
-            print(fn)
-        DATA=read_tmpa_hdf(fn)
-    else:
-        ## If no research grade, use the research product
-        fn = ('/home/orca/data/satellite/cmorph/rt/'
-           + YYYY+'/'+MM+'/'+YMD+'/CMORPH_V0.x_RT_8km-30min_'+YMD+HH)
-
-        if verbose:
-            print(fn)
-        DATA=read_cmorph_rt_bin(fn)
+    DATA['data'] = ma.masked_array(DATA['data'])
     return DATA
 
 
