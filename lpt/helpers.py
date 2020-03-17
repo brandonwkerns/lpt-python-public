@@ -476,7 +476,6 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
     """
 
     objdir=options['objdir']
-
     # Get connected components of graph.
     CC = list(nx.connected_components(nx.to_undirected(G)))
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
@@ -498,6 +497,17 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
             for kkkk in end_nodes:
                 kkkk_idx = kkkk - int(1000*np.floor(kkkk/1000))
                 for llll in begin_nodes:
+
+                    # When end nodes are linked to begin nodes, they are
+                    # removed from the list of end/begin nodes.
+                    # Therefore, check whether these have already been removed.
+                    # If they were already removed, it means the edge was already
+                    # added to the graph, and we want to avoid the end node from
+                    # potentially being linked to another begin node further upstream.
+                    # When this happened, I was getting duplicate LPTs.
+                    if not kkkk in end_nodes or not llll in begin_nodes:
+                        continue
+
                     llll_idx = llll - int(1000*np.floor(llll/1000))
                     hours_diff = (get_objid_datetime(llll)-get_objid_datetime(kkkk)).total_seconds()/3600.0
                     if hours_diff > 0.1 and hours_diff < options['fall_below_threshold_max_hours']+0.1:
@@ -517,12 +527,18 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
                         if n_overlap >= options['min_overlap_points']:
                             print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
                             G.add_edge(kkkk,llll)
+                            end_nodes.remove(kkkk)
+                            begin_nodes.remove(llll)
                         elif 1.0*frac1 > options['min_overlap_frac']:
                             print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
                             G.add_edge(kkkk,llll)
+                            end_nodes.remove(kkkk)
+                            begin_nodes.remove(llll)
                         elif 1.0*frac2 > options['min_overlap_frac']:
                             print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
                             G.add_edge(kkkk,llll)
+                            end_nodes.remove(kkkk)
+                            begin_nodes.remove(llll)
 
     return G
 
