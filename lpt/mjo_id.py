@@ -64,9 +64,6 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None, verbose=Fal
     props['end_indx'] = np.array(indx2)[:,0].astype(int)
     props['begin_lon'] = lon[props['begin_indx']]
     props['end_lon'] = lon[props['end_indx']]
-    #print(props['begin_indx'])
-    #props['min_lon'] = np.array([np.nanmin(lon[props['begin_indx'][x]:props['end_indx'][x]+1]) for x in range(len(props['begin_indx'])) ])
-    #props['max_lon'] = np.array([np.nanmax(lon[props['begin_indx'][x]:props['end_indx'][x]+1]) for x in range(len(props['begin_indx'])) ])
     props['lon_propagation'] = lon[props['end_indx']] - lon[props['begin_indx']]
     props['total_zonal_spd'] = linregress(hours_since_beginning,lon)[0] * (111000 / 3600.0 )
 
@@ -215,9 +212,7 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
         statsEW.sort_values('begin_indx',inplace=True)
         statsEW.index = range(len(statsEW.index))
 
-        #sort_indices = statsEW['duration'].values.argsort()
         sort_indices = statsEW.sort_values(['duration','east_prop']).index
-
         for ii in sort_indices:
             conquer = False  # Start by assuming no conquer.
             ii1 = statsEW['begin_indx'].values[ii]
@@ -305,7 +300,6 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
 ################################################################################
 
 def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
-    ,accumulation_hours = 0, filter_stdev = 0
     , lpt_systems_dir = '.', verbose=True):
 
     do_plotting = opts['do_plotting']
@@ -345,7 +339,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
 
 
     ## Search for an MJO within each group.
-    #for this_group in [234]:
+    #for this_group in [3]:
     for this_group in sorted(np.unique(f['group'])):
 
         print(('----------- Group #' + str(this_group) + ' -----------'), flush=True)
@@ -426,7 +420,8 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                     if (east_prop_df['duration'][iiii] > (opts['min_eastward_prop_duration'] - 0.001)
                             and east_prop_df['lon_propagation'][iiii] > (opts['min_total_eastward_lon_propagation'] - 0.001)):
 
-                        hours_in_lat = 3.0*np.sum(np.abs(this_lpt_lat[ii1:ii2+1]) <= opts['max_abs_latitude'])
+                        hours_in_lat = interval_hours*np.sum(np.abs(this_lpt_lat[ii1:ii2+1]) <= opts['max_abs_latitude'])
+                        print(hours_in_lat)
                         if hours_in_lat > opts['min_eastward_prop_duration_in_lat_band'] - 0.001:
                             east_prop_df['meets_mjo_criteria'][iiii] = True
 
@@ -627,24 +622,39 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                                             , -999, -999
                                         ] ]
 
-    ## Output
-    ## For output table files.
+    ############################################################################
+    ## Output  #################################################################
+    ## For output table files.  ################################################
+    ############################################################################
+
     FMT=('%14d%14d%10.4f%10d%10.2f%16.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d '
             + '%20d%15d%11.2f%11.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d%20.1f%15.1f')
 
     header = 'begin_tracking  end_tracking     lptid  lptgroup  duration  mean_zonal_spd   lpt_begin     lpt_end      eprop_begin_idx  eprop_end_idx  eprop_spd  eprop_dur eprop_begin   eprop_end     eprop_lon_begin  eprop_lon_end'
 
     mjo_lpt_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+    print(mjo_lpt_file)
     if len(FOUT_mjo_lpt) > 0:
-        print(mjo_lpt_file)
         np.savetxt(mjo_lpt_file, FOUT_mjo_lpt, fmt=FMT,header=header,comments='')
+    else:
+        text_file = open(mjo_lpt_file, "wt")
+        n = text_file.write(header)
+        text_file.close()
 
     mjo_lpt_group_extras_file = (lpt_systems_dir + '/mjo_group_extra_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+    print(mjo_lpt_group_extras_file)
     if len(FOUT_mjo_group_extra_lpt) > 0:
-        print(mjo_lpt_group_extras_file)
         np.savetxt(mjo_lpt_group_extras_file, FOUT_mjo_group_extra_lpt, fmt=FMT,header=header,comments='')
+    else:
+        text_file = open(mjo_lpt_group_extras_file, "wt")
+        n = text_file.write(header)
+        text_file.close()
 
     non_mjo_lpt_file = (lpt_systems_dir + '/non_mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+    print(non_mjo_lpt_file)
     if len(FOUT_non_mjo_lpt) > 0:
-        print(non_mjo_lpt_file)
         np.savetxt(non_mjo_lpt_file, FOUT_non_mjo_lpt, fmt=FMT,header=header,comments='')
+    else:
+        text_file = open(non_mjo_lpt_file, "wt")
+        n = text_file.write(header)
+        text_file.close()
