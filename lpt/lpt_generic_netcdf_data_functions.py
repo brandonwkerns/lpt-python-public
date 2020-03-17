@@ -325,7 +325,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
         lpt.mjo_id.do_mjo_id(begin_time, end_time, dataset['data_time_interval']
             , mjo_id_options, prod = dataset['label']
-            , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lpt_systems_dir=options['outdir'])
 
 
