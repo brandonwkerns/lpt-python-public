@@ -9,7 +9,7 @@ from dateutil.relativedelta import relativedelta
 from context import lpt
 import os
 import sys
-from scipy.sparse import csr_matrix, find, SparseEfficiencyWarning
+from scipy.sparse import dok_matrix, csr_matrix, find, SparseEfficiencyWarning
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
@@ -63,27 +63,10 @@ def feature_spread(data, npoints):
     return data_new
 
 
-def handle_variable_names(dataset):
-    ## Extract variable names from the dataset dict if specified
-    ## Otherwise, return a default tuple of variable names.
-    if (('longitude_variable_name' in dataset) and
-        ('latitude_variable_name' in dataset) and
-        ('field_variable_name' in dataset)):
-
-        variable_names = (dataset['longitude_variable_name']
-                , dataset['latitude_variable_name']
-                , dataset['field_variable_name'])
-    else:
-        variable_names = ('lon','lat','rain')
-    return variable_names
-
-
 def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
 
     mask_type_list = [*mask_arrays]
     mask_type_list = [x for x in mask_type_list if 'mask' in x]
-    def rain_read_function(dt, verbose=False):
-        return lpt.readdata.read_generic_netcdf_at_datetime(dt, data_dir = rain_dir, verbose=verbose)
 
     #### Initialize
     VOLRAIN = {}
@@ -97,21 +80,12 @@ def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
         VOLRAIN[field.replace('mask','volrain')] = 0.0
         VOLRAIN[field.replace('mask','volrain')+'_tser'] = np.nan * np.zeros(len(mask_times))
 
-
     #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
     for tt in range(len(mask_times)):
         this_dt = mask_times[tt]
 
-        ## Get rain.
-        #RAIN = rain_read_function(this_dt, verbose=False)
-
-        variable_names =  handle_variable_names(dataset_dict)
-
-        RAIN = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
-                , variable_names = variable_names
-                , data_dir=dataset_dict['raw_data_parent_dir']
-                , fmt=dataset_dict['file_name_format']
-                , verbose=dataset_dict['verbose'])
+        ## Get rain
+        RAIN = lpt.readdata.readdata(this_dt, dataset_dict)
 
         precip = RAIN['data'][:]
         precip[~np.isfinite(precip)] = 0.0
@@ -128,7 +102,6 @@ def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
             precip_masked = precip * this_mask
             VOLRAIN[field.replace('mask','volrain')] += interval_hours * np.sum(precip_masked * AREA)
             VOLRAIN[field.replace('mask','volrain')+'_tser'][tt] = interval_hours * np.sum(precip_masked * AREA)
-
 
     return VOLRAIN
 
@@ -384,17 +357,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
-    , begin_lptid = 0, end_lptid = 10000
+    , begin_lptid = 0, end_lptid = 10000, mjo_only = False
     , memory_target_mb = 1000):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
     """
-
-
-    def rain_read_function(dt, verbose=False):
-        return lpt.readdata.read_generic_netcdf_at_datetime(dt, data_dir = rain_dir, verbose=verbose)
-
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
 
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
@@ -427,10 +395,18 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
 
     F = Dataset(lpt_systems_file)
-    unique_lpt_ids = np.unique(F['lptid'][:])
+    unique_lpt_ids = np.unique(F['lptid'][:]).data
+    if mjo_only:
+        lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
+        lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
+        mjo_lpt_list = np.unique(lpt_list[:,2])
+    else:
+        mjo_lpt_list = np.array([999])
 
     for this_lpt_id in unique_lpt_ids:
         if int(np.floor(this_lpt_id)) < int(np.floor(begin_lptid)) or int(np.floor(this_lpt_id)) > int(np.floor(end_lptid)):
+            continue
+        if mjo_only and np.min(np.abs(mjo_lpt_list - this_lpt_id)) > 0.0001:
             continue
         print('Calculating LPT system mask for lptid = ' + str(this_lpt_id) + ' of time period ' + YMDH1_YMDH2 + '.')
 
@@ -666,7 +642,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 ################################################################################
 
 def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
-    ,accumulation_hours = 0, filter_stdev = 0
+    , accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
