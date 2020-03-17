@@ -6,6 +6,7 @@ import sys
 import os
 import datetime as dt
 import glob
+import gdal
 
 """
 This module contains functions for reading external data
@@ -43,9 +44,25 @@ def readdata(datetime_to_read, dataset_options_dict):
 
     elif dataset_options_dict['raw_data_format'] == 'cmorph':
         DATA = read_cmorph_at_datetime(datetime_to_read
+                , area = dataset_options_dict['area']
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
                 , fmt = dataset_options_dict['file_name_format']
                 , verbose = dataset_options_dict['verbose'])
+
+    elif dataset_options_dict['raw_data_format'] == 'cfs_forecast':
+        fcst_hour = int((datetime_to_read - dataset_options_dict['datetime_init']).total_seconds()/3600)
+        fcst_resolution_hours = dataset_options_dict['data_time_interval']
+        if fcst_hour < 1: # There is no data in the file for fcst = 0. Use 6h fcst values.
+            records = [1,]
+        else:
+            records = [int(fcst_hour/fcst_resolution_hours),]
+
+        DATA = read_cfs_rt_at_datetime(dataset_options_dict['datetime_init'] # datetime_to_read
+                , data_dir = dataset_options_dict['raw_data_parent_dir']
+                , fmt = dataset_options_dict['file_name_format']
+                , records = records
+                , verbose = dataset_options_dict['verbose'])
+        DATA['data'] = ma.masked_array(DATA['precip'][0])
 
     ## -- Add an elif block here for new datasets. --
 
@@ -186,7 +203,7 @@ def read_cmorph_at_datetime(dt_this, force_rt=False, data_dir='.'
     fn = (data_dir + '/' + dt_this.strftime(fmt))
     if verbose:
         print(fn)
-    DATA = read_cmorph_rt_bin(fn)
+    DATA = read_cmorph_rt_bin(fn, area=area)
 
     DATA['data'] = ma.masked_array(DATA['data'])
     return DATA
@@ -198,145 +215,14 @@ def read_cmorph_at_datetime(dt_this, force_rt=False, data_dir='.'
 
 
 """
-TRMM 3B42/TMPA reading functions.
-"""
-
-def read_tmpa_hdf(fn):
-    """
-    DATA = read_tmpa_hdf(fn)
-
-    output:
-    list(DATA)
-    Out[12]: ['lon', 'lat', 'precip']
-    In [21]: DATA['lon'].shape
-    Out[21]: (1440,)
-    In [22]: DATA['lat'].shape
-    Out[22]: (400,)
-    In [23]: DATA['precip'].shape
-    Out[23]: (400, 1440)
-    """
-
-    ## The TMPA HDF files can be read using NetCDF4 Dataset.
-    DS = Dataset(fn)
-    DATA={}
-    DATA['lon'] = np.arange(-179.875, 180.0, 0.25)
-    DATA['lat'] = np.arange(-49.875, 50.0, 0.25)
-    DATA['precip'] = DS['precipitation'][:].T
-    DS.close()
-
-    ## Need to get from (-180, 180) to (0, 360) longitude.
-    lon_lt_0, = np.where(DATA['lon'] < -0.0001)
-    lon_ge_0, = np.where(DATA['lon'] > -0.0001)
-    DATA['lon'][lon_lt_0] += 360.0
-    DATA['lon'] = np.concatenate((DATA['lon'][lon_ge_0], DATA['lon'][lon_lt_0]))
-    DATA['precip'] = np.concatenate((DATA['precip'][:,lon_ge_0], DATA['precip'][:,lon_lt_0]), axis=1)
-
-    return DATA
-
-
-def read_tmpa_rt_bin(fn):
-    """
-    RT = read_tmpa_rt_bin(fn)
-
-    output:
-    In [24]: list(RT)
-    Out[24]: ['lon', 'lat', 'precip']
-    In [25]: RT['lon'].shape
-    Out[25]: (1440,)
-    In [26]: RT['lat'].shape
-    Out[26]: (480,)
-    In [27]: RT['precip'].shape
-    Out[27]: (480, 1440)
-
-    missing values (stored as -31999) are set to np.NaN.
-    """
-
-    ## TMPA RT files are binary.
-    dtype=np.dtype([('field1', '<i2')])
-    DATA={}
-    DATA['lon'] = np.arange(0.125, 360.0, 0.25)
-    DATA['lat'] = np.arange(-59.875, 60.0, 0.25)
-    fid = open(fn,'rb')
-
-    ## skip header
-    fid.seek(2880)
-    DATA['precip'] = np.fromfile(fid, dtype=np.int16, count=691200)
-    if sys.byteorder == 'little':
-        DATA['precip'] = DATA['precip'].byteswap()
-
-    ## Shape and scale the data.
-    DATA['precip'] = np.flip(np.reshape(np.double(DATA['precip']) / 100.0, [480, 1440]), axis=0)
-    DATA['precip'][DATA['precip'] < -0.001] = 0.0 # Usually, missing high latitude data.
-    fid.close()
-
-    return DATA
-
-
-def read_tmpa_at_datetime(dt, force_rt=False, verbose=False):
-
-    """
-    DATA = read_tmpa_at_datetime(dt, force_rt=False, verbose=False)
-
-    DATA is a dict with keys lon, lat, and precip.
-
-    Based on the provided datetime dt, read in the TMPA data.
-    By default, it will first check for the research product,
-    and use the realtime product if the research product was not found.
-    However, if force_rt = True, it just uses the realtime product.
-    """
-
-    YYYY = dt.strftime("%Y")
-    MM = dt.strftime("%m")
-    DD = dt.strftime("%d")
-    HH = dt.strftime("%H")
-    YMD = YYYY + MM + DD
-
-    ## First try research product
-    fn = ('/home/orca/data/satellite/trmm_global_rainfall/'
-       + YYYY+'/'+MM+'/'+YMD+'/3B42.'+YMD+'.'+HH+'.7.HDF')
-
-    DATA=None
-
-    ## Sometimes, the file name is "7A" instead of "7".
-    if not os.path.exists(fn):
-        fn = ('/home/orca/data/satellite/trmm_global_rainfall/'
-           + YYYY+'/'+MM+'/'+YMD+'/3B42.'+YMD+'.'+HH+'.7A.HDF')
-
-    if os.path.exists(fn) and not force_rt:
-        if verbose:
-            print(fn)
-        DATA=read_tmpa_hdf(fn)
-    else:
-        ## If no research grade, use the research product
-        fn = ('/home/orca/data/satellite/trmm_global_rainfall/rt/'
-           + YYYY+'/'+MM+'/'+YMD+'/3B42RT.'+YMD+HH+'.7.bin')
-
-        ## Sometimes, the file name is "7A" instead of "7".
-        if not os.path.exists(fn):
-            fn = ('/home/orca/data/satellite/trmm_global_rainfall/rt/'
-               + YYYY+'/'+MM+'/'+YMD+'/3B42RT.'+YMD+HH+'.7A.bin')
-
-        if verbose:
-            print(fn)
-        DATA=read_tmpa_rt_bin(fn)
-    return DATA
-
-"""
 CFS Grib2 reading function
 """
 
-def read_cfs_rt_at_datetime(dt, records=range(1,45*4+1), verbose=False):
+def read_cfs_rt_at_datetime(dt_this, data_dir = './'
+                , fmt = 'cfs.%Y%m%d/%H/time_grib_01/prate.01.%Y%m%d%H.daily.grb2'
+                , records=range(1,45*4+1), verbose=False):
 
-    YYYY = dt.strftime("%Y")
-    MM = dt.strftime("%m")
-    DD = dt.strftime("%d")
-    HH = dt.strftime("%H")
-    YMD = YYYY + MM + DD
-
-    ## First try research product
-    fn = ('/home/orca/data/model_fcst_grib/cfs/cfs.'
-       +YMD+'/'+HH+'/time_grib_01/prate.01.'+ YMD + HH + '.daily.grb2')
-
+    fn = (data_dir + '/' + dt_this.strftime(fmt))
     if verbose:
         print(fn, flush=True)
 
