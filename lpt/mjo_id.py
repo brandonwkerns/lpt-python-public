@@ -306,7 +306,6 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
 
 def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
-    , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.', verbose=True):
 
     do_plotting = opts['do_plotting']
