@@ -201,7 +201,7 @@ def get_objid_datetime(objid):
 def read_lp_object_properties(objid, objdir, property_list, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
 
     dt1 = get_objid_datetime(objid)
-    fn1 = (objdir + dt1.strftime(fmt))
+    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
 
     if verbose:
         print(fn1)
@@ -241,8 +241,8 @@ def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%
     dt1 = get_objid_datetime(objid1)
     dt2 = get_objid_datetime(objid2)
 
-    fn1 = (objdir + dt1.strftime(fmt))
-    fn2 = (objdir + dt2.strftime(fmt))
+    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
+    fn2 = (objdir + '/' + dt2.strftime(fmt)).replace('///','/').replace('//','/')
 
     DS1 = Dataset(fn1)
     id1 = DS1['objid'][:]
@@ -283,7 +283,7 @@ def init_lpt_graph(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects
     for this_dt in dt_list:
 
         print(this_dt)
-        fn = (objdir + this_dt.strftime(fmt))
+        fn = (objdir + '/' + this_dt.strftime(fmt)).replace('///','/').replace('//','/')
         print(fn)
         try:
             DS = Dataset(fn)
@@ -315,8 +315,8 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%
     ##
     ## Read in LPO masks for current and previous times.
     ##
-    fn1 = objdir + '/' + dt1.strftime(fmt)
-    fn2 = objdir + '/' + dt2.strftime(fmt)
+    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
+    fn2 = (objdir + '/' + dt2.strftime(fmt)).replace('///','/').replace('//','/')
 
     DS1 = Dataset(fn1, 'r')
     mask1 = DS1['grid_mask'][:]
@@ -1015,7 +1015,7 @@ def get_lpo_mask(objid, objdir):
     dt1 = get_objid_datetime(objid)
 
     fmt = ("/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc")
-    fn1 = (objdir + dt1.strftime(fmt))
+    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
 
     DS1 = Dataset(fn1)
     id1 = DS1['objid'][:]
@@ -1043,7 +1043,7 @@ def plot_lpt_groups_time_lon_text(ax, LPT, BRANCHES, options, text_color='k'):
         objid = LPT[ii,1]
         dt1 = get_objid_datetime(objid)
         fmt = ("/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc")
-        fn1 = (objdir + dt1.strftime(fmt))
+        fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
 
         DS1 = Dataset(fn1)
         id1 = DS1['objid'][:]
