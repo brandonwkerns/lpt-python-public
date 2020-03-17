@@ -24,25 +24,11 @@ def filter_str(stdev):
         strout = None
     return strout
 
-def handle_variable_names(dataset):
-    ## Extract variable names from the dataset dict if specified
-    ## Otherwise, return a default tuple of variable names.
-    if (('longitude_variable_name' in dataset) and
-        ('latitude_variable_name' in dataset) and
-        ('field_variable_name' in dataset)):
-
-        variable_names = (dataset['longitude_variable_name']
-                , dataset['latitude_variable_name']
-                , dataset['field_variable_name'])
-    else:
-        variable_names = ('lon','lat','rain')
-    return variable_names
-
 
 def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 ,merge_split_options,mjo_id_options,argv):
 
-    variable_names = handle_variable_names(dataset)
+    #variable_names = handle_variable_names(dataset)
 
     ## Get begin and end time from command line.
     ## Give warning message if it has not been specified.
@@ -62,44 +48,14 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         fig2 = plt.figure(2, figsize = (8.5,11))
 
 
-
-    """
-    Data read function.
-    Define data_read_function based on the spcified data input type.
-    """
-
-
-    ## Read in data according to specified raw_data_format.
-    if dataset['raw_data_format'] == 'generic_netcdf':
-        def data_read_function(this_dt):
-            DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
-                    , variable_names = variable_names
-                    , data_dir=dataset['raw_data_parent_dir']
-                    , fmt=dataset['file_name_format']
-                    , verbose=dataset['verbose'])
-            return DATA_RAW
-
-    elif dataset['raw_data_format'] == 'cmorph':
-        def data_read_function(this_dt):
-            DATA_RAW = lpt.readdata.read_cmorph_at_datetime(this_dt, verbose=dataset['verbose'])
-            DATA_RAW['data'] = np.ma.masked_array(DATA_RAW['precip'])
-            return DATA_RAW
-    else:
-        print(('ERROR! '+dataset['raw_data_format'] + ' is not a valid raw_data_format!'), flush=True)
-        return
-
-
-
     if lpo_options['do_lpo_calc']:
 
-        for end_of_accumulation_time in time_list:
+        for end_of_accumulation_time0 in time_list: ## This is the nominal time of the LPO
+                                                    ## In model cold start mode, the actual
+                                                    ## times used differ in the beginning of the run.
 
-            YMDH = end_of_accumulation_time.strftime('%Y%m%d%H')
-            YMDH_fancy = end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC')
-
-            beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
-            print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
-                    + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
+            YMDH = end_of_accumulation_time0.strftime('%Y%m%d%H')
+            YMDH_fancy = end_of_accumulation_time0.strftime('%Y-%m-%d %H:00 UTC')
 
             """
             Check whether the output file already exists.
@@ -111,12 +67,31 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                             + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                             + '/thresh' + str(int(lpo_options['thresh']))
                             + '/objects/'
-                            + end_of_accumulation_time.strftime(output['sub_directory_format']))
+                            + end_of_accumulation_time0.strftime(output['sub_directory_format']))
             objects_fn = (objects_dir + '/objects_' + YMDH)
             if not lpo_options['overwrite_existing_files'] and os.path.exists(objects_fn):
                 print('-- This time already has LPO step done. Skipping.')
                 continue
 
+
+            ## NOTE: In cold start mode, the begin_time is assumed to be the model initiation time!
+            hours_since_init = (end_of_accumulation_time0 - begin_time).total_seconds()/3600
+            if hours_since_init < 24.0:
+                beginning_of_accumulation_time = begin_time
+                end_of_accumulation_time = beginning_of_accumulation_time + dt.timedelta(hours=24)
+            elif hours_since_init >= 24.0 and hours_since_init <= lpo_options['accumulation_hours']:
+                beginning_of_accumulation_time = begin_time
+                end_of_accumulation_time = end_of_accumulation_time0
+            else:
+                end_of_accumulation_time = end_of_accumulation_time0
+                beginning_of_accumulation_time = end_of_accumulation_time0 - dt.timedelta(hours=lpo_options['accumulation_hours'])
+
+            hours_to_divide = (end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0
+
+
+            #beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
+            print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
+                    + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
 
             try:
 
@@ -129,7 +104,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 count = 0
 
                 for this_dt in reversed(dt_list):
-                    DATA_RAW = data_read_function(this_dt)
+                    DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                     DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
                     DATA_RAW['data'][~np.isfinite(DATA_RAW['data'])] = 0.0
                     if count < 1:
@@ -150,7 +125,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 label_im = lpt.helpers.identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
                 OBJ = lpt.helpers.calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
                             , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
-                            , end_of_accumulation_time, verbose=True)
+                            , end_of_accumulation_time0, verbose=True)
                 OBJ['units_inst'] = dataset['field_units']
                 OBJ['units_running'] = lpo_options['field_units']
                 OBJ['units_filtered'] = lpo_options['field_units']
@@ -184,7 +159,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                                     + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                                     + '/thresh' + str(int(lpo_options['thresh']))
                                     + '/objects/'
-                                    + end_of_accumulation_time.strftime(output['sub_directory_format']))
+                                    + end_of_accumulation_time0.strftime(output['sub_directory_format']))
 
                     os.makedirs(img_dir1, exist_ok = True)
                     file_out_base = (img_dir1 + '/lp_objects_' + dataset['label'] + '_' + YMDH)
@@ -252,19 +227,20 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
         ## Initialize LPT
         G = lpt.helpers.init_lpt_graph(dt_list, options['objdir']
-            , min_points=options['min_lp_objects_points'], fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc")
+            , min_points=options['min_lp_objects_points'], fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc")
 
         ## Connect objects
         ## This is the "meat" of the LPT method: The connection in time step.
         print('Connecting objects...', flush=True)
-        G = lpt.helpers.connect_lpt_graph(G, options, min_points = lpt_options['min_lp_objects_points'], verbose=True)
+        G = lpt.helpers.connect_lpt_graph(G, options, min_points = lpt_options['min_lp_objects_points']
+            , fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc", verbose=True)
         print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' initial LPT groups found.'), flush=True)
         sys.stdout.flush()
 
         ## Allow for falling below the threshold, if specified..
         if options['fall_below_threshold_max_hours'] > 0:
             print(('Allow for falling below the threshold up to ' + str(options['fall_below_threshold_max_hours']) + ' hours.'),flush=True)
-            G = lpt.helpers.lpt_graph_allow_falling_below_threshold(G, options, verbose=True)
+            G = lpt.helpers.lpt_graph_allow_falling_below_threshold(G, options, fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc", verbose=True)
             print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' LPT groups left.'), flush=True)
 
         ## Eliminate short duration systems.
@@ -285,7 +261,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             print('--- Calculating LPT System Properties. ---', flush=True)
             print('    !!! This step may take a while !!!', flush=True)
-            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options)
+            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options, fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc")
 
         else:
             print('Splits and mergers retained as the same LPT system.', flush=True)
@@ -311,15 +287,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             timelon_rain = []
             for this_dt in dt_list:
-                DATA_RAW = data_read_function(this_dt)
-
-                """
-                DATA_RAW = lpt.readdata.read_generic_netcdf_at_datetime(this_dt
-                        , variable_names = variable_names
-                        , data_dir=dataset['raw_data_parent_dir']
-                        , fmt=dataset['file_name_format']
-                        , verbose=dataset['verbose'])
-                """
+                DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                 lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
                 timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
 
@@ -358,7 +326,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         lpt.mjo_id.do_mjo_id(begin_time, end_time, dataset['data_time_interval']
             , mjo_id_options, prod = dataset['label']
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
-            , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , lpt_systems_dir=options['outdir'])
 
 
@@ -387,6 +354,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , begin_lptid = lpt_options['individual_masks_begin_lptid']
             , end_lptid = lpt_options['individual_masks_end_lptid']
+            , mjo_only = lpt_options['individual_masks_mjo_only']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB'])
 
 
