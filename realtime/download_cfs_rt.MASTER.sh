@@ -10,8 +10,14 @@ download_parent_dir=/path/to/keep/your/data
 ENS=01  #Ensemble number. 01 is control. 02, 03, and 04 are perturbed.
 
 #######################################################################
+## Give input as YYYYMMDD, or it will get today's date using the Linux date command.
+if [ -z $1 ]
+then
+  today=`/bin/date -u +%Y%m%d`
+else
+  today=$1
+fi
 
-today=`date -u +%Y%m%d`
 
 for days_back in {0..6}
 do

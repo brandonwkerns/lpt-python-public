@@ -12,9 +12,16 @@ workdir=/path/to/keep/your/data
 
 cd $workdir
 
-today=`date -u +%Y%m%d`
-yyyy=`date -u +%Y`
-mm=`date -u +%m`
+## Give input as YYYYMMDD, or it will get today's date using the Linux date command.
+if [ -z $1 ]
+then
+  today=`/bin/date -u +%Y%m%d`
+else
+  today=$1
+fi
+
+yyyy=`/bin/date --date=$today +%Y`
+mm=`/bin/date --date=$today +%m`
 
 
 for hh in {00..23}
