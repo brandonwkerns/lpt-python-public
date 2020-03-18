@@ -7,7 +7,7 @@ import sys
 import os
 import matplotlib.colors as colors
 import scipy.ndimage
-from lpt.lpt_generic_netcdf_data_functions import *
+from lpt.lpt_driver import *
 from lpt.default_options import *
 import warnings; warnings.simplefilter('ignore')
 
