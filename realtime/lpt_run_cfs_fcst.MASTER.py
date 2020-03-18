@@ -57,8 +57,8 @@ dataset['field_units'] = 'mm h-1'
 dataset['datetime_init'] = dt.datetime.strptime(sys.argv[1],'%Y%m%d%H')
 
 ## High level output directories. Images and data will go in here.
-output['img_dir'] = './images'
-output['data_dir'] = './data'
+output['img_dir'] = './images/init'+sys.argv[1]
+output['data_dir'] = './data/init'+sys.argv[1]
 output['sub_directory_format'] = ''
 
 """
