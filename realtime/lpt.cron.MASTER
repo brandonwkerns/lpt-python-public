@@ -2,7 +2,7 @@
 SHELL=/bin/bash
 LPT_REALTIME_DIR=/path/to/this/realtime/script/directory
 
-#Min H D M DoW  /home/orca/scripts/script.sh
-20  12 * * *    $LPT_REALTIME_DIR/download_cfs_rt.sh     >&  $LPT_REALTIME_DIR/logs/download.cfs.rt.crontab.log
-10 */6 * * *    $LPT_REALTIME_DIR/download_cmorph_rt.sh  >&  $LPT_REALTIME_DIR/logs/download.cmorph.rt.crontab.log
-30  12 * * *    export $DISPLAY=:0 ; $LPT_REALTIME_DIR/lpt_crontab_wrapper.sh   >&  $LPT_REALTIME_DIR/logs/run.rt.crontab.log
+#Min H D M DoW  /path/to/scripts/script.sh
+20   9 * * *    $LPT_REALTIME_DIR/download_cfs_rt.sh     >&  $LPT_REALTIME_DIR/logs/download.cfs.rt.crontab.log
+10 */3 * * *    $LPT_REALTIME_DIR/download_cmorph_rt.sh  >&  $LPT_REALTIME_DIR/logs/download.cmorph.rt.crontab.log
+30   9 * * *    export $DISPLAY=:0 ; $LPT_REALTIME_DIR/lpt_crontab_wrapper.sh   >&  $LPT_REALTIME_DIR/logs/run.rt.crontab.log
