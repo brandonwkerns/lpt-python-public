@@ -1,9 +1,23 @@
 First copy the MASTER files to regular files. DO NOT modify the master files,
-or it will cause trouble if you do git pull to get updates.
+or it may cause trouble if you do git pull to get updates.
 
 cp lpt.cron.MASTER lpt.cron
 cp lpt_contab_wrapper.MASTER.sh lpt_contab_wrapper.sh
 cp download_cmorph_rt.MASTER.sh download_cmorph_rt.sh
-cp download_tmpa_rt.MASTER.sh download_tmpa_rt.sh
 cp download_cfs_rt.MASTER.sh download_cfs_rt.sh
+cp lpt_run_cmorph.MASTER.py lpt_run_cmorph.py
+cp lpt_run_cfs_fcst.MASTER.py lpt_run_cfs_fcst.py
 
+In each of these files, there are paths that need to be changed
+in the first few lines, after the files are copied.
+
+
+Notes:
+- The download scripts are separate from the LPT running scripts.
+- The MASTER scripts are set up to run once a day for 00 UTC starting/ending times.
+- The shell scripts can be manually called for past dates by including YYYYMMDD
+  as a command line arg.
+- The python LPT scripts can be run manually by specifying the beginning and end
+  time as command line args, formatted: YYYYMMDDHH.
+- See the .py scripts for increasing/decreasing the detail of the outputs,
+  especially the mask files.
