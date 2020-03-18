@@ -421,7 +421,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                             and east_prop_df['lon_propagation'][iiii] > (opts['min_total_eastward_lon_propagation'] - 0.001)):
 
                         hours_in_lat = interval_hours*np.sum(np.abs(this_lpt_lat[ii1:ii2+1]) <= opts['max_abs_latitude'])
-                        print(hours_in_lat)
                         if hours_in_lat > opts['min_eastward_prop_duration_in_lat_band'] - 0.001:
                             east_prop_df['meets_mjo_criteria'][iiii] = True
 
@@ -488,12 +487,10 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
             if east_prop_group_df['meets_mjo_criteria'].any():
 
                 lpts_in_group_with_mjo_eprop = east_prop_group_df[east_prop_group_df['meets_mjo_criteria']]['lptid'].values
-                print(lpts_in_group_with_mjo_eprop)
                 ## TODO: Allow multiple MJO eprop per one LPT. Allow multiple LPT in group of LPTs.
 
                 ## Sort the data frame to figure out which should be used for the MJO.
                 east_prop_group_df_sort = east_prop_group_df.sort_values(['meets_mjo_criteria','duration','total_duration','area_times_speed'],ascending=False)
-                print(east_prop_group_df_sort[east_prop_group_df_sort['lptid'] == 234.2])
 
                 for jj in range(len(east_prop_group_df_sort.index)):
                     ## Check whether it is already represented.
