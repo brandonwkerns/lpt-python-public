@@ -46,7 +46,7 @@ import warnings; warnings.simplefilter('ignore')
 Dataset Case Settings
 """
 dataset['label'] = 'cfs'
-dataset['raw_data_parent_dir'] = '/home/orca/data/model_fcst_grib/cfs'
+dataset['raw_data_parent_dir'] = '/path/to/model_fcst_grib/cfs'
 dataset['raw_data_format'] = 'cfs_forecast'
 dataset['file_name_format'] = 'cfs.%Y%m%d/%H/time_grib_01/prate.01.%Y%m%d%H.daily.grb2'
 dataset['data_time_interval'] = 6           # Time resolution of the data in hours.
@@ -57,8 +57,8 @@ dataset['field_units'] = 'mm h-1'
 dataset['datetime_init'] = dt.datetime.strptime(sys.argv[1],'%Y%m%d%H')
 
 ## High level output directories. Images and data will go in here.
-output['img_dir'] = '/home/orca/bkerns/lib/lpt/lpt-python-public/TEST_RUN_CMORPH/images/init'+sys.argv[1]
-output['data_dir'] = '/home/orca/bkerns/lib/lpt/lpt-python-public/TEST_RUN_CMORPH/data/processed/init'+sys.argv[1]
+output['img_dir'] = '/path/to/this/realtime/script/directory/images'
+output['data_dir'] = '/path/to/this/realtime/script/directory/data'
 output['sub_directory_format'] = ''
 
 """

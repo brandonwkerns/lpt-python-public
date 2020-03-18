@@ -45,7 +45,7 @@ import warnings; warnings.simplefilter('ignore')
 Dataset Case Settings
 """
 dataset['label'] = 'cmorph'
-dataset['raw_data_parent_dir'] = '/home/orca/data/satellite/cmorph/rt/'
+dataset['raw_data_parent_dir'] = '/path/to/cmorph/rt/'
 dataset['raw_data_format'] = 'cmorph'
 dataset['file_name_format'] = '%Y/%m/%Y%m%d/CMORPH_V0.x_RT_8km-30min_%Y%m%d%H'
 dataset['data_time_interval'] = 1           # Time resolution of the data in hours.
@@ -54,8 +54,8 @@ dataset['field_units'] = 'mm h-1'
 dataset['area'] = [40, 240, -50, 50]   # Geographical area of data to use.
 
 ## High level output directories. Images and data will go in here.
-output['img_dir'] = '/home/orca/bkerns/lib/lpt/lpt-python-public/TEST_RUN_CMORPH/images'
-output['data_dir'] = '/home/orca/bkerns/lib/lpt/lpt-python-public/TEST_RUN_CMORPH/data/processed'
+output['img_dir'] = '/path/to/this/realtime/script/directory/images'
+output['data_dir'] = '/path/to/this/realtime/script/directory/data'
 output['sub_directory_format'] = '%Y/%m/%Y%m%d'  # This applies to LP objects files only.
 
 
