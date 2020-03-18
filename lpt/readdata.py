@@ -36,6 +36,7 @@ def readdata(datetime_to_read, dataset_options_dict):
         variable_names = (dataset_options_dict['longitude_variable_name']
                 , dataset_options_dict['latitude_variable_name']
                 , dataset_options_dict['field_variable_name'])
+
         DATA = read_generic_netcdf_at_datetime(datetime_to_read
                 , variable_names = variable_names
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
