@@ -249,6 +249,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
+    , cold_start_mode = False
     , coarse_grid_factor = 0
     , memory_target_mb = 1000):
 
@@ -262,7 +263,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
 
     dt1 = dt_end
-    if accumulation_hours > 0 and calc_with_accumulation_period:
+    if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
         dt0 = dt_begin - dt.timedelta(hours=accumulation_hours)
         dt_idx0 = int(accumulation_hours/interval_hours)
     else:
@@ -428,6 +429,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
+    , cold_start_mode = False
     , begin_lptid = 0, end_lptid = 10000, mjo_only = False
     , coarse_grid_factor = 0
     , memory_target_mb = 1000):
@@ -493,7 +495,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         print((this_lpt_idx,TC['num_objects'][this_lpt_idx]))
         lp_object_id_list = TC['objid'][this_lpt_idx,0:int(TC['num_objects'][this_lpt_idx])]
 
-        if accumulation_hours > 0 and calc_with_accumulation_period:
+        if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
             dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
         else:
             dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H')
@@ -731,6 +733,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
     , do_volrain=False, dataset_dict = {}
+    , cold_start_mode = False
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , coarse_grid_factor = 0
@@ -755,7 +758,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
 
     dt_hours = interval_hours
-    if accumulation_hours > 0 and calc_with_accumulation_period:
+    if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
         grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
     else:
         grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
