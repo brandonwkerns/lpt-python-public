@@ -28,7 +28,7 @@ cd $WORKDIR
 mkdir -p logs
 
 ## Activate the Anaconda Python module with all the dependencies.
-source $ANACONDA_DIR/bin/activate meteo
+source $ANACONDA_DIR/bin/activate lpt
 
 ## Call the Python driver scripts.
 echo CFS Forecast
