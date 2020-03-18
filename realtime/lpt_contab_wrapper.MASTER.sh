@@ -43,38 +43,6 @@ python $WORKDIR/lpt_run_cmorph.py $YMDH1 $YMDH2 >& $WORKDIR/logs/log.rt.cmorph.$
 
 
 
-##
-## Update the animations.
-##
-# echo Updating Animations.
-# cd /home/orca/bkerns/public_html/realtime_mjo_tracking/lpt/images
-# rm -f *.png *.gif
-
-# ln -s `find cfs/objects/*/*/* | grep .png | tail -168 ` .
-# /usr/bin/convert -delay 15 *.png lp_objects_cfs_FCST45DAYS.gif
-# rm *.png
-#
-# ln -s `find cmorph/objects/*/*/* \( -name "*00.png" -or -name "*06.png" -or -name "*12.png" -or -name "*18.png" \)  | tail -241` .
-# /usr/bin/convert -delay 15 *.png lp_objects_cmorph_rt_LAST45DAYS.gif
-# rm *.png
-#
-# ln -s `find tmpa/objects/*/*/* \( -name "*.png" \)  | tail -481` .
-# /usr/bin/convert -delay 15 *.png lp_objects_tmpa_rt_LAST45DAYS.gif
-# rm *.png
-#
-#
-# ## Make pause at the beginning and end of animation repeats.
-# for ff in *.gif
-# do
-#   convert $ff \( +clone -set delay 100 \) +swap +delete $ff
-# done
-#
-# ## Get latest time-longitude plots.
-# ln -sf `find tmpa/systems/*/*/* | grep .png | tail -1 ` lpt_time_lon_tmpa_LATEST.png
-# ln -sf `find cmorph/systems/*/*/* | grep .png | tail -1 ` lpt_time_lon_cmorph_LATEST.png
-# ln -sf `find cfs/systems/*/*/* | grep .png | tail -1 ` lpt_time_lon_cfs_LATEST.png
-#
-
 echo Done.
 
 exit 0
