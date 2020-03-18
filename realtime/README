@@ -2,7 +2,7 @@ First copy the MASTER files to regular files. DO NOT modify the master files,
 or it may cause trouble if you do git pull to get updates.
 
 cp lpt.cron.MASTER lpt.cron
-cp lpt_contab_wrapper.MASTER.sh lpt_contab_wrapper.sh
+cp lpt_crontab_wrapper.MASTER.sh lpt_crontab_wrapper.sh
 cp download_cmorph_rt.MASTER.sh download_cmorph_rt.sh
 cp download_cfs_rt.MASTER.sh download_cfs_rt.sh
 cp lpt_run_cmorph.MASTER.py lpt_run_cmorph.py
