@@ -41,6 +41,7 @@ output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 lpo_options={}
 #lpo_options['do_lpo_calc'] = True
 lpo_options['do_lpo_calc'] = False
+lpo_options['overwrite_existing_files'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
 lpo_options['field_units'] = 'mm d-1'
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
@@ -65,6 +66,7 @@ lpo_options['do_lpo_mask'] = False                         # Whether to generate
 lpo_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
 lpo_options['mask_calc_with_filter_radius'] = True         # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpo_options['mask_calc_with_accumulation_period'] = True   # Whether to calculate the mask with filter variables. (Takes much longer to run)
+lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
 lpo_options['target_memory_for_writing_masks_MB'] = 10000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
 
 ##
@@ -90,6 +92,7 @@ lpt_options['do_non_mjo_lpt_composite_mask'] = False      # Whether to generate 
 lpt_options['mask_calc_volrain'] = True                   # Whether to calculate a volumetric rain and include with mask files.
 lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
+lpt_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
 lpt_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
 
 ##
