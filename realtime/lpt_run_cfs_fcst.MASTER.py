@@ -146,11 +146,6 @@ lpt_options['min_lp_objects_points'] = 25            # Disregard LP objects smal
 # Using defaults.
 
 
-lpt_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
-lpt_options['mask_calc_with_filter_radius'] = False        # Whether to calculate the mask with filter variables. (Takes much longer to run)
-lpt_options['mask_calc_with_accumulation_period'] = False  # Whether to calculate the mask with filter variables. (Takes much longer to run)
-lpt_options['target_memory_for_writing_masks_MB'] = 1000   # Target to limit memory demand from writing masks to files. The more, the faster it can run.
-
 ##
 ## Merging/Splitting settings
 ##
