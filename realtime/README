@@ -8,8 +8,11 @@ cp download_cfs_rt.MASTER.sh download_cfs_rt.sh
 cp lpt_run_cmorph.MASTER.py lpt_run_cmorph.py
 cp lpt_run_cfs_fcst.MASTER.py lpt_run_cfs_fcst.py
 
-In each of these files, there are paths that need to be changed
-in the first few lines, after the files are copied.
+In these files, there are several paths that need to be set
+after the files are copied:
+- For the Python scripts, change the line with dataset['raw_data_parent_dir'].
+- For the download scripts, change the WORKDIR to where the data will be downloaded.
+- For the crontab, change the LPT_REALTIME_DIR.
 
 
 Notes:
@@ -19,5 +22,7 @@ Notes:
   as a command line arg.
 - The python LPT scripts can be run manually by specifying the beginning and end
   time as command line args, formatted: YYYYMMDDHH.
+- The Python scripts are set up to write output to ./data and ./images.
+  To change this, change the output['data_dir'] and output['img_dir'] lines.
 - See the .py scripts for increasing/decreasing the detail of the outputs,
   especially the mask files.

@@ -57,8 +57,8 @@ dataset['field_units'] = 'mm h-1'
 dataset['datetime_init'] = dt.datetime.strptime(sys.argv[1],'%Y%m%d%H')
 
 ## High level output directories. Images and data will go in here.
-output['img_dir'] = '/path/to/this/realtime/script/directory/images'
-output['data_dir'] = '/path/to/this/realtime/script/directory/data'
+output['img_dir'] = './images'
+output['data_dir'] = './data'
 output['sub_directory_format'] = ''
 
 """

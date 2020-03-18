@@ -54,8 +54,8 @@ dataset['field_units'] = 'mm h-1'
 dataset['area'] = [40, 240, -50, 50]   # Geographical area of data to use.
 
 ## High level output directories. Images and data will go in here.
-output['img_dir'] = '/path/to/this/realtime/script/directory/images'
-output['data_dir'] = '/path/to/this/realtime/script/directory/data'
+output['img_dir'] = './images'
+output['data_dir'] = './data'
 output['sub_directory_format'] = '%Y/%m/%Y%m%d'  # This applies to LP objects files only.
 
 
