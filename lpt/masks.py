@@ -470,10 +470,16 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     unique_lpt_ids = np.unique(F['lptid'][:]).data
     if mjo_only:
         lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
-        lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
-        mjo_lpt_list = np.unique(lpt_list[:,2])
+        try:
+            lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
+            if len(lpt_list.shape) == 1:
+                mjo_lpt_list = np.unique(lpt_list[2])
+            else:
+                mjo_lpt_list = np.unique(lpt_list[:,2])
+        except:
+            mjo_lpt_list = np.array([-999]) #If trouble reading, probably no MJOs in the file.
     else:
-        mjo_lpt_list = np.array([999])
+        mjo_lpt_list = np.array([-999])
 
     for this_lpt_id in unique_lpt_ids:
         if int(np.floor(this_lpt_id)) < int(np.floor(begin_lptid)) or int(np.floor(this_lpt_id)) > int(np.floor(end_lptid)):
@@ -787,12 +793,26 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Over-ride unique_lpt_ids so it only includes those LPTs.
     if subset == 'mjo':
         lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
-        lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
-        unique_lpt_ids = np.unique(lpt_list[:,2])
+        try:
+            lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
+            if len(lpt_list.shape) == 1:
+                unique_lpt_ids = np.unique(lpt_list[2])
+            else:
+                unique_lpt_ids = np.unique(lpt_list[:,2])
+        except:
+            unique_lpt_ids = np.array([])
+
     if subset == 'non_mjo':
         lpt_list_file = (lpt_systems_dir + '/non_mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
-        lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
-        unique_lpt_ids = np.unique(lpt_list[:,2])
+        try:
+            lpt_list = np.loadtxt(lpt_list_file,skiprows=1)
+            if len(lpt_list.shape) == 1:
+                unique_lpt_ids = np.unique(lpt_list[2])
+            else:
+                unique_lpt_ids = np.unique(lpt_list[:,2])
+        except:
+            unique_lpt_ids = np.array([])
+
     ############################################################################
 
 
