@@ -76,10 +76,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             ## NOTE: In cold start mode, the begin_time is assumed to be the model initiation time!
             hours_since_init = (end_of_accumulation_time0 - begin_time).total_seconds()/3600
-            if hours_since_init < 24.0:
+            if (hours_since_init < lpo_options['cold_start_const_period'] and lpo_options['cold_start_mode']):
                 beginning_of_accumulation_time = begin_time
                 end_of_accumulation_time = beginning_of_accumulation_time + dt.timedelta(hours=24)
-            elif hours_since_init >= 24.0 and hours_since_init <= lpo_options['accumulation_hours']:
+            elif (hours_since_init >= lpo_options['cold_start_const_period']
+                  and hours_since_init <= lpo_options['accumulation_hours'] and lpo_options['cold_start_mode']):
                 beginning_of_accumulation_time = begin_time
                 end_of_accumulation_time = end_of_accumulation_time0
             else:
