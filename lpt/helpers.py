@@ -720,6 +720,25 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
             if len(nodes_to_remove) > 0:
                 G.remove_nodes_from(nodes_to_remove)
                 SG[kk].remove_nodes_from(nodes_to_remove)
+
+                ## In some situations, the branch removal process leaves behind "isolates"
+                ##  -- Nodes without any neighbors! This has occurred in the following situation:
+                ##                   *
+                ##                   *
+                ##                   *     ^
+                ##                   *    * *
+                ##                   *   *   *
+                ##                 *   *
+                ##               *
+                ##             *
+                ##             *
+                ## Where ^ is the node that was left "stranded", e.g, the isolate.
+                ## To handle this, remove any isolates from main graph and current sub graph.
+                isolates_list = list(nx.isolates(SG[kk]))
+                if len(isolates_list) > 0:
+                    G.remove_nodes_from(isolates_list)
+                    SG[kk].remove_nodes_from(isolates_list)
+
                 more_to_do = True
 
     return G
