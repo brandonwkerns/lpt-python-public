@@ -766,7 +766,32 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
     grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
     grand_mask_times = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=x) for x in grand_mask_timestamps]
-    mask_arrays = None
+
+
+
+    ## Get grid info. This is needed in case there are no MJO LPTs and you are doing a
+    ##   composite mask with MJO LPTs only, since otherwise it would not go in to the loop.
+
+    ## Initialize the mask arrays dictionary if this is the first LP object.
+    ## First, I need the grid information. Get this from the first LP object.
+    fn = (lp_objects_dir + '/' + dt_begin.strftime(lp_objects_fn_format))
+    DS=Dataset(fn)
+
+    grand_mask_lon = DS['grid_lon'][:]
+    grand_mask_lat = DS['grid_lat'][:]
+    AREA = DS['grid_area'][:]
+    mask_arrays = {}
+
+    mask_arrays_shape2d = (len(grand_mask_lat), len(grand_mask_lon))
+    mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+    if accumulation_hours > 0 and calc_with_accumulation_period:
+        mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+    if calc_with_filter_radius:
+        mask_arrays['mask_with_filter_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            mask_arrays['mask_with_filter_and_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+    DS.close()
+
 
     ## Read Stitched NetCDF data.
     DS = Dataset(lpt_systems_file)
@@ -852,24 +877,6 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
             fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
             DS=Dataset(fn)
-
-            ## Initialize the mask arrays dictionary if this is the first LP object.
-            ## First, I need the grid information. Get this from the first LP object.
-            if mask_arrays is None:
-                grand_mask_lon = DS['grid_lon'][:]
-                grand_mask_lat = DS['grid_lat'][:]
-                AREA = DS['grid_area'][:]
-                mask_arrays = {}
-
-                mask_arrays_shape2d = (len(grand_mask_lat), len(grand_mask_lon))
-                mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
-                if calc_with_filter_radius:
-                    mask_arrays['mask_with_filter_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
-                    if accumulation_hours > 0 and calc_with_accumulation_period:
-                        mask_arrays['mask_with_filter_and_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
-
 
             ##
             ## Get LP Object pixel information.
