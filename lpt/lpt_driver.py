@@ -101,10 +101,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                     + dt.timedelta(hours=x) for x in np.double(np.arange(0,accumulation_hours
                                                       + dataset['data_time_interval'],dataset['data_time_interval']))]
 
-                ## Get accumulated rain.
+                ## Get accumulated rain. # So far used only for model run, e.g., CFS.
                 data_collect = []
                 count = 0
 
+                dataset['datetime_init'] = begin_time 
                 for this_dt in reversed(dt_list):
                     DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                     DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
