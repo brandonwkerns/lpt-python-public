@@ -307,7 +307,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             ax2.text(0.87,1.02,'(<15$\degree$S, >15$\degree$N Dashed)', transform=ax2.transAxes)
 
-            img_dir2 = (output['img_dir'] + '/' + dataset['label'] + '/systems/')
+            img_dir2 = (output['img_dir'] + '/' + dataset['label']
+                        + '/' + filter_str(lpo_options['filter_stdev'])
+                        + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                        + '/thresh' + str(int(lpo_options['thresh'])) + '/systems')
+
             os.makedirs(img_dir2, exist_ok = True)
             file_out_base = (img_dir2 + '/lpt_time_lon_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
             lpt.plotting.print_and_save(file_out_base)
