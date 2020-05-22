@@ -73,8 +73,7 @@ output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 ##
 ## LP Object settings
 ##
-#lpo_options['do_lpo_calc'] = True
-lpo_options['do_lpo_calc'] = False
+lpo_options['do_lpo_calc'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
 lpo_options['field_units'] = 'mm d-1'
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
@@ -97,9 +96,10 @@ lpo_options['cold_start_const_period'] = 24.0  # hours
 ## LPO Mask Settings.
 lpo_options['do_lpo_mask'] = False           # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
 lpo_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
-lpo_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
-lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
-lpo_options['target_memory_for_writing_masks_MB'] = 10000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
+lpo_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
+lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. 
+lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
+lpo_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
 
 ##
 ## LPT Settings
@@ -120,15 +120,15 @@ lpt_options['do_lpt_composite_mask'] = False  # Whether to generate mask file fo
 lpt_options['do_mjo_lpt_composite_mask'] = False  # Whether to generate mask file for all MJO LPT systems combined.
 lpt_options['do_non_mjo_lpt_composite_mask'] = False  # Whether to generate mask file for all non MJO LPT systems combined.
 lpt_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
-lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
-lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
+lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
+lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables.
+lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
 lpt_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
 
 ##
 ## Merging/Splitting settings
 ##
 merge_split_options['allow_merge_split'] = True
-#merge_split_options['allow_merge_split'] = False
 merge_split_options['split_merger_min_hours'] = 72  # Min duration of a split/merging track to separate it.
 
 ##
