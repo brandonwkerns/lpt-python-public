@@ -6,7 +6,6 @@ import sys
 import os
 import datetime as dt
 import glob
-import gdal
 
 """
 This module contains functions for reading external data
@@ -247,6 +246,8 @@ def read_cfs_rt_grib2(fn, records=range(1,45*4+1), verbose=False):
     In [25]: RT['precip'].shape
     Out[25]: (180, 190, 384)
     """
+    
+    import gdal  # Import gdal if dealing with grib data.
 
     DS = gdal.Open(fn, gdal.GA_ReadOnly)
     width = DS.RasterXSize
