@@ -40,10 +40,14 @@ Instead, copy the directory to a local working directory
 
 
 ## Python module dependencies (see below for full environment I used):
-- numpy
-- scipy.signal, scipy.ndimage
-- netCDF4.Dataset
-- matplotlib
+
+Python module dependencies are documented in the environment.yml file.
+
+To use it to create an Anaconda Python virtual environment:
+```conda env create -f environment.yml -p ./env```
+Then, to activate the environment:
+```conda activate ./env```
+
 
 ## Code organization:
 - The main Python functions directory is lpt/.

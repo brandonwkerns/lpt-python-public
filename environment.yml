@@ -1,0 +1,19 @@
+## To use this environment file with Anaconda Python: conda env create -f environment.yml -p ./env
+## To activate the environment: conda activate ./env
+
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3
+  - numpy
+  - scipy
+  - networkx
+  - netcdf4=1.5.6  # This version is needed to work with gdal.
+  - intake-esm
+  - matplotlib
+  - basemap
+  - basemap-data-hires
+  - gdal
+  - ipython
+  
