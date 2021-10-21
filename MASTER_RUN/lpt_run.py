@@ -11,36 +11,53 @@ from lpt.lpt_driver import *
 from lpt.default_options import *
 import warnings; warnings.simplefilter('ignore')
 
+"""
+################################################################################
+################################################################################
+################################################################################
 
+      +++ Preserve the MASTER run directory (for Git)   +++
+      +++ make local copies) and edit/run the files in the copy. +++
+
+Usage: python lpt_run.py YYYYMMDDHH YYYYMMDDHH
+(Specify the starting and ending dates and times on command line as YYYYMMDDHH)
+
+This driver script serves as the "namelist" for running LPT.
+You can manually change the settings in each section, and the script will
+pass these settings to the main driver function lpt/lpt_driver.py
+
+This driver script is by default for any generic NetCDF data in the proper format
+Using the data for the two times specified on command line.
+The file name convention of the NetCDF data is: gridded_rain_rates_YYYYMMDDHH.nc
+(or, modify dataset['file_name_format'] to change this.)
+The NetCDF must be in the following format template to work with this script:
+
+netcdf gridded_rain_rates_YYYYMMDDHH {
+dimensions:
+	  lon = NNN ;
+	  lat = MMM ;
+	  time = UNLIMITED ; // (1 currently)
+variables:
+	  double lon(lon) ;
+	  double lat(lat) ;
+	  double time(time) ;
+	   	  time:units = "hours since 1970-1-1 0:0:0" ;
+	  double rain(time, lat, lon) ;
+		  rain:units = "mm h-1" ;
+
+Where NNN and MMM are the longitude and latitude array sizes.
+
+      +++ If lon is -180 to 180, it will be converted to 0 - 360. +++
+
+Any dataset can be used if the files are first converted to NetCDF.
+However, some other data formats are supported natively:
+- CMORPH binary data.
+- CFS forecasts, GRIB data.
+Additional datasets can be implemented natively by adding functions to lpt/readdata.py.
 ################################################################################
-##
-##       +++ Preserve the MASTER run directory (for Git)   +++
-##       +++ make local copies) and edit/run the files in the copy. +++
-##
-## This driver script is for any generic NetCDF data in the proper format
-## Using the data for the two times specified on command line.
-## The file name convention of the NetCDF data is: gridded_rain_rates_YYYYMMDDHH.nc
-## (or, modify dataset['file_name_format'] to change this.)
-## The NetCDF must be in the following format template to work with this script:
-##
-## netcdf gridded_rain_rates_YYYYMMDDHH {
-## dimensions:
-## 	  lon = NNN ;
-## 	  lat = MMM ;
-## 	  time = UNLIMITED ; // (1 currently)
-## variables:
-## 	  double lon(lon) ;
-## 	  double lat(lat) ;
-## 	  double time(time) ;
-## 	   	  time:units = "hours since 1970-1-1 0:0:0" ;
-## 	  double rain(time, lat, lon) ;
-## 		  rain:units = "mm h-1" ;
-##
-## Where NNN and MMM are the longitude and latitude array sizes.
-##
-##       +++ If lon is -180 to 180, it will be converted to 0 - 360. +++
-##
 ################################################################################
+################################################################################
+"""
 
 """
 Dataset Case Settings
@@ -97,7 +114,7 @@ lpo_options['cold_start_const_period'] = 24.0  # hours
 lpo_options['do_lpo_mask'] = False           # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
 lpo_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
 lpo_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
-lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. 
+lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables.
 lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
 lpo_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
 
