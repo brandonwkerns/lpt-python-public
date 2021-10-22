@@ -208,6 +208,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                     + '/' + filter_str(lpo_options['filter_stdev'])
                     + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                     + '/thresh' + str(int(lpo_options['thresh'])) + '/systems')
+    options['calendar'] = dataset['calendar']
 
     if options['do_lpt_calc']:
 
@@ -222,15 +223,12 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
 
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-        print(('Doing LPT tracking for: '
-                + begin_tracking_time.strftime('%Y%m%d%H')
-                + ' to ' + latest_lp_object_time.strftime('%Y%m%d%H')))
+        print(('Doing LPT tracking for: ' + YMDHb + ' to ' + YMDH + '.'))
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-        dt_list = time_list
 
         ## Initialize LPT
-        G = lpt.helpers.init_lpt_graph(dt_list, options['objdir']
+        G = lpt.helpers.init_lpt_graph(time_list, options['objdir']
             , min_points=options['min_lp_objects_points'], fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc")
 
         ## Connect objects
@@ -289,9 +287,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             fig2.clf()
             ax2 = fig2.add_subplot(111)
 
+            ## matplotlib needs datetime.datetime to plot. Can't use cftime.datetime.
+            dt_list = [dt.datetime(x.year,x.month,x.day,x.hour,x.minute,x.second) for x in time_list]
+
             timelon_rain = []
             for this_dt in dt_list:
-                print(this_dt)
                 DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                 lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
                 timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
