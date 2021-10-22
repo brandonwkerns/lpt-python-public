@@ -1,10 +1,12 @@
 ## This file contains the content for LPO, LPT, and LPT "grand master" masks as functions, to be used with lpt-python-public.
 
 import numpy as np
+import xarray as xr
 import scipy.ndimage
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import datetime as dt
+import cftime
 from dateutil.relativedelta import relativedelta
 from context import lpt
 import os
@@ -362,43 +364,40 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ##
     ## Output.
     ##
+
+    ## Set coordinates
+    coords_dict = {}
+    coords_dict['n'] = (['n',], [1,])
+    coords_dict['time'] = (['time',], mask_times)
+    coords_dict['lon'] = (['lon',], lon, {'units':'degrees_east'})
+    coords_dict['lat'] = (['lat',], lat, {'units':'degrees_north'})
+
+    ## Set Data
+    data_dict = {}
+    data_dict['grid_area'] = (['lat','lon',], AREA, {'units':'km2','description':'Area of each grid cell.'})
+
+    # Volumetric Rain, if specified.
+    if do_volrain:
+        fields = [*VOLRAIN]
+        for field in fields:
+            if 'tser' in field:
+                data_dict[field] = (['time',], VOLRAIN[field])
+            else:
+                data_dict[field] = (['n',], [VOLRAIN[field],])
+    
+    ## Create XArray Dataset
+    DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
+
+    ## Write the data to NetCDF
     fn_out = (mask_output_dir + '/lp_objects_mask_' + YMDH1_YMDH2 + '.nc').replace('///','/').replace('//','/')
     os.makedirs(mask_output_dir, exist_ok=True)
 
     print('Writing to: ' + fn_out, flush=True)
-    DSnew = Dataset(fn_out, 'w')
-    DSnew.createDimension('n', 1)
-    DSnew.createDimension('time',len(mask_times))
-    DSnew.createDimension('lon',len(lon))
-    DSnew.createDimension('lat',len(lat))
-
-    DSnew.createVariable('time','d',('time',))
-    DSnew.createVariable('lon','d',('lon',))
-    DSnew.createVariable('lat','d',('lat',))
-    DSnew.createVariable('grid_area','f4',('lat','lon'))
-
-    DSnew['time'][:] = [(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 for x in mask_times]
-    DSnew['time'].setncattr('units','hours since 1970-1-1 0:0:0')
-    DSnew['lon'][:] = lon
-    DSnew['lon'].setncattr('units','degrees_east')
-    DSnew['lat'][:] = lat
-    DSnew['lat'].setncattr('units','degrees_north')
-
-    DSnew['grid_area'][:] = AREA
-    DSnew['grid_area'].setncattr('units','km2')
-    DSnew['grid_area'].setncattr('description','Area of each grid cell.')
-
-    ## Write volrain if it was calculated.
-    if do_volrain:
-        fields = [*VOLRAIN]
-        fields = [x for x in fields if not 'tser' in x]
-        for field in fields:
-            add_volrain_to_netcdf(DSnew, field, VOLRAIN[field]
-                    , field+'_tser', VOLRAIN[field+'_tser']
-                    , fill_value = FILL_VALUE)
+    DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
 
     ## Define the mask variables here.
     ## But don't assign them yet.
+    DSnew = Dataset(fn_out, 'a')
     fields = [*mask_arrays]
     fields = [x for x in fields if 'mask' in x]
     for field in fields:
