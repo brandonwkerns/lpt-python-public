@@ -3,6 +3,7 @@ import numpy as np
 from context import lpt
 import matplotlib.pyplot as plt
 import datetime as dt
+import cftime
 import sys
 import os
 import matplotlib.colors as colors
@@ -37,11 +38,9 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         print('Example: python lpt_generic_netcdf_data_driver 2011060100 2012063021')
         return
 
-    begin_time = dt.datetime.strptime(str(argv[1]), '%Y%m%d%H') # command line arg #1 format: YYYYMMDDHH
-    end_time = dt.datetime.strptime(str(argv[2]), '%Y%m%d%H') # command line arg #1 format: YYYYMMDDHH
-
-    hours_list = np.arange(0.0, 0.1 +(end_time-begin_time).total_seconds()/3600.0, dataset['data_time_interval'])
-    time_list = [begin_time + dt.timedelta(hours=x) for x in hours_list]
+    begin_time = lpt.helpers.str2cftime(str(argv[1]), '%Y%m%d%H', dataset['calendar'])  # command line arg #1 format: YYYYMMDDHH
+    end_time =   lpt.helpers.str2cftime(str(argv[2]), '%Y%m%d%H', dataset['calendar'])  # command line arg #1 format: YYYYMMDDHH
+    time_list =  lpt.helpers.dtrange(begin_time, end_time + dt.timedelta(hours=dataset['data_time_interval']), dataset['data_time_interval'])
 
     if plotting['do_plotting']:
         fig1 = plt.figure(1, figsize = (8.5,4))
@@ -105,7 +104,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 data_collect = []
                 count = 0
 
-                dataset['datetime_init'] = begin_time 
+                dataset['datetime_init'] = begin_time
                 for this_dt in reversed(dt_list):
                     DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                     DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))

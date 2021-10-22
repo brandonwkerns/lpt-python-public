@@ -1,6 +1,7 @@
 import matplotlib; matplotlib.use('agg')
 import numpy as np
 import datetime as dt
+import cftime
 from scipy.signal import convolve2d
 from scipy import ndimage
 import matplotlib.pylab as plt
@@ -8,6 +9,40 @@ from netCDF4 import Dataset
 import glob
 import networkx as nx
 import sys
+
+
+###################################################################
+#####################  General Use Functions  #####################
+###################################################################
+
+
+def str2cftime(date_string, fmt, calendar):
+    """
+    Example usage: cftime_datetime = str2cftime('2021010100', '%Y%m%d%H', 'standard')
+    Converts string time (date_string) in a strftime format (fmt) to a cftime datetime,
+    using the calendar specified.
+    
+    Unfortunately, cftime does not have a strptime function. This function uses
+    datetime's strptime function as an intermediate step.
+    """
+    this_dt = dt.datetime.strptime(date_string, fmt)
+    return cftime.datetime(this_dt.year,this_dt.month,this_dt.day,
+            this_dt.hour,this_dt.minute,this_dt.second, calendar=calendar)
+
+
+def dtrange(begin_datetime, ending_datetime, interval_hours):
+    """
+    Example Usage: dt_list = dtrange(cftime.datetime(2021,1,1,0), cftime.datetime(2021,2,1,0), 3)
+    3-hourly times from 00Z 2021-1-1 to 21Z 2021-1-31 (excludes ending_datetime)
+
+    Analagous to range and Numpy's arange function, but for datetime objects.
+
+    Returns a list of datetime objects.
+    
+    Works for both datetime.datetime and cftime.datetime.
+    """
+    total_sec = (ending_datetime - begin_datetime).total_seconds()
+    return [begin_datetime + dt.timedelta(seconds=int(x)) for x in np.arange(0, total_sec, 3600*interval_hours)]
 
 
 ###################################################################
