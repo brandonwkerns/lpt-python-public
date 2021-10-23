@@ -314,6 +314,7 @@ def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%
 def init_lpt_graph(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
 
     G = nx.DiGraph() # Empty graph
+    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=dt_list[0].calendar) ## Only used internally.
 
     for this_dt in dt_list:
 
@@ -336,9 +337,9 @@ def init_lpt_graph(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects
             for ii in range(len(id_list)):
                 npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
                 if npts >= min_points:
-                    G.add_node(int(id_list[ii]), timestamp=(this_dt - dt.datetime(1970,1,1,0,0,0)).total_seconds()
+                    G.add_node(int(id_list[ii]), timestamp=(this_dt - REFTIME).total_seconds()
                         , lon = lon[ii], lat=lat[ii], area=area[ii]
-                        , pos = (lon[ii], (this_dt - dt.datetime(1970,1,1,0,0,0)).total_seconds()))
+                        , pos = (lon[ii], (this_dt - REFTIME).total_seconds()))
 
         except FileNotFoundError:
             print('WARNING: Missing this file!',flush=True)
