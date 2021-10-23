@@ -291,7 +291,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             dt_list = [dt.datetime(x.year,x.month,x.day,x.hour,x.minute,x.second) for x in time_list]
 
             timelon_rain = []
-            for this_dt in dt_list:
+            for this_dt in time_list:
                 DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                 lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
                 timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
