@@ -1,6 +1,8 @@
 import matplotlib; matplotlib.use('agg')
 import numpy as np
 import numpy.ma as ma
+import xarray as xr
+import cftime
 from context import lpt
 from netCDF4 import Dataset
 import os
@@ -205,7 +207,7 @@ def lpt_system_tracks_output_ascii(fn, TIMECLUSTERS):
     to an ascii file. Does NOT give LPO list.
     """
     print('Writing LPT system track ASCII output to: ' + fn)
-    fmt='        %4d%02d%02d%02d %8d %10.2f %10.2f %2d\n'
+    fmt='        %04d%02d%02d%02d %8d %10.2f %10.2f %2d\n'
 
     os.makedirs(os.path.dirname(fn), exist_ok=True) # Make directory if needed.
     file = open(fn, 'w')
