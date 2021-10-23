@@ -222,15 +222,15 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     return OBJ
 
 
-def get_objid_datetime(objid):
+def get_objid_datetime(objid,calendar='standard'):
     """
-    usge: this_datetime = get_objid_datetime(this_objid)
+    usge: this_datetime = get_objid_datetime(this_objid, calendar)
 
     Get the datetime from an objid of form YYYYMMDDHHnnnn.
     """
     ymdh_int = int(np.floor(objid/1e4))
-    ymdh_str = str(ymdh_int)
-    return dt.datetime.strptime(ymdh_str, "%Y%m%d%H")
+    ymdh_str = str(ymdh_int).zfill(10)
+    return str2cftime(ymdh_str, '%Y%m%d%H', calendar)
 
 
 def read_lp_object_properties(objid, objdir, property_list, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
@@ -447,8 +447,8 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
     objdir = options['objdir']
 
     lpo_id_list = list(G0.nodes())
-    datetime_list = [get_objid_datetime(x) for x in lpo_id_list]
-    timestamp_list = [int((x - dt.datetime(1970,1,1,0,0,0)).total_seconds()) for x in datetime_list]
+    datetime_list = [get_objid_datetime(x,options['calendar']) for x in lpo_id_list]
+    timestamp_list = [int((x - cftime.datetime(1970,1,1,0,0,0,calendar=datetime_list[0].calendar)).total_seconds()) for x in datetime_list]
 
     ## Now, loop through the times.
     unique_timestamp_list = np.unique(timestamp_list)
@@ -457,8 +457,8 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
         ## Datetimes for this time and previous time.
         this_timestamp = unique_timestamp_list[tt]
         prev_timestamp = unique_timestamp_list[tt-1]
-        this_dt = dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(this_timestamp))
-        prev_dt = dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(prev_timestamp))
+        this_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(this_timestamp))
+        prev_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(prev_timestamp))
         print(this_dt, flush=True)
 
         ## Get overlap points.
@@ -674,7 +674,7 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
             if len(Plist_mergers) > 1: # Don't bother if only one root short end.
 
                 merger_datetimes = [get_objid_datetime(x[-1]) for x in Plist_mergers]
-                merger_timestamps = np.array([(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600 for x in merger_datetimes])
+                merger_timestamps = np.array([(x - cftime.datetime(1970,1,1,0,0,0,calendar=merger_datetimes[0].calendar)).total_seconds()/3600 for x in merger_datetimes])
                 for iiii in range(len(Plist_mergers)):
                     path1 = Plist_mergers[iiii]
                     # Don't use the last node, as it intersects the paths I want to keep.
@@ -717,7 +717,7 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
             if len(Plist_splits) > 1: # Don't bother if only one leaf short end.
 
                 split_datetimes = [get_objid_datetime(x[-1]) for x in Plist_splits]
-                split_timestamps = np.array([(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600 for x in split_datetimes])
+                split_timestamps = np.array([(x - cftime.datetime(1970,1,1,0,0,0,calendar=split_datetimes[0].calendar)).total_seconds()/3600 for x in split_datetimes])
 
                 for iiii in range(len(Plist_splits)):
                     path1 = Plist_splits[iiii]
@@ -995,7 +995,7 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
             ts=nx.get_node_attributes(PG,'timestamp')
             timestamp_all = [ts[x] for x in TC_this['objid']]
             TC_this['timestamp'] = np.unique(timestamp_all)
-            TC_this['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
+            TC_this['datetime'] = [cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
 
             ##
             ## Sum/average the LPTs to get bulk/mean properties at each time.

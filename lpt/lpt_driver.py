@@ -296,6 +296,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
                 timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
 
+            timelon_rain = np.array(timelon_rain)
+            timelon_rain *= lpo_options['multiply_factor'] / 24.0
 
             lpt.plotting.plot_timelon_with_lpt(ax2, dt_list, DATA_RAW['lon']
                     , timelon_rain, TIMECLUSTERS, plotting['time_lon_range']
