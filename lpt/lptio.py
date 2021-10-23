@@ -268,14 +268,16 @@ def read_lpt_systems_group_array(fn):
 
 
 
-
 def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     """
     This function outputs the "bulk" LPT system properties (centroid, date, area)
     plus the LP Objects belonging to each "TIMECLUSTER" to a netcdf file.
     """
+    REFTIME = cftime.datetime(1970,1,1,0,0,0, calendar=TIMECLUSTERS[0]['datetime'][0].calendar)
+    
     print('Writing LPT system track NetCDF output to: ' + fn)
-
+    
+    
     if not 'units_inst' in units:
         print('WARNING: units_inst, units_running, and units_filtered not specified in dict "units". Netcdf file will have empty units.')
         units['units_inst'] = ''
@@ -283,20 +285,18 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         units['units_filtered'] = ''
 
 
-
     os.makedirs(os.path.dirname(fn), exist_ok=True) # Make directory if needed.
 
-    DS = Dataset(fn, 'w', format='NETCDF4', clobber=True)
-    DS.description = 'LPT Systems "timeclusters" NetCDF file.'
 
-    MISSING = -999.0
-    FILL_VALUE = MISSING
+    MISSING = np.nan  #17127768  -999.0
+    FILL_VALUE = -999999999.0
 
     ##
     ## Initialize stitched variables.
     ##
     lptid_collect = np.array([MISSING])
     timestamp_collect = np.double([MISSING])
+    datetime_collect = [TIMECLUSTERS[0]['datetime'][0]]
     nobj_collect = np.double([MISSING])
     centroid_lon_collect = np.array([MISSING])
     centroid_lat_collect = np.array([MISSING])
@@ -320,7 +320,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
     lpt_begin_index = []
     lpt_end_index = []
-    time_step_hours = 999
+    # time_step_hours = 999
 
     ##
     ## Fill in stitched variables.
@@ -333,8 +333,11 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         lpt_begin_index += [len(lptid_collect)] # zero based, so next index is the length.
 
         lptid_collect = np.append(np.append(lptid_collect, np.ones(len(TIMECLUSTERS[ii]['datetime']))*TIMECLUSTERS[ii]['lpt_id']),MISSING)
-        this_timestamp = [(TIMECLUSTERS[ii]['datetime'][x] - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 for x in range(len(TIMECLUSTERS[ii]['datetime']))]
+        this_timestamp = [(TIMECLUSTERS[ii]['datetime'][x] - REFTIME).total_seconds()/3600.0 for x in range(len(TIMECLUSTERS[ii]['datetime']))]
         timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
+        this_datetime = [TIMECLUSTERS[ii]['datetime'][x] for x in range(len(TIMECLUSTERS[ii]['datetime']))]
+        datetime_collect = datetime_collect + this_datetime + [this_datetime[-1]]
+        
         nobj_collect = np.append(np.append(nobj_collect, TIMECLUSTERS[ii]['nobj']),MISSING)
         centroid_lon_collect = np.append(np.append(centroid_lon_collect, TIMECLUSTERS[ii]['centroid_lon']),MISSING)
         centroid_lat_collect = np.append(np.append(centroid_lat_collect, TIMECLUSTERS[ii]['centroid_lat']),MISSING)
@@ -362,7 +365,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     ##
     ## Initialize LPO variables.
     ##
-    lpo_objid = MISSING * np.ones([len(TIMECLUSTERS), max_lpo])
+    lpo_objid = np.full([len(TIMECLUSTERS), max_lpo], -999) # MISSING * np.ones([len(TIMECLUSTERS), max_lpo]))
 
     ##
     ## Fill in LPO variables
@@ -372,124 +375,92 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         lpo_objid[ii,0:len(TIMECLUSTERS[ii]['objid'])] = TIMECLUSTERS[ii]['objid']
 
 
+    ## Construct Dictionaries for XArray
+    coords_dict = {}
+    coords_dict['nlpt'] = (['nlpt',], range(len(TIMECLUSTERS)), {'units' : '1'})
+    coords_dict['nstitch'] = (['nstitch',], range(len(timestamp_collect)), {'units' : '1'})
+    coords_dict['nobj'] = (['nobj',], range(max_lpo), {'units' : '1'})
 
-    ##
-    ## Dimensions
-    ##
-    DS.createDimension('nlpt', len(TIMECLUSTERS))
-    DS.createDimension('nall', len(timestamp_collect))
-    DS.createDimension('obj', max_lpo)
+    data_dict = {}
+    ## Variables for LPT systems as a whole.
+    ## data_dict['varname'] = (['dim1','dim2',], data, {'attribute_name': 'attribute_value')
+    data_dict['lptid'] = (['nlpt',],
+                            [TIMECLUSTERS[ii]['lpt_id'] for ii in range(len(TIMECLUSTERS))],
+                            {'units' : '1.0','long_name':'LPT System id'})
+    data_dict['lpt_begin_index'] = (['nlpt',],
+                            lpt_begin_index,
+                            {'units' : '1','long_name':'LPT System beginning index (zero-based, Python convention)'})
+    data_dict['lpt_end_index'] = (['nlpt',],
+                            lpt_end_index,
+                            {'units' : '1','long_name':'LPT System ending index (zero-based, Python convention)'})
+    data_dict['duration'] = (['nlpt',],
+                            [(TIMECLUSTERS[ii]['datetime'][-1] - TIMECLUSTERS[ii]['datetime'][0]).total_seconds()/3600.0 for ii in range(len(TIMECLUSTERS))],
+                            {'units': 'hours', 'long_name':'LPT System Duration'})
+    data_dict['maxarea'] = (['nlpt',],
+                            [np.max(TIMECLUSTERS[ii]['area']) for ii in range(len(TIMECLUSTERS))],
+                            {'units':'km2','long_name':'LPT System area at time of largest extent'})
+    data_dict['zonal_propagation_speed'] = (['nlpt',],
+                            [TIMECLUSTERS[ii]['zonal_propagation_speed'] for ii in range(len(TIMECLUSTERS))],
+                            {'units':'m s-1','long_name':'Centroid Zonal Propagation Speed from least squares regression.'})
+    data_dict['meridional_propagation_speed'] = (['nlpt',],
+                            [TIMECLUSTERS[ii]['meridional_propagation_speed'] for ii in range(len(TIMECLUSTERS))],
+                            {'units':'m s-1','long_name':'Centroid Meridional Propagation Speed from least squares regression.'})
 
-    ##
-    ## Variables
-    ##
+    ## Variables for LPT systems stitched together consecutively.
+    ## data_dict['varname'] = (['dim1','dim2',], data, {'attribute_name': 'attribute_value')
+    data_dict['timestamp_stitched'] = (['nstitch',], datetime_collect, {'long_name':'LPT System time stamp -- stitched'})
+    data_dict['lptid_stitched'] = (['nstitch'], lptid_collect, {'units':'1.0','long_name':'LPT System id -- stitched'})
+    data_dict['nobj_stitched'] = (['nstitch'], nobj_collect, )
+    data_dict['centroid_lon_stitched'] = (['nstitch'], centroid_lat_collect,
+        {'units':'degrees_east','long_name':'centroid longitude, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
+    data_dict['centroid_lat_stitched'] = (['nstitch'], centroid_lat_collect,
+        {'units':'degrees_north','long_name':'centroid latitude, may be inbetween objects (-90-90) -- stitched','standard_name':'latitude'})
+    data_dict['largest_object_centroid_lon_stitched'] = (['nstitch'], largest_object_centroid_lat_collect,
+        {'units':'degrees_east','long_name':'centroid longitude of the largest contiguous object (0-360) -- stitched','standard_name':'longitude'})
+    data_dict['largest_object_centroid_lat_stitched'] = (['nstitch'], largest_object_centroid_lat_collect,
+        {'units':'degrees_north','long_name':'centroid latitude of the largest contiguous object (-90-90) -- stitched','standard_name':'latitude'})
+    data_dict['area_stitched'] = (['nstitch'], area_collect,
+        {'units':'km2','long_name':'LPT System enclosed area -- stitched'})
+    data_dict['max_lon_stitched'] = (['nstitch'], max_lon_collect,
+        {'units':'degrees_east','long_name':'max (eastmost) longitude (0-360) -- stitched','standard_name':'longitude'})
+    data_dict['max_lat_stitched'] = (['nstitch'], max_lat_collect,
+        {'units':'degrees_north','long_name':'max (northmost) latitude (-90-90) -- stitched','standard_name':'longitude'})
+    data_dict['min_lon_stitched'] = (['nstitch'], min_lon_collect,
+        {'units':'degrees_east','long_name':'min (westmost) longitude (0-360) -- stitched','standard_name':'longitude'})
+    data_dict['min_lat_stitched'] = (['nstitch'], min_lat_collect,
+        {'units':'degrees_north','long_name':'min (southmost) latitude (-90-90) -- stitched','standard_name':'longitude'})
 
-    ## Single value "bulk" variables.
-    DS.createVariable('lptid', 'f4', ('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('lpt_begin_index', 'i', ('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('lpt_end_index', 'i', ('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('duration', 'f4', ('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('maxarea', 'd', ('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('zonal_propagation_speed','f4',('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('meridional_propagation_speed','f4',('nlpt',),fill_value=FILL_VALUE)
+    data_dict['amean_inst_field'] = (['nstitch'], mean_inst_collect,
+        {'units':'mm h-1','long_name':'LP object mean instantaneous rain rate (at end of running time).'})
+    data_dict['amean_running_field'] = (['nstitch'], mean_running_collect,
+        {'units':'mm day-1','long_name':'LP object running mean, mean rain rate (at end of running time).'})
+    data_dict['amean_filtered_running_field'] = (['nstitch'], mean_filtered_running_collect,
+        {'units':'mm day-1','long_name':'LP object filtered running mean, mean rain rate (at end of running time).'})
+    data_dict['min_inst_field'] = (['nstitch'], min_inst_collect,
+        {'units':'mm h-1','long_name':'LP object min instantaneous rain rate (at end of running time).'})
+    data_dict['min_running_field'] = (['nstitch'], min_running_collect,
+        {'units':'mm day-1','long_name':'LP object running mean, min rain rate (at end of running time).'})
+    data_dict['min_filtered_running_field'] = (['nstitch'], min_filtered_running_collect,
+        {'units':'mm day-1','long_name':'LP object filtered running mean, min rain rate (at end of running time).'})
+    data_dict['max_inst_field'] = (['nstitch'], max_inst_collect,
+        {'units':'mm h-1','long_name':'LP object max instantaneous rain rate (at end of running time).'})
+    data_dict['max_running_field'] = (['nstitch'], max_running_collect,
+        {'units':'mm day-1','long_name':'LP object running mean, max rain rate (at end of running time).'})
+    data_dict['max_filtered_running_field'] = (['nstitch'], max_filtered_running_collect,
+        {'units':'mm day-1','long_name':'LP object filtered running mean, max rain rate (at end of running time).'})
 
-    ## LP Objects variables.
-    DS.createVariable('num_objects', 'i', ('nlpt',),fill_value=FILL_VALUE)
-    DS.createVariable('objid', 'i8', ('nlpt','obj'),fill_value=FILL_VALUE)
+    ## Objects stuff.
+    data_dict['num_objects'] = (['nlpt',],
+        [len(TIMECLUSTERS[ii]['objid']) for ii in range(len(TIMECLUSTERS))],
+        {'units':'1','description':'Number of LP objects corresponding to each LPT system.'})
+    data_dict['objid'] = (['nlpt','nobj',],
+        lpo_objid,
+        {'units':'1','_FillValue':-999,'description':'Integer LP Object IDs corresponding to each LPT system.'})
 
-    ## Stitched "bulk" variables.
-    var_timestamp_all = DS.createVariable('timestamp_stitched','u4',('nall',),fill_value=int(FILL_VALUE))
-    var_lptid_all = DS.createVariable('lptid_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_nobj_all = DS.createVariable('nobj_stitched','i',('nall',),fill_value=FILL_VALUE)
-    var_centroid_lon_all = DS.createVariable('centroid_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_centroid_lat_all = DS.createVariable('centroid_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_largest_object_centroid_lon_all = DS.createVariable('largest_object_centroid_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_largest_object_centroid_lat_all = DS.createVariable('largest_object_centroid_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_area_all = DS.createVariable('area_stitched','d',('nall',),fill_value=FILL_VALUE)
-    var_max_lon_all = DS.createVariable('max_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_max_lat_all = DS.createVariable('max_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_min_lon_all = DS.createVariable('min_lon_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    var_min_lat_all = DS.createVariable('min_lat_stitched','f4',('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('amean_inst_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('amean_running_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('amean_filtered_running_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('min_inst_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('min_running_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('min_filtered_running_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('max_inst_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('max_running_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-    DS.createVariable('max_filtered_running_field', 'f4', ('nall',),fill_value=FILL_VALUE)
-
-
-    ##
-    ## Values
-    ##
-    DS['lptid'][:] = [TIMECLUSTERS[ii]['lpt_id'] for ii in range(len(TIMECLUSTERS))]
-    DS['lpt_begin_index'][:] = lpt_begin_index
-    DS['lpt_end_index'][:] = lpt_end_index
-    DS['duration'][:] = [(TIMECLUSTERS[ii]['datetime'][-1] - TIMECLUSTERS[ii]['datetime'][0]).total_seconds()/3600.0 for ii in range(len(TIMECLUSTERS))]
-    DS['maxarea'][:] = [np.max(TIMECLUSTERS[ii]['area']) for ii in range(len(TIMECLUSTERS))]
-    DS['zonal_propagation_speed'][:] = [TIMECLUSTERS[ii]['zonal_propagation_speed'] for ii in range(len(TIMECLUSTERS))]
-    DS['meridional_propagation_speed'][:] = [TIMECLUSTERS[ii]['meridional_propagation_speed'] for ii in range(len(TIMECLUSTERS))]
-
-    DS['num_objects'][:] = [len(TIMECLUSTERS[ii]['objid']) for ii in range(len(TIMECLUSTERS))]
-    DS['objid'][:] = lpo_objid
-
-    var_timestamp_all[:] = timestamp_collect
-    var_lptid_all[:] = lptid_collect
-    var_nobj_all[:] = nobj_collect
-    var_centroid_lon_all[:] = centroid_lon_collect
-    var_centroid_lat_all[:] = centroid_lat_collect
-    var_largest_object_centroid_lon_all[:] = largest_object_centroid_lon_collect
-    var_largest_object_centroid_lat_all[:] = largest_object_centroid_lat_collect
-    var_area_all[:] = area_collect
-    var_max_lon_all[:] = max_lon_collect
-    var_max_lat_all[:] = max_lat_collect
-    var_min_lon_all[:] = min_lon_collect
-    var_min_lat_all[:] = min_lat_collect
-
-    DS['amean_inst_field'][:] = mean_inst_collect
-    DS['amean_running_field'][:] = mean_running_collect
-    DS['amean_filtered_running_field'][:] = mean_filtered_running_collect
-    DS['min_inst_field'][:] = min_inst_collect
-    DS['min_running_field'][:] = min_running_collect
-    DS['min_filtered_running_field'][:] = min_filtered_running_collect
-    DS['max_inst_field'][:] = max_inst_collect
-    DS['max_running_field'][:] = max_running_collect
-    DS['max_filtered_running_field'][:] = max_filtered_running_collect
-
-
-    ##
-    ## Attributes/Metadata
-    ##
-    DS['lptid'].setncatts({'units':'1.0','long_name':'LPT System id'})
-    DS['lpt_begin_index'].setncatts({'units':'1','long_name':'LPT System beginning index (zero-based, Python convention)'})
-    DS['lpt_end_index'].setncatts({'units':'1','long_name':'LPT System beginning index (zero-based, Python convention)'})
-    DS['duration'].setncatts({'units':'h','long_name':'LPT System Duration'})
-    DS['maxarea'].setncatts({'units':'km2','long_name':'LPT System area at time of largest extent'})
-    DS['zonal_propagation_speed'].setncatts({'units':'m s-1','long_name':'Centroid Zonal Propagation Speed from least squares regression.'})
-    DS['meridional_propagation_speed'].setncatts({'units':'m s-1','long_name':'Centroid Meridional Propagation Speed from least squares regression.'})
-    var_timestamp_all.setncatts({'units':'hours since 1970-1-1 0:0','long_name':'LPT System time stamp -- stitched'})
-    var_lptid_all.setncatts({'units':'1.0','long_name':'LPT System id -- stitched'})
-    var_centroid_lon_all.setncatts({'units':'degrees_east','long_name':'centroid longitude, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
-    var_centroid_lat_all.setncatts({'units':'degrees_north','long_name':'centroid latitude, may be inbetween objects (-90-90) -- stitched','standard_name':'latitude'})
-    var_largest_object_centroid_lon_all.setncatts({'units':'degrees_east','long_name':'centroid longitude of the largest contiguous object (0-360) -- stitched','standard_name':'longitude'})
-    var_largest_object_centroid_lat_all.setncatts({'units':'degrees_north','long_name':'centroid latitude of the largest contiguous object (-90-90) -- stitched','standard_name':'latitude'})
-    var_area_all.setncatts({'units':'km2','long_name':'LPT System enclosed area -- stitched'})
-    var_max_lon_all.setncatts({'units':'degrees_east','long_name':'max (eastmost) longitude (0-360) -- stitched','standard_name':'longitude'})
-    var_max_lat_all.setncatts({'units':'degrees_north','long_name':'max (northmost) latitude (-90-90) -- stitched','standard_name':'longitude'})
-    var_min_lon_all.setncatts({'units':'degrees_east','long_name':'min (westmost) longitude (0-360) -- stitched','standard_name':'longitude'})
-    var_min_lat_all.setncatts({'units':'degrees_north','long_name':'min (southmost) latitude (-90-90) -- stitched','standard_name':'longitude'})
-
-    DS['amean_inst_field'].setncatts({'units':'mm h-1','long_name':'LP object mean instantaneous rain rate (at end of running time).'})
-    DS['amean_running_field'].setncatts({'units':'mm day-1','long_name':'LP object running mean, mean rain rate (at end of running time).'})
-    DS['amean_filtered_running_field'].setncatts({'units':'mm day-1','long_name':'LP object filtered running mean, mean rain rate (at end of running time).'})
-    DS['min_inst_field'].setncatts({'units':'mm h-1','long_name':'LP object min instantaneous rain rate (at end of running time).'})
-    DS['min_running_field'].setncatts({'units':'mm day-1','long_name':'LP object running mean, min rain rate (at end of running time).'})
-    DS['min_filtered_running_field'].setncatts({'units':'mm day-1','long_name':'LP object filtered running mean, min rain rate (at end of running time).'})
-    DS['max_inst_field'].setncatts({'units':'mm h-1','long_name':'LP object max instantaneous rain rate (at end of running time).'})
-    DS['max_running_field'].setncatts({'units':'mm day-1','long_name':'LP object running mean, max rain rate (at end of running time).'})
-    DS['max_filtered_running_field'].setncatts({'units':'mm day-1','long_name':'LP object filtered running mean, max rain rate (at end of running time).'})
-
-
-    DS.close()
+    print(lpo_objid)
+    ## Create XArray Dataset
+    description = 'LPT Systems NetCDF file.'
+    DS = xr.Dataset(data_vars=data_dict, coords=coords_dict, attrs={'description':description})
+    encoding = {'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'}, 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+        'num_objects': {'dtype': 'i'}} #, 'objid': {'dtype': 'i8'}}
+    DS.to_netcdf(path=fn, mode='w', encoding=encoding)
