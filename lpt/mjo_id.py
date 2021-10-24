@@ -1,14 +1,13 @@
 import numpy as np
 import pandas as pd
+import xarray as xr
 from scipy import ndimage
 from scipy.stats import linregress
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import datetime as dt
-try:
-    from context import lpt
-except:
-    pass
+import cftime
+from context import lpt
 import os
 import glob
 import sys
@@ -323,20 +322,24 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     ## Read in LPT stuff.
     ##
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
+    print(lpt_systems_file)
+    # ds = Dataset(lpt_systems_file)
+    with xr.open_dataset(lpt_systems_file) as ds:
+        f = {}
+        f['lptid'] = ds['lptid'][:].values
+        f['group'] = np.floor(f['lptid'][:])
+        f['i1'] = ds['lpt_begin_index'][:].values
+        f['i2'] = ds['lpt_end_index'][:].values
+        f['lon'] = ds['centroid_lon_stitched'][:].values
+        f['lat'] = ds['centroid_lat_stitched'][:].values
+        f['area'] = ds['area_stitched'][:].values
+        # f['duration'] = ds['duration'][:].values
+        ts = ds['timestamp_stitched'][:].values
 
-    ds = Dataset(lpt_systems_file)
-    f = {}
-    f['lptid'] = ds['lptid'][:]
-    f['group'] = np.floor(f['lptid'][:])
-    f['i1'] = ds['lpt_begin_index'][:]
-    f['i2'] = ds['lpt_end_index'][:]
-    f['lon'] = ds['centroid_lon_stitched'][:]
-    f['lat'] = ds['centroid_lat_stitched'][:]
-    f['area'] = ds['area_stitched'][:]
-    f['duration'] = ds['duration'][:]
-    ts = ds['timestamp_stitched'][:]
-    ds.close()
-
+    ## For some reason xarray converts my duration values to np.timedelta64 objects
+    ## I want the data to be read in as just simple hours, which NetCDF4 Dataset does.
+    with Dataset(lpt_systems_file, 'r') as ds:
+        f['duration'] = ds['duration'][:]
 
     ## Search for an MJO within each group.
     #for this_group in [3]:
@@ -366,14 +369,14 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
 
         east_prop_group_df = None
 
+        print(f['duration'])
         for this_lptid in lptid_for_this_clump:
 
             print('LPT ID: ' + str(this_lptid))
             iii = np.where(f['lptid'] == this_lptid)[0][0]
             i1 = f['i1'][iii]
             i2 = f['i2'][iii]
-
-            this_lpt_time = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) for x in ts[i1:i2+1]]
+            this_lpt_time = ts[i1:i2+1]
             hours_since_beginning = [(x - this_lpt_time[0]).total_seconds()/3600.0 for x in this_lpt_time]
             this_duration = f['duration'][iii]
             this_lpt_lon = f['lon'][i1:i2+1]
@@ -391,10 +394,10 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
             plot_file = (plot_dir + '/east_west_propagation_division_'+prod+'_'+YMDH1_YMDH2+ '.lptid{0:010.4f}.png'.format(this_lptid))
             [mask_net_eastward_propagation, spd_raw] = west_east_divide_and_conquer(this_lpt_time, this_lpt_lon, opts
                 , do_plotting=do_plotting, plot_path=plot_file, plot_suptitle='LPT ID: {0:010.4f}'.format(this_lptid))
+
             ## Get the data frame with the characteristics of each of the periods
             ## of eastward propagation.
             east_prop_df = {}
-
             ## If there are NO eastward propagation periods, hack it with west propagation period
             ## HOWEVER, make sure meets_mjo_criteria is always FALSE.
             if 1 in mask_net_eastward_propagation:
@@ -528,7 +531,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                         jjj = np.where(f['lptid'] == east_prop_group_df_sort['lptid'].values[jj])[0][0]
                         i1 = f['i1'][jjj]
                         i2 = f['i2'][jjj]
-                        this_lpt_time = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) for x in ts[i1:i2+1]]
+                        this_lpt_time = ts[i1:i2+1]
 
                         ii1 = east_prop_group_df_sort['begin_indx'].values[jj]
                         ii2 = east_prop_group_df_sort['end_indx'].values[jj]
@@ -624,8 +627,8 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     ## For output table files.  ################################################
     ############################################################################
 
-    FMT=('%14d%14d%10.4f%10d%10.2f%16.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d '
-            + '%20d%15d%11.2f%11.2f  %4d%0.2d%0.2d%0.2d  %4d%0.2d%0.2d%0.2d%20.1f%15.1f')
+    FMT=('    %010d    %010d%10.4f%10d%10.2f%16.2f  %04d%02d%02d%02d  %04d%02d%02d%02d '
+            + '%20d%15d%11.2f%11.2f  %04d%02d%02d%02d  %04d%02d%02d%02d%20.1f%15.1f')
 
     header = 'begin_tracking  end_tracking     lptid  lptgroup  duration  mean_zonal_spd   lpt_begin     lpt_end      eprop_begin_idx  eprop_end_idx  eprop_spd  eprop_dur eprop_begin   eprop_end     eprop_lon_begin  eprop_lon_end'
 
