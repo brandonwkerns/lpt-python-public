@@ -664,7 +664,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
         ## Write the data to NetCDF
         fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
-        os.makedirs(mask_output_dir, exist_ok=True)
+        os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
         print('Writing to: ' + fn_out, flush=True)
         DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
@@ -940,7 +940,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
     ## Write the data to NetCDF
     # fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
-    os.makedirs(mask_output_dir, exist_ok=True)
+    os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
     print('Writing to: ' + fn_out, flush=True)
     DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
