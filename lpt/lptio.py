@@ -411,11 +411,11 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     data_dict['timestamp_stitched'] = (['nstitch',], datetime_collect, {'long_name':'LPT System time stamp -- stitched'})
     data_dict['lptid_stitched'] = (['nstitch'], lptid_collect, {'units':'1.0','long_name':'LPT System id -- stitched'})
     data_dict['nobj_stitched'] = (['nstitch'], nobj_collect, )
-    data_dict['centroid_lon_stitched'] = (['nstitch'], centroid_lat_collect,
+    data_dict['centroid_lon_stitched'] = (['nstitch'], centroid_lon_collect,
         {'units':'degrees_east','long_name':'centroid longitude, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
     data_dict['centroid_lat_stitched'] = (['nstitch'], centroid_lat_collect,
         {'units':'degrees_north','long_name':'centroid latitude, may be inbetween objects (-90-90) -- stitched','standard_name':'latitude'})
-    data_dict['largest_object_centroid_lon_stitched'] = (['nstitch'], largest_object_centroid_lat_collect,
+    data_dict['largest_object_centroid_lon_stitched'] = (['nstitch'], largest_object_centroid_lon_collect,
         {'units':'degrees_east','long_name':'centroid longitude of the largest contiguous object (0-360) -- stitched','standard_name':'longitude'})
     data_dict['largest_object_centroid_lat_stitched'] = (['nstitch'], largest_object_centroid_lat_collect,
         {'units':'degrees_north','long_name':'centroid latitude of the largest contiguous object (-90-90) -- stitched','standard_name':'latitude'})
