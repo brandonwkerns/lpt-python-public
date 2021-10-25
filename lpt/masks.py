@@ -445,30 +445,32 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     FILL_VALUE = MISSING
 
     ## Read Stitched data.
-    DS = Dataset(lpt_systems_file)
-    TC={}
-    TC['lptid'] = DS['lptid'][:]
-    TC['objid'] = DS['objid'][:]
-    TC['num_objects'] = DS['num_objects'][:]
-    TC['i1'] = DS['lpt_begin_index'][:]
-    TC['i2'] = DS['lpt_end_index'][:]
-    TC['timestamp_stitched'] = DS['timestamp_stitched'][:]
-    TC['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) if x > 100 else None for x in TC['timestamp_stitched']]
-    TC['centroid_lon'] = DS['centroid_lon_stitched'][:]
-    TC['centroid_lat'] = DS['centroid_lat_stitched'][:]
-    TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'][:]
-    TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'][:]
-    TC['area'] = DS['area_stitched'][:]
-    for var in ['max_filtered_running_field','max_running_field','max_inst_field'
-                ,'min_filtered_running_field','min_running_field','min_inst_field'
-                ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
-                ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-        TC[var] = DS[var][:]
-    DS.close()
+    with xr.open_dataset(lpt_systems_file) as DS:
+        TC={}
+        TC['lptid'] = DS['lptid'].data
+        TC['objid'] = DS['objid'].data
+        TC['num_objects'] = DS['num_objects'].data
+        TC['i1'] = DS['lpt_begin_index'].data
+        TC['i2'] = DS['lpt_end_index'].data
+        TC['timestamp_stitched'] = DS['timestamp_stitched'].data
+        TC['datetime'] = DS['timestamp_stitched'].data #[REFTIME + dt.timedelta(hours=int(x)) if x > -900000000 else None for x in TC['timestamp_stitched']]
+        TC['centroid_lon'] = DS['centroid_lon_stitched'].data
+        TC['centroid_lat'] = DS['centroid_lat_stitched'].data
+        TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'].data
+        TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'].data
+        TC['area'] = DS['area_stitched'].data
+        for var in ['max_filtered_running_field','max_running_field','max_inst_field'
+                    ,'min_filtered_running_field','min_running_field','min_inst_field'
+                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
+                    ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+            TC[var] = DS[var].data
 
+    ## Read in duration using NetCDF4 Dataset to avoid xarray auto conversion to np.datetime64.
+    with Dataset(lpt_systems_file, 'r') as DS:
+        TC['duration'] = DS['duration'][:]
 
-    F = Dataset(lpt_systems_file)
-    unique_lpt_ids = np.unique(F['lptid'][:]).data
+    unique_lpt_ids = np.unique(TC['lptid'])
+
     if mjo_only:
         lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
         try:
@@ -482,7 +484,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     else:
         mjo_lpt_list = np.array([-999])
 
-    for this_lpt_id in unique_lpt_ids:
+    for this_lpt_idx, this_lpt_id in enumerate(TC['lptid']):
         if int(np.floor(this_lpt_id)) < int(np.floor(begin_lptid)) or int(np.floor(this_lpt_id)) > int(np.floor(end_lptid)):
             continue
         if mjo_only and np.min(np.abs(mjo_lpt_list - this_lpt_id)) > 0.0001:
@@ -490,19 +492,18 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         print('Calculating LPT system mask for lptid = ' + str(this_lpt_id) + ' of time period ' + YMDH1_YMDH2 + '.')
 
         ## Get list of LP Objects for this LPT system.
-        this_lpt_idx = np.argwhere(TC['lptid'] == this_lpt_id)[0][0]
-        print((this_lpt_idx,TC['num_objects'][this_lpt_idx]))
         lp_object_id_list = TC['objid'][this_lpt_idx,0:int(TC['num_objects'][this_lpt_idx])]
 
         if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
-            dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
+            dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
         else:
-            dt0 = dt.datetime.strptime(str(int(np.min(lp_object_id_list)))[0:10],'%Y%m%d%H')
-        dt1 = dt.datetime.strptime(str(int(np.max(lp_object_id_list)))[0:10],'%Y%m%d%H')
+            dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
+        dt0 = cftime.datetime(dt00.year,dt00.month,dt00.day,dt00.hour,calendar=TC['datetime'][0].calendar)
+        dt11 = dt.datetime.strptime(str(int(np.max(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
+        dt1 = cftime.datetime(dt11.year,dt11.month,dt11.day,dt11.hour,calendar=TC['datetime'][0].calendar)
         duration_hours = int((dt1 - dt0).total_seconds()/3600)
         mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
         mask_arrays={} #Start with empty dictionary
-
 
         ## Include some basic LPT info for user friendliness.
         lptidx = [ii for ii in range(len(TC['lptid'])) if this_lpt_id == TC['lptid'][ii]][0]
@@ -533,7 +534,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             nnnn = int(str(int(lp_object_id))[-4:])
             try:
-                dt_this = lpt.helpers.get_objid_datetime(lp_object_id) # dt.datetime.strptime(str(int(lp_object_id))[0:10],'%Y%m%d%H')
+                dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id) # dt.datetime.strptime(str(int(lp_object_id))[0:10],'%Y%m%d%H')
+                dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour,calendar=TC['datetime'][0].calendar)
                 dt_idx = [tt for tt in range(len(mask_times)) if dt_this == mask_times[tt]]
             except:
                 continue
@@ -629,86 +631,75 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ##
         ## Output.
         ##
-        os.makedirs(mask_output_dir + '/' +YMDH1_YMDH2, exist_ok=True)
-        fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
 
-        os.remove(fn_out) if os.path.exists(fn_out) else None
-        print('Writing to: ' + fn_out, flush=True)
-        DSnew = Dataset(fn_out, 'w', data_model='NETCDF4', clobber=True)
-        DSnew.createDimension('n', 1)
-        DSnew.createDimension('time',len(mask_times))
-        DSnew.createDimension('lon',len(lon))
-        DSnew.createDimension('lat',len(lat))
-        DSnew.createVariable('lon','f4',('lon',))
-        DSnew.createVariable('lat','f4',('lat',))
-        DSnew.createVariable('grid_area','f4',('lat','lon'))
-        DSnew.createVariable('time','d',('time',))
-        DSnew.createVariable('centroid_lon','f4',('time',),fill_value=FILL_VALUE)
-        DSnew.createVariable('centroid_lat','f4',('time',),fill_value=FILL_VALUE)
-        DSnew.createVariable('largest_object_centroid_lon','f4',('time',),fill_value=FILL_VALUE)
-        DSnew.createVariable('largest_object_centroid_lat','f4',('time',),fill_value=FILL_VALUE)
-        DSnew.createVariable('area','d',('time',),fill_value=FILL_VALUE)
+        ## Set coordinates
+        coords_dict = {}
+        coords_dict['n'] = (['n',], [1,])
+        coords_dict['time'] = (['time',], mask_times)
+        coords_dict['lon'] = (['lon',], lon, {'units':'degrees_east'})
+        coords_dict['lat'] = (['lat',], lat, {'units':'degrees_north'})
+
+        ## Set Data
+        data_dict = {}
+        data_dict['grid_area'] = (['lat','lon',], AREA, {'units':'km2','description':'Area of each grid cell.'})
+
+        ## Basic LPT system track data for convenience
+        for mask_var in basic_lpt_info_field_list:
+            data_dict[mask_var] = (['time',], mask_arrays[mask_var])
+
+        # Volumetric Rain, if specified.
+        if do_volrain:
+            fields = [*VOLRAIN]
+            for field in fields:
+                if 'tser' in field:
+                    data_dict[field] = (['time',], VOLRAIN[field])
+                else:
+                    data_dict[field] = (['n',], [VOLRAIN[field],])
+
+        for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+            print(mask_var, mask_arrays[mask_var])
+            data_dict[mask_var] = (['n',], [mask_arrays[mask_var],])
+
+
+        ## Create XArray Dataset
+        DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
+        DS.centroid_lon.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'}
+        DS.centroid_lat.attrs = {'units':'degrees_north','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'}
+        DS.largest_object_centroid_lon.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'}
+        DS.largest_object_centroid_lat.attrs = {'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'}
+        DS.area.attrs = {'units':'km2','long_name':'LPT System enclosed area','note':'Time is end of running mean time.'}
 
         # Time varying fields
         for var in ['max_filtered_running_field','max_running_field','max_inst_field'
                     ,'min_filtered_running_field','min_running_field','min_inst_field'
                     ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
-            DSnew.createVariable(var,'f4',('time',),fill_value=FILL_VALUE)
+            DS[var].attrs = {'units':'mm day-1',
+                    'long_name':'LP object running mean rain rate (at end of accum time).',
+                    'note':'Time is end of running mean time. Based on mask_at_end_time'}
 
-        # Bulk fields.
-        for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-            DSnew.createVariable(var,'f4',('n',),fill_value=FILL_VALUE)
+        DS.maxarea.attrs = {'units':'km2','long_name':'LPT System enclosed area','note':'This is the max over the LPT life time.'}
+        DS.duration.attrs = {'units':'h','long_name':'LPT System duration'}
+        DS.zonal_propagation_speed.attrs = {'units':'m s-1','long_name':'Zonal popagation speed','description':'Zonal popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
+        DS.meridional_propagation_speed.attrs = {'units':'m s-1','long_name':'meridional popagation speed','description':'Meridional popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
 
-        ts = [(x - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 for x in mask_times]
-        DSnew['time'][:] = ts
-        DSnew['time'].setncattr('units','hours since 1970-1-1 0:0:0')
-        DSnew['lon'][:] = lon
-        DSnew['lon'].setncattr('units','degrees_east')
-        DSnew['lat'][:] = lat
-        DSnew['lat'].setncattr('units','degrees_north')
 
-        for mask_var in basic_lpt_info_field_list:
-            DSnew[mask_var][:] = mask_arrays[mask_var]
 
-        for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-            DSnew[mask_var][:] = mask_arrays[mask_var]
+        ## Write the data to NetCDF
+        fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
+        os.makedirs(mask_output_dir, exist_ok=True)
 
-        DSnew['centroid_lon'].setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'})
-        DSnew['centroid_lat'].setncatts({'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'})
-        DSnew['largest_object_centroid_lon'].setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'})
-        DSnew['largest_object_centroid_lat'].setncatts({'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'})
-        DSnew['area'].setncatts({'units':'km2','long_name':'LPT System enclosed area','note':'Time is end of running mean time.'})
-        DSnew['maxarea'].setncatts({'units':'km2','long_name':'LPT System enclosed area','note':'This is the max over the LPT life time.'})
-        DSnew['duration'].setncatts({'units':'h','long_name':'LPT System duration'})
-        DSnew['zonal_propagation_speed'].setncatts({'units':'m s-1','long_name':'Zonal popagation speed','description':'Zonal popagation speed of the entire LPT system -- based on least squares fit of lon(time).'})
-        DSnew['meridional_propagation_speed'].setncatts({'units':'m s-1','long_name':'meridional popagation speed','description':'Meridional popagation speed of the entire LPT system -- based on least squares fit of lon(time).'})
-
-        for var in ['max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
-            DSnew[var].setncatts({'units':'mm day-1','long_name':'LP object running mean rain rate (at end of accum time).','note':'Time is end of running mean time. Based on mask_at_end_time'})
-
-        DSnew['grid_area'][:] = AREA
-        DSnew['grid_area'].setncattr('units','km2')
-        DSnew['grid_area'].setncattr('description','Area of each grid cell.')
-
-        ## Write volrain if it was calculated.
-        if do_volrain:
-            fields = [*VOLRAIN]
-            fields = [x for x in fields if not 'tser' in x]
-            for field in fields:
-                add_volrain_to_netcdf(DSnew, field, VOLRAIN[field]
-                        , field+'_tser', VOLRAIN[field+'_tser']
-                        , fill_value = FILL_VALUE)
+        print('Writing to: ' + fn_out, flush=True)
+        DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
+        
 
         ## Define the mask variables here.
         ## But don't assign them yet.
-        fields = [*mask_arrays]
-        fields = [x for x in fields if 'mask' in x]
-        for field in fields:
-            DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
-            DSnew[field].setncattr('units','1')
-        DSnew.close()
+        with Dataset(fn_out, 'a') as DSnew:
+            fields = [*mask_arrays]
+            fields = [x for x in fields if 'mask' in x]
+            for field in fields:
+                DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
+                DSnew[field].setncattr('units','1')
 
         ## Writing mask variables.
         ## Do them one at a time so it uses less memory while writing them.
