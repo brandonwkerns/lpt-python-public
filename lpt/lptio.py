@@ -464,3 +464,31 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     encoding = {'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'}, 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
         'num_objects': {'dtype': 'i'}} #, 'objid': {'dtype': 'i8'}}
     DS.to_netcdf(path=fn, mode='w', encoding=encoding)
+
+
+def read_lpt_systems_netcdf(lpt_systems_file):
+    with xr.open_dataset(lpt_systems_file) as DS:
+        TC={}
+        TC['lptid'] = DS['lptid'].data
+        TC['objid'] = DS['objid'].data
+        TC['num_objects'] = DS['num_objects'].data
+        TC['i1'] = DS['lpt_begin_index'].data
+        TC['i2'] = DS['lpt_end_index'].data
+        TC['timestamp_stitched'] = DS['timestamp_stitched'].data
+        TC['datetime'] = DS['timestamp_stitched'].data #[REFTIME + dt.timedelta(hours=int(x)) if x > -900000000 else None for x in TC['timestamp_stitched']]
+        TC['centroid_lon'] = DS['centroid_lon_stitched'].data
+        TC['centroid_lat'] = DS['centroid_lat_stitched'].data
+        TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'].data
+        TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'].data
+        TC['area'] = DS['area_stitched'].data
+        for var in ['max_filtered_running_field','max_running_field','max_inst_field'
+                    ,'min_filtered_running_field','min_running_field','min_inst_field'
+                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
+                    ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+            TC[var] = DS[var].data
+
+    ## Read in duration using NetCDF4 Dataset to avoid xarray auto conversion to np.datetime64.
+    with Dataset(lpt_systems_file, 'r') as DS:
+        TC['duration'] = DS['duration'][:]
+
+    return TC

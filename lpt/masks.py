@@ -445,30 +445,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     FILL_VALUE = MISSING
 
     ## Read Stitched data.
-    with xr.open_dataset(lpt_systems_file) as DS:
-        TC={}
-        TC['lptid'] = DS['lptid'].data
-        TC['objid'] = DS['objid'].data
-        TC['num_objects'] = DS['num_objects'].data
-        TC['i1'] = DS['lpt_begin_index'].data
-        TC['i2'] = DS['lpt_end_index'].data
-        TC['timestamp_stitched'] = DS['timestamp_stitched'].data
-        TC['datetime'] = DS['timestamp_stitched'].data #[REFTIME + dt.timedelta(hours=int(x)) if x > -900000000 else None for x in TC['timestamp_stitched']]
-        TC['centroid_lon'] = DS['centroid_lon_stitched'].data
-        TC['centroid_lat'] = DS['centroid_lat_stitched'].data
-        TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'].data
-        TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'].data
-        TC['area'] = DS['area_stitched'].data
-        for var in ['max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
-                    ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-            TC[var] = DS[var].data
-
-    ## Read in duration using NetCDF4 Dataset to avoid xarray auto conversion to np.datetime64.
-    with Dataset(lpt_systems_file, 'r') as DS:
-        TC['duration'] = DS['duration'][:]
-
+    TC = lpt.lptio.read_lpt_systems_netcdf(lpt_systems_file)
+    
     unique_lpt_ids = np.unique(TC['lptid'])
 
     if mjo_only:
@@ -749,13 +727,14 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
     dt_hours = interval_hours
     if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
-        grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
+        dt00 = dt_begin - dt.timedelta(hours=accumulation_hours) #(dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
     else:
-        grand_mask_timestamps0 = (dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
-    grand_mask_timestamps1 = (dt_end - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
+        dt00 = dt_begin #(dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
+    #grand_mask_timestamps1 = (dt_end - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
 
-    grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
-    grand_mask_times = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=x) for x in grand_mask_timestamps]
+    #grand_mask_timestamps = np.arange(grand_mask_timestamps0, grand_mask_timestamps1 + dt_hours, dt_hours)
+    grand_mask_times = lpt.helpers.dtrange(dt00, dt_end + dt.timedelta(hours=int(dt_hours)), dt_hours)   # [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=x) for x in grand_mask_timestamps]
+    print(grand_mask_times)
 
 
 
@@ -773,36 +752,18 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     mask_arrays = {}
 
     mask_arrays_shape2d = (len(grand_mask_lat), len(grand_mask_lon))
-    mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+    mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_times))]
     if accumulation_hours > 0 and calc_with_accumulation_period:
-        mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+        mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_times))]
     if calc_with_filter_radius:
-        mask_arrays['mask_with_filter_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+        mask_arrays['mask_with_filter_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_times))]
         if accumulation_hours > 0 and calc_with_accumulation_period:
-            mask_arrays['mask_with_filter_and_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_timestamps))]
+            mask_arrays['mask_with_filter_and_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(grand_mask_times))]
     DS.close()
-
 
     ## Read Stitched NetCDF data.
-    DS = Dataset(lpt_systems_file)
-    TC={}
-    TC['lptid'] = DS['lptid'][:]
-    TC['objid'] = DS['objid'][:]
-    TC['num_objects'] = DS['num_objects'][:]
-    TC['i1'] = DS['lpt_begin_index'][:]
-    TC['i2'] = DS['lpt_end_index'][:]
-    TC['timestamp_stitched'] = DS['timestamp_stitched'][:]
-    TC['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=int(x)) if x > 100 else None for x in TC['timestamp_stitched']]
-    TC['centroid_lon'] = DS['centroid_lon_stitched'][:]
-    TC['centroid_lat'] = DS['centroid_lat_stitched'][:]
-    TC['area'] = DS['area_stitched'][:]
-    for var in ['max_filtered_running_field','max_running_field','max_inst_field'
-                ,'min_filtered_running_field','min_running_field','min_inst_field'
-                ,'amean_filtered_running_field','amean_running_field','amean_inst_field'
-                ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-        TC[var] = DS[var][:]
-    DS.close()
-
+    TC = lpt.lptio.read_lpt_systems_netcdf(lpt_systems_file)
+    
     unique_lpt_ids = np.unique(TC['lptid'])
 
 
