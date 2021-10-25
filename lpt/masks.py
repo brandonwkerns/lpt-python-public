@@ -897,10 +897,6 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     data_dict = {}
     data_dict['grid_area'] = (['lat','lon',], AREA, {'units':'km2','description':'Area of each grid cell.'})
 
-    ## Basic LPT system track data for convenience
-    # for mask_var in basic_lpt_info_field_list:
-    #     data_dict[mask_var] = (['time',], mask_arrays[mask_var])
-
     # Volumetric Rain, if specified.
     if do_volrain:
         fields = [*VOLRAIN]
@@ -910,36 +906,9 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             else:
                 data_dict[field] = (['n',], [VOLRAIN[field],])
 
-    # for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-    #     print(mask_var, mask_arrays[mask_var])
-    #     data_dict[mask_var] = (['n',], [mask_arrays[mask_var],])
-
-
-    ## Create XArray Dataset
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
-    # DS.centroid_lon.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'}
-    # DS.centroid_lat.attrs = {'units':'degrees_north','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'}
-    # DS.largest_object_centroid_lon.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'}
-    # DS.largest_object_centroid_lat.attrs = {'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'}
-    # DS.area.attrs = {'units':'km2','long_name':'LPT System enclosed area','note':'Time is end of running mean time.'}
-
-    # Time varying fields
-    # for var in ['max_filtered_running_field','max_running_field','max_inst_field'
-    #             ,'min_filtered_running_field','min_running_field','min_inst_field'
-    #             ,'amean_filtered_running_field','amean_running_field','amean_inst_field']:
-    #     DS[var].attrs = {'units':'mm day-1',
-    #             'long_name':'LP object running mean rain rate (at end of accum time).',
-    #             'note':'Time is end of running mean time. Based on mask_at_end_time'}
-
-    # DS.maxarea.attrs = {'units':'km2','long_name':'LPT System enclosed area','note':'This is the max over the LPT life time.'}
-    # DS.duration.attrs = {'units':'h','long_name':'LPT System duration'}
-    # DS.zonal_propagation_speed.attrs = {'units':'m s-1','long_name':'Zonal popagation speed','description':'Zonal popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
-    # DS.meridional_propagation_speed.attrs = {'units':'m s-1','long_name':'meridional popagation speed','description':'Meridional popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
-
-
 
     ## Write the data to NetCDF
-    # fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
     os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
     print('Writing to: ' + fn_out, flush=True)
@@ -961,52 +930,3 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         print('- ' + field)
         add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
                             , memory_target_mb = memory_target_mb)
-
-
-    # os.remove(fn_out) if os.path.exists(fn_out) else None
-    # print('Writing to: ' + fn_out, flush=True)
-    # DSnew = Dataset(fn_out, 'w', data_model='NETCDF4', clobber=True)
-    # DSnew.createDimension('n', 1)
-    # DSnew.createDimension('time',len(grand_mask_timestamps))
-    # DSnew.createDimension('lon',len(grand_mask_lon))
-    # DSnew.createDimension('lat',len(grand_mask_lat))
-    # DSnew.createVariable('lon','f4',('lon',))
-    # DSnew.createVariable('lat','f4',('lat',))
-    # DSnew.createVariable('grid_area','f4',('lat','lon'))
-    # DSnew.createVariable('time','d',('time',))
-    #
-    # DSnew['time'][:] = grand_mask_timestamps
-    # DSnew['time'].setncattr('units','hours since 1970-1-1 0:0:0')
-    # DSnew['lon'][:] = grand_mask_lon
-    # DSnew['lon'].setncattr('units','degrees_east')
-    # DSnew['lat'][:] = grand_mask_lat
-    # DSnew['lat'].setncattr('units','degrees_north')
-    #
-    # DSnew['grid_area'][:] = AREA
-    # DSnew['grid_area'].setncattr('units','km2')
-    # DSnew['grid_area'].setncattr('description','Area of each grid cell.')
-    #
-    # ## Write volrain if it was calculated.
-    # if do_volrain:
-    #     fields = [*VOLRAIN]
-    #     fields = [x for x in fields if not 'tser' in x]
-    #     for field in fields:
-    #         add_volrain_to_netcdf(DSnew, field, VOLRAIN[field]
-    #                 , field+'_tser', VOLRAIN[field+'_tser']
-    #                 , fill_value = FILL_VALUE)
-    #
-    # ## Define the mask variables here.
-    # ## But don't assign them yet.
-    # fields = [*mask_arrays]
-    # fields = [x for x in fields if 'mask' in x]
-    # for field in fields:
-    #     DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
-    #     DSnew[field].setncattr('units','1')
-    # DSnew.close()
-    #
-    # ## Writing mask variables.
-    # ## Do them one at a time so it uses less memory while writing them.
-    # for field in fields:
-    #     print('- ' + field)
-    #     add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
-    #                         , memory_target_mb = memory_target_mb)
