@@ -335,7 +335,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         f['area'] = ds['area_stitched'][:].values
         # f['duration'] = ds['duration'][:].values
         ts = ds['timestamp_stitched'][:].values
-
     ## For some reason xarray converts my duration values to np.timedelta64 objects
     ## I want the data to be read in as just simple hours, which NetCDF4 Dataset does.
     with Dataset(lpt_systems_file, 'r') as ds:
@@ -369,7 +368,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
 
         east_prop_group_df = None
 
-        print(f['duration'])
         for this_lptid in lptid_for_this_clump:
 
             print('LPT ID: ' + str(this_lptid))
