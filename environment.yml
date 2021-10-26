@@ -7,6 +7,9 @@ channels:
 dependencies:
   - python=3
   - numpy
+  - pandas
+  - xarray
+  - cftime
   - scipy
   - networkx
   - netcdf4=1.5.6  # This version is needed to work with gdal.
