@@ -66,21 +66,25 @@ Then, to activate the environment:
   * data/                (Digital output data. Organized in sub directories.)
   * images/              (Images produced by the scripts. Organized in sub directories.)
 
-## Setting up LPT on a new system:
+## Setting up LPT on your system:
 1) Clone this repository to your system, or download the zip file format.
-2) Copy the MASTER_RUN directory to a new run directory.
-3) Edit the lpt_run.py script as needed.
-4) Run the lpt_run.py script.
-     Usage: `python lpt_run.py YYYYMMDDHH YYYYMMDDHH`
-     (Specify start and end times of the tracking)
+2) Copy the MASTER_RUN directory to a new run directory. E.g. `cp -r MASTER_RUN RUN`
+3) Set up the Python virtual environment. Anaconda is recommended, as follows:
+```
+conda env create -f environment.yml -p ./env
+conda activate ./env
+```
+4) Get in to the RUN directory.
+5) Edit the lpt_run.py script as needed.
+6) Run the lpt_run.py script: `python lpt_run.py YYYYMMDDHH YYYYMMDDHH`
+   (Specify start and end times of the tracking)
 
 
 
 ## Python environment
 
-I used Anaconda Python, with an environment set up the following way:
+I used Anaconda Python, with an environment set up using the provided environment.yml file:
 
 ```
-conda create --name lpt numpy pandas matplotlib basemap netCDF4 h5py scipy wrf-python gdal
-source activate lpt
+conda env create -f environment.yml -p ./env
 ```
