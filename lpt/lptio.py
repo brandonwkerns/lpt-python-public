@@ -467,7 +467,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
 
 def read_lpt_systems_netcdf(lpt_systems_file):
-    with xr.open_dataset(lpt_systems_file) as DS:
+    with xr.open_dataset(lpt_systems_file, use_cftime=True) as DS:
         TC={}
         TC['lptid'] = DS['lptid'].data
         TC['objid'] = DS['objid'].data
