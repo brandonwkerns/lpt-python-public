@@ -144,6 +144,8 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
 
         ax0.plot(hours_since_beginning_filled, lon_filled,'b-')
         ax0.plot(hours_since_beginning, lon, 'bo')
+        ax0.set_title('Longitude')
+        ax0.set_ylabel('[deg. E]')
 
         ax1 = fig.add_subplot(gs[3,0])
         ax1.plot(hours_since_beginning_filled, spd_raw, 'b',linewidth = 1.0)
@@ -266,7 +268,6 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
 
     #########################################
     if do_plotting:
-        #ax3 = fig.add_subplot(3,1,3)
         ax3 = fig.add_subplot(gs[5,0])
 
         plt.bar(hours_since_beginning_filled,2*mask_net_eastward_propagation-1
