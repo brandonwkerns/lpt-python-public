@@ -136,23 +136,11 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plot_area=[50, 200,
 def plot_timelon_with_lpt(ax2, dt_list, lon, timelon_rain, TIMECLUSTERS
         , lon_range, accum_time_hours = 0, label_font_size=10, offset_time=True):
 
-    #cmap = cmap_map(lambda x: x/2 + 0.5, plt.cm.jet)
-    #cmap = cmap_map(lambda x: x, plt.cm.jet)
+    ## With CFtime, plotting the y axis as cftime.datetime does not work.
+    ## Therefore, use time stamps and manually set the y axis labels below.
+    timestamp_list = [(x - dt_list[0]).total_seconds() for x in dt_list]
 
-    """
-    # Choose colormap
-    cmap0 = plt.cm.jet
-
-    # Get the colormap colors
-    cmap = cmap0(np.arange(cmap0.N))
-
-    # Set alpha
-    cmap[:,-1] = np.linspace(0.25, 1, cmap0.N)
-
-    # Create new colormap
-    cmap = ListedColormap(cmap)
-    """
-
+    
     cmap = plt.cm.jet
     N_keep = 12
     cmap2 = colors.LinearSegmentedColormap.from_list(name='custom', colors=cmap(range(cmap.N)), N=N_keep)
@@ -174,30 +162,25 @@ def plot_timelon_with_lpt(ax2, dt_list, lon, timelon_rain, TIMECLUSTERS
 
     cmap = colors.LinearSegmentedColormap.from_list(name='custom', colors=color_list11, N=N_keep)
 
-
-
-
-
+    
     cmap.set_under(color='white')
     timelon_rain = np.array(timelon_rain)
     timelon_rain[timelon_rain < 0.1] = np.nan
-    Hrain = ax2.pcolormesh(lon, dt_list, timelon_rain, vmin=0.2, vmax=1.4, cmap=cmap)
+    Hrain = ax2.pcolormesh(lon, timestamp_list, timelon_rain, vmin=0.2, vmax=1.4, cmap=cmap)
     cax = plt.gcf().add_axes([0.95, 0.2, 0.025, 0.6])
     cbar = plt.colorbar(Hrain, cax=cax)
     cbar.set_label(label='Rain Rate [mm/h]', fontsize=label_font_size)
     cbar.ax.tick_params(labelsize=label_font_size)
 
-
-    #lpt_group_colors = plt.cm.hsv(range(20,255,51))
     lpt_group_colors = plt.cm.Set2(range(plt.cm.Set2.N))
 
     for ii in range(len(TIMECLUSTERS)):
         x = TIMECLUSTERS[ii]['centroid_lon']
         lat = TIMECLUSTERS[ii]['centroid_lat']
         if offset_time:
-            y = [yy - dt.timedelta(hours=0.5*accum_time_hours) for yy in TIMECLUSTERS[ii]['datetime']]
+            y = [((yy - dt.timedelta(hours=0.5*accum_time_hours)) - dt_list[0]).total_seconds() for yy in TIMECLUSTERS[ii]['datetime']]
         else:
-            y = TIMECLUSTERS[ii]['datetime']
+            y = (TIMECLUSTERS[ii]['datetime'] - dt_list[0]).total_seconds()
 
         this_color_idx = int(np.floor(TIMECLUSTERS[ii]['lpt_id'])) % len(lpt_group_colors[:,0])
         this_color = lpt_group_colors[this_color_idx,:]
@@ -213,10 +196,12 @@ def plot_timelon_with_lpt(ax2, dt_list, lon, timelon_rain, TIMECLUSTERS
         ax2.text(x[-1], y[-1], str(TIMECLUSTERS[ii]['lpt_id']), fontweight='bold', color='k',clip_on=True, fontsize=14, ha='center', va='bottom')
 
     ax2.set_xlim(lon_range)
-    yticks = [dt_list[0] + dt.timedelta(days=x) for x in range(0, (dt_list[-1] - dt_list[0]).days + 1 ,7)]
-    ax2.set_ylim([dt_list[0], dt_list[-1]])
+    yticks = [x*86400 for x in range(0, (dt_list[-1] - dt_list[0]).days + 1 ,7)]
+    yticklabels = [(dt_list[0] + dt.timedelta(seconds=x)).strftime('%m/%d') for x in yticks]
+    ax2.set_ylim([timestamp_list[0], timestamp_list[-1]])
     ax2.set_yticks(yticks)
-    ax2.yaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
+    ax2.set_yticklabels(yticklabels)
+    #ax2.yaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
     ax2.grid(linestyle='--', linewidth=0.5, color='k')
     ax2.set_xlabel('Longitude', fontsize=label_font_size)
     plt.xticks(fontsize=label_font_size)
