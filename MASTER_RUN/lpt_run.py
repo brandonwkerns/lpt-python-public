@@ -117,8 +117,6 @@ lpo_options['do_lpo_calc'] = False
 
 
 ## Options for the LPO Step. Only used if lpo_options['do_lpo_calc'] = True
-
-lpo_options['do_lpo_calc'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day, 1.0 if you already have mm/day.
 lpo_options['field_units'] = 'mm d-1'       # This is used for plotting and NetCDF output.
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
