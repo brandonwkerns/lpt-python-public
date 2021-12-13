@@ -324,7 +324,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc')
     print(lpt_systems_file)
     # ds = Dataset(lpt_systems_file)
-    with xr.open_dataset(lpt_systems_file) as ds:
+    with xr.open_dataset(lpt_systems_file, use_cftime=True) as ds:
         f = {}
         f['lptid'] = ds['lptid'][:].values
         f['group'] = np.floor(f['lptid'][:])
@@ -333,7 +333,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         f['lon'] = ds['centroid_lon_stitched'][:].values
         f['lat'] = ds['centroid_lat_stitched'][:].values
         f['area'] = ds['area_stitched'][:].values
-        # f['duration'] = ds['duration'][:].values
         ts = ds['timestamp_stitched'][:].values
     ## For some reason xarray converts my duration values to np.timedelta64 objects
     ## I want the data to be read in as just simple hours, which NetCDF4 Dataset does.
