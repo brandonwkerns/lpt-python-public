@@ -75,8 +75,8 @@ dataset['field_units'] = 'mm h-1' ## This is used only for plotting and NetCDF a
 """
 Set calendar below. Use a valid cftime calendar.
 Valid calendars are currently:
-  ‘standard’, ‘gregorian’, ‘proleptic_gregorian’ ‘noleap’,
-  ‘365_day’, ‘360_day’, ‘julian’, ‘all_leap’, ‘366_day’.
+  standard, gregorian, proleptic_gregorian, noleap,
+  365_day, 360_day, julian, all_leap, 366_day.
 """
 dataset['calendar'] = 'standard'
 
