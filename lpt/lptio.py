@@ -320,6 +320,10 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
     lpt_begin_index = []
     lpt_end_index = []
+    start_lon_collect = []
+    end_lon_collect = []
+    start_lat_collect = []
+    end_lat_collect = []
     # time_step_hours = 999
 
     ##
@@ -361,7 +365,12 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
         lpt_end_index += [len(lptid_collect)-2] # zero based, and I added a NaN, so end index is the length.
 
+        start_lon_collect += [TIMECLUSTERS[ii]['centroid_lon'][0]]
+        start_lat_collect += [TIMECLUSTERS[ii]['centroid_lat'][0]]
+        end_lon_collect += [TIMECLUSTERS[ii]['centroid_lon'][-1]]
+        end_lat_collect += [TIMECLUSTERS[ii]['centroid_lat'][-1]]
 
+        
     ##
     ## Initialize LPO variables.
     ##
@@ -393,6 +402,16 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     data_dict['lpt_end_index'] = (['nlpt',],
                             lpt_end_index,
                             {'units' : '1','long_name':'LPT System ending index (zero-based, Python convention)'})
+
+    data_dict['centroid_lon_start'] = (['nlpt'], start_lon_collect,
+        {'units':'degrees_east','long_name':'starting longitude (0-360)','standard_name':'longitude'})
+    data_dict['centroid_lat_start'] = (['nlpt'], start_lat_collect,
+        {'units':'degrees_north','long_name':'starting latitude (-90-90)','standard_name':'longitude'})
+    data_dict['centroid_lon_end'] = (['nlpt'], end_lon_collect,
+        {'units':'degrees_east','long_name':'ending longitude (0-360)','standard_name':'longitude'})
+    data_dict['centroid_lat_end'] = (['nlpt'], end_lat_collect,
+        {'units':'degrees_north','long_name':'ending latitude (-90-90)','standard_name':'longitude'})
+
     data_dict['duration'] = (['nlpt',],
                             [(TIMECLUSTERS[ii]['datetime'][-1] - TIMECLUSTERS[ii]['datetime'][0]).total_seconds()/3600.0 for ii in range(len(TIMECLUSTERS))],
                             {'units': 'hours', 'long_name':'LPT System Duration'})
