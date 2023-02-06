@@ -151,7 +151,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                     ax1 = fig1.add_subplot(111)
                     lpt.plotting.plot_rain_map_with_filtered_contour(ax1
                             , DATA_RUNNING, OBJ
-                            , plot_area = plotting['plot_area'])
+                            , plotting, lpo_options)
                     ax1.set_title((dataset['label'].upper()
                                     + str(lpo_options['accumulation_hours'])
                                     + '-h Rain Rate and LP Objects\nEnding ' + YMDH_fancy))

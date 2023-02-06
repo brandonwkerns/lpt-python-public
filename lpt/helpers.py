@@ -821,7 +821,7 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
         ts=nx.get_node_attributes(SG[kk],'timestamp')
         timestamp_all = [ts[x] for x in TC_this['objid']]
         TC_this['timestamp'] = np.unique(timestamp_all)
-        TC_this['datetime'] = [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
+        TC_this['datetime'] = [cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
 
         ##
         ## Sum/average the LPTs to get bulk/mean properties at each time.

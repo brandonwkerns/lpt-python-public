@@ -112,14 +112,17 @@ def print_and_save(file_out_base):
 ####################################################################
 """
 
-def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plot_area=[50, 200, -30, 30], label_font_size=10):
+def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_options, label_font_size=10):
+
+    plot_area = plotting['plot_area']
+
     lon = OBJ['grid']['lon']
     lat = OBJ['grid']['lat']
 
     map1 = plot_map_background(plot_area)
     cmap = cmap_map(lambda x: x/2 + 0.5, plt.cm.jet)
     cmap.set_under(color='white')
-    H1 = map1.pcolormesh(lon, lat, DATA_ACCUM, cmap=cmap, vmin=1, vmax=50)
+    H1 = map1.pcolormesh(lon, lat, DATA_ACCUM, cmap=cmap, vmin=plotting['vmin'], vmax=plotting['vmax'])
 
     label_im = np.array(OBJ['label_im'])
     label_im[label_im > 0.5] = 1
@@ -128,7 +131,7 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plot_area=[50, 200,
     map1.plot(OBJ['lon'], OBJ['lat'], 'kx', markersize=7)
     cax = plt.gcf().add_axes([0.92, 0.2, 0.025, 0.6])
     CB = plt.colorbar(H1, cax=cax)
-    CB.set_label(label='Rain Rate [mm/day]', fontsize=label_font_size)
+    CB.set_label(label='[{}]'.format(lpo_options['field_units']), fontsize=label_font_size)
     CB.ax.tick_params(labelsize=label_font_size)
     return (map1, H1, Hobj, CB)
 
@@ -201,7 +204,6 @@ def plot_timelon_with_lpt(ax2, dt_list, lon, timelon_rain, TIMECLUSTERS
     ax2.set_ylim([timestamp_list[0], timestamp_list[-1]])
     ax2.set_yticks(yticks)
     ax2.set_yticklabels(yticklabels)
-    #ax2.yaxis.set_major_formatter(mdates.DateFormatter('%m/%d'))
     ax2.grid(linestyle='--', linewidth=0.5, color='k')
     ax2.set_xlabel('Longitude', fontsize=label_font_size)
     plt.xticks(fontsize=label_font_size)
