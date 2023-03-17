@@ -119,10 +119,20 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_optio
     lon = OBJ['grid']['lon']
     lat = OBJ['grid']['lat']
 
+    if 'vmin' in plotting:
+        vmin = plotting['vmin']
+    else:
+        vmin = 1.0
+
+    if 'vmax' in plotting:
+        vmax = plotting['vmin']
+    else:
+        vmax = 50.0
+
     map1 = plot_map_background(plot_area)
     cmap = cmap_map(lambda x: x/2 + 0.5, plt.cm.jet)
     cmap.set_under(color='white')
-    H1 = map1.pcolormesh(lon, lat, DATA_ACCUM, cmap=cmap, vmin=plotting['vmin'], vmax=plotting['vmax'])
+    H1 = map1.pcolormesh(lon, lat, DATA_ACCUM, cmap=cmap, vmin=vmin, vmax=vmax)
 
     label_im = np.array(OBJ['label_im'])
     label_im[label_im > 0.5] = 1
