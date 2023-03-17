@@ -97,8 +97,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
                 accumulation_hours = int((end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0)
                 dt_list = [beginning_of_accumulation_time
-                    + dt.timedelta(hours=x) for x in np.double(np.arange(0,accumulation_hours
-                                                      + dataset['data_time_interval'],dataset['data_time_interval']))]
+                    + dt.timedelta(hours=x) for x in np.arange(0,accumulation_hours
+                                                      + dataset['data_time_interval'],dataset['data_time_interval']).astype('double')]
 
                 ## Get accumulated rain. # So far used only for model run, e.g., CFS.
                 data_collect = []

@@ -162,9 +162,9 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
 
     sizes = ndimage.sum(mask, label_im, range(1, nb_labels + 1))
 
-    amean_instantaneous_field = ndimage.mean(field, label_im, range(1, nb_labels + 1))
-    amean_running_field = ndimage.mean(field_running, label_im, range(1, nb_labels + 1))
-    amean_filtered_running_field = ndimage.mean(field_filtered, label_im, range(1, nb_labels + 1))
+    amean_instantaneous_field = ndimage.sum(field*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+    amean_running_field = ndimage.sum(field_running*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+    amean_filtered_running_field = ndimage.sum(field_filtered*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
     min_instantaneous_field = ndimage.minimum(field, label_im, range(1, nb_labels + 1))
     min_running_field = ndimage.minimum(field_running, label_im, range(1, nb_labels + 1))
     min_filtered_running_field = ndimage.minimum(field_filtered, label_im, range(1, nb_labels + 1))
@@ -172,10 +172,10 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     max_running_field = ndimage.maximum(field_running, label_im, range(1, nb_labels + 1))
     max_filtered_running_field = ndimage.maximum(field_filtered, label_im, range(1, nb_labels + 1))
 
-    centroid_lon = ndimage.mean(lon2, label_im, range(1, nb_labels + 1))
-    centroid_lat = ndimage.mean(lat2, label_im, range(1, nb_labels + 1))
-    centroid_x = ndimage.mean(X2, label_im, range(1, nb_labels + 1))
-    centroid_y = ndimage.mean(Y2, label_im, range(1, nb_labels + 1))
+    centroid_lon = ndimage.sum(lon2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+    centroid_lat = ndimage.sum(lat2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+    centroid_x = ndimage.sum(X2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+    centroid_y = ndimage.sum(Y2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
     area = ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
     max_lon = ndimage.maximum(lon2, label_im, range(1, nb_labels + 1))
     min_lon = ndimage.minimum(lon2, label_im, range(1, nb_labels + 1))
