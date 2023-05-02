@@ -182,7 +182,6 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     max_lat = ndimage.maximum(lat2, label_im, range(1, nb_labels + 1))
     min_lat = ndimage.minimum(lat2, label_im, range(1, nb_labels + 1))
 
-
     ## Assign LPT IDs. Order is by longitude. Use zero-base indexing.
     id0 = 1e10 * end_of_accumulation_time.year + 1e8 * end_of_accumulation_time.month + 1e6 * end_of_accumulation_time.day + 1e4 * end_of_accumulation_time.hour
 
@@ -212,6 +211,25 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     OBJ['max_inst_field'] = max_instantaneous_field
     OBJ['max_running_field'] = max_running_field
     OBJ['max_filtered_running_field'] = max_filtered_running_field
+
+    ## Edge points to go along with the min_lon, max_lon, min_lat, max_lat.
+    w_edge_lat = 0.0 * OBJ['lon']
+    e_edge_lat = 0.0 * OBJ['lon']
+    s_edge_lon = 0.0 * OBJ['lon']
+    n_edge_lon = 0.0 * OBJ['lon']
+    for ii in range(len(OBJ['lon'])):
+        ypoints, xpoints = np.where(OBJ['label_im'] == ii+1)
+        lon_points = np.array([lon2[ypoints[x], xpoints[x]] for x in range(len(xpoints))])
+        lat_points = np.array([lat2[ypoints[x], xpoints[x]] for x in range(len(xpoints))])
+        w_edge_lat[ii] = np.mean(lat_points[lon_points < np.nanmin(lon_points) + 0.001])
+        e_edge_lat[ii] = np.mean(lat_points[lon_points > np.nanmax(lon_points) - 0.001])
+        s_edge_lon[ii] = np.mean(lon_points[lat_points < np.nanmin(lat_points) + 0.001])
+        n_edge_lon[ii] = np.mean(lon_points[lat_points > np.nanmax(lat_points) - 0.001])
+
+    OBJ['westmost_lat'] = w_edge_lat
+    OBJ['eastmost_lat'] = e_edge_lat
+    OBJ['southmost_lon'] = s_edge_lon
+    OBJ['northmost_lon'] = n_edge_lon
 
     # Grid stuff.
     OBJ['grid'] = {}
@@ -789,12 +807,14 @@ def initialize_time_cluster_fields(TC, length):
         TC[field] = np.zeros(length)
 
     ## Fields initialized to 999.0.
-    for field in ['min_lon','min_lat','min_inst_field','min_running_field'
+    for field in ['min_lon','min_lat','westmost_lat', 'southmost_lon'
+                ,'min_inst_field','min_running_field'
                 ,'min_filtered_running_field']:
         TC[field] =  999.0 * np.ones(length)
 
     ## Fields initialized to -999.0.
-    for field in ['max_lon','max_lat','max_inst_field','max_running_field'
+    for field in ['max_lon','max_lat','eastmost_lat', 'northmost_lon'
+                ,'max_inst_field','max_running_field'
                 ,'max_filtered_running_field']:
         TC[field] = -999.0 * np.ones(length)
 
@@ -839,6 +859,8 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
                 OBJ = read_lp_object_properties(this_objid, options['objdir']
                         , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
                         ,'min_lon','max_lon','min_lat','max_lat'
+                        ,'westmost_lat','eastmost_lat'
+                        ,'southmost_lon','northmost_lon'
                         ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
                         ,'min_inst_field','min_running_field','min_filtered_running_field'
                         ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
@@ -851,6 +873,15 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
                     TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
                     TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
                     max_area_already_used = 1.0*OBJ['area']
+
+                if OBJ['min_lon'] < TC_this['min_lon'][tt]:
+                    TC_this['westmost_lat'][tt] = OBJ['westmost_lat']
+                if OBJ['max_lon'] > TC_this['max_lon'][tt]:
+                    TC_this['eastmost_lat'][tt] = OBJ['eastmost_lat']
+                if OBJ['min_lat'] < TC_this['min_lat'][tt]:
+                    TC_this['southmost_lon'][tt] = OBJ['southmost_lon']
+                if OBJ['max_lat'] > TC_this['max_lat'][tt]:
+                    TC_this['northmost_lon'][tt] = OBJ['northmost_lon']
 
                 TC_this['min_lon'][tt] = min((TC_this['min_lon'][tt], OBJ['min_lon']))
                 TC_this['min_lat'][tt] = min((TC_this['min_lat'][tt], OBJ['min_lat']))
@@ -1013,6 +1044,7 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                     OBJ = read_lp_object_properties(this_objid, options['objdir']
                             , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
                             ,'min_lon','max_lon','min_lat','max_lat'
+                            ,'westmost_lat', 'eastmost_lat', 'southmost_lon', 'northmost_lon'
                             ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
                             ,'min_inst_field','min_running_field','min_filtered_running_field'
                             ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
@@ -1026,10 +1058,20 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                         TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
                         max_area_already_used = 1.0*OBJ['area']
 
+                    if OBJ['min_lon'] < TC_this['min_lon'][tt]:
+                        TC_this['westmost_lat'][tt] = OBJ['westmost_lat']
+                    if OBJ['max_lon'] > TC_this['max_lon'][tt]:
+                        TC_this['eastmost_lat'][tt] = OBJ['eastmost_lat']
+                    if OBJ['min_lat'] < TC_this['min_lat'][tt]:
+                        TC_this['southmost_lon'][tt] = OBJ['southmost_lon']
+                    if OBJ['max_lat'] > TC_this['max_lat'][tt]:
+                        TC_this['northmost_lon'][tt] = OBJ['northmost_lon']
+
                     TC_this['min_lon'][tt] = min((TC_this['min_lon'][tt], OBJ['min_lon']))
                     TC_this['min_lat'][tt] = min((TC_this['min_lat'][tt], OBJ['min_lat']))
                     TC_this['max_lon'][tt] = max((TC_this['max_lon'][tt], OBJ['max_lon']))
                     TC_this['max_lat'][tt] = max((TC_this['max_lat'][tt], OBJ['max_lat']))
+
 
                     TC_this['amean_inst_field'][tt] += OBJ['amean_inst_field'] * OBJ['area']
                     TC_this['amean_running_field'][tt] += OBJ['amean_running_field'] * OBJ['area']
