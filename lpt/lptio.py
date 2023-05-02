@@ -318,6 +318,10 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     min_lon_collect = np.array([MISSING])
     max_lat_collect = np.array([MISSING])
     min_lat_collect = np.array([MISSING])
+    westmost_lat_collect = np.array([MISSING])
+    eastmost_lat_collect = np.array([MISSING])
+    southmost_lon_collect = np.array([MISSING])
+    northmost_lon_collect = np.array([MISSING])
     area_collect = np.array([MISSING])
 
     mean_inst_collect = np.array([MISSING])
@@ -364,6 +368,10 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         max_lat_collect = np.append(np.append(max_lat_collect, TIMECLUSTERS[ii]['max_lat']),MISSING)
         min_lon_collect = np.append(np.append(min_lon_collect, TIMECLUSTERS[ii]['min_lon']),MISSING)
         min_lat_collect = np.append(np.append(min_lat_collect, TIMECLUSTERS[ii]['min_lat']),MISSING)
+        westmost_lat_collect = np.append(np.append(westmost_lat_collect, TIMECLUSTERS[ii]['westmost_lat']),MISSING)
+        eastmost_lat_collect = np.append(np.append(eastmost_lat_collect, TIMECLUSTERS[ii]['eastmost_lat']),MISSING)
+        southmost_lon_collect = np.append(np.append(southmost_lon_collect, TIMECLUSTERS[ii]['southmost_lon']),MISSING)
+        northmost_lon_collect = np.append(np.append(northmost_lon_collect, TIMECLUSTERS[ii]['northmost_lon']),MISSING)
 
         mean_inst_collect = np.append(np.append(mean_inst_collect, TIMECLUSTERS[ii]['amean_inst_field']),MISSING)
         mean_running_collect = np.append(np.append(mean_running_collect, TIMECLUSTERS[ii]['amean_running_field']),MISSING)
@@ -460,6 +468,14 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         {'units':'degrees_east','long_name':'min (westmost) longitude (0-360) -- stitched','standard_name':'longitude'})
     data_dict['min_lat_stitched'] = (['nstitch'], min_lat_collect,
         {'units':'degrees_north','long_name':'min (southmost) latitude (-90-90) -- stitched','standard_name':'longitude'})
+    data_dict['westmost_lat_stitched'] = (['nstitch'], westmost_lat_collect,
+        {'units':'degrees_north','long_name':'Latitude at min (westmost) longitude (-90-90) -- stitched','standard_name':'longitude'})
+    data_dict['eastmost_lat_stitched'] = (['nstitch'], eastmost_lat_collect,
+        {'units':'degrees_north','long_name':'Latitude at max (eastmost) longitude (-90-90) -- stitched','standard_name':'longitude'})
+    data_dict['southmost_lon_stitched'] = (['nstitch'], southmost_lon_collect,
+        {'units':'degrees_east','long_name':'Longitude at min (southmost) longitude (0-360) -- stitched','standard_name':'latitude'})
+    data_dict['northmost_lon_stitched'] = (['nstitch'], northmost_lon_collect,
+        {'units':'degrees_east','long_name':'Longitude at max (northmost) longitude (0-360) -- stitched','standard_name':'latitude'})
 
     data_dict['amean_inst_field'] = (['nstitch'], mean_inst_collect,
         {'units':'mm h-1','long_name':'LP object mean instantaneous rain rate (at end of running time).'})
