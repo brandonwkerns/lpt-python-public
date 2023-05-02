@@ -50,156 +50,155 @@ def lp_objects_output_netcdf(fn, OBJ):
 
     print('Writing LP object NetCDF output to: ' + fn)
 
-    os.remove(fn) if os.path.exists(fn) else None
-    DS = Dataset(fn, 'w', format='NETCDF4_CLASSIC', clobber=True)
-    DS.description = ("LP Objects NetCDF file. Time stamp is for the END of running mean time. nobj is the number of objects (each one has an objid), "
-        + "and npoints is the max pixels in any object. "
-        + "Parameters for the LP objects as a whole: centroid_lon, centroid_lat, and area. "
-        + "To see the pixels for each LP object, either use (pixels_x and pixels_y), "
-        + "or (grid_lon, grid_lat, grid_mask.). To plot the contour, best to use the grid_mask. "
-        + "The values in grid_mask are: -1 for no LPT, or the nnnn part of the LP object otherwise. "
-        + "NOTE: If no LP objects, nobj (npoints) dimension will be 0 (1).")
-    DS.N = len(OBJ['n_points'])
-
-    ##
-    ## Dimensions
-    ##
-    DS.createDimension('nobj', 0)  # Unlimited demension.
-
-    ## Grid stuff.
-    if OBJ['grid']['lon'].ndim == 1:
-        DS.createDimension('grid_x', len(OBJ['grid']['lon']))
-        DS.createDimension('grid_y', len(OBJ['grid']['lat']))
-    else:
-        ny,nx=OBJ['grid']['lon'].shape
-        DS.createDimension('grid_x', nx)
-        DS.createDimension('grid_y', ny)
-
-    ##
-    ## Variables
-    ##
-
-    ## LP Object "bulk" properties.
-    var_objid = DS.createVariable('objid','d',('nobj',))
-    var_centroid_lon = DS.createVariable('centroid_lon','f4',('nobj',))
-    var_centroid_lat = DS.createVariable('centroid_lat','f4',('nobj',))
-    var_centroid_x = DS.createVariable('centroid_x','f4',('nobj',))
-    var_centroid_y = DS.createVariable('centroid_y','f4',('nobj',))
-    var_max_lon = DS.createVariable('max_lon','f4',('nobj',))
-    var_max_lat = DS.createVariable('max_lat','f4',('nobj',))
-    var_min_lon = DS.createVariable('min_lon','f4',('nobj',))
-    var_min_lat = DS.createVariable('min_lat','f4',('nobj',))
-    var_area = DS.createVariable('area','f4',('nobj',))
-
-    var_amean_inst_field = DS.createVariable('amean_inst_field','f4',('nobj',))
-    var_amean_running_field = DS.createVariable('amean_running_field','f4',('nobj',))
-    var_amean_filtered_running_field = DS.createVariable('amean_filtered_running_field','f4',('nobj',))
-    var_min_inst_field = DS.createVariable('min_inst_field','f4',('nobj',))
-    var_min_running_field = DS.createVariable('min_running_field','f4',('nobj',))
-    var_min_filtered_running_field = DS.createVariable('min_filtered_running_field','f4',('nobj',))
-    var_max_inst_field = DS.createVariable('max_inst_field','f4',('nobj',))
-    var_max_running_field = DS.createVariable('max_running_field','f4',('nobj',))
-    var_max_filtered_running_field = DS.createVariable('max_filtered_running_field','f4',('nobj',))
-
-    ## Pixels information.
-    if len(OBJ['n_points']) > 0:
-
-        max_points = np.max(OBJ['n_points'])
-        DS.createDimension('npoints', max_points)
-
-        var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
-        var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
+    with Dataset(fn, 'w', format='NETCDF4_CLASSIC', clobber=True) as DS:
+        DS.description = ("LP Objects NetCDF file. Time stamp is for the END of running mean time. nobj is the number of objects (each one has an objid), "
+            + "and npoints is the max pixels in any object. "
+            + "Parameters for the LP objects as a whole: centroid_lon, centroid_lat, and area. "
+            + "To see the pixels for each LP object, either use (pixels_x and pixels_y), "
+            + "or (grid_lon, grid_lat, grid_mask.). To plot the contour, best to use the grid_mask. "
+            + "The values in grid_mask are: -1 for no LPT, or the nnnn part of the LP object otherwise. "
+            + "NOTE: If no LP objects, nobj (npoints) dimension will be 0 (1).")
+        DS.N = len(OBJ['n_points'])
 
         ##
-        ## Values
+        ## Dimensions
         ##
-        var_objid[:] = OBJ['id']
-        var_centroid_lon[:] = OBJ['lon']
-        var_centroid_lat[:] = OBJ['lat']
-        var_centroid_x[:] = OBJ['y']
-        var_centroid_y[:] = OBJ['x']
-        var_max_lon[:] = OBJ['max_lon']
-        var_max_lat[:] = OBJ['max_lat']
-        var_min_lon[:] = OBJ['min_lon']
-        var_min_lat[:] = OBJ['min_lat']
-        var_area[:] = OBJ['area']
+        DS.createDimension('nobj', 0)  # Unlimited demension.
 
-        var_amean_inst_field[:] = OBJ['amean_inst_field']
-        var_amean_running_field[:] = OBJ['amean_running_field']
-        var_amean_filtered_running_field[:] = OBJ['amean_filtered_running_field']
-        var_min_inst_field[:] = OBJ['min_inst_field']
-        var_min_running_field[:] = OBJ['min_running_field']
-        var_min_filtered_running_field[:] = OBJ['min_filtered_running_field']
-        var_max_inst_field[:] = OBJ['max_inst_field']
-        var_max_running_field[:] = OBJ['max_running_field']
-        var_max_filtered_running_field[:] = OBJ['max_filtered_running_field']
+        ## Grid stuff.
+        if OBJ['grid']['lon'].ndim == 1:
+            DS.createDimension('grid_x', len(OBJ['grid']['lon']))
+            DS.createDimension('grid_y', len(OBJ['grid']['lat']))
+        else:
+            ny,nx=OBJ['grid']['lon'].shape
+            DS.createDimension('grid_x', nx)
+            DS.createDimension('grid_y', ny)
 
-        for ii in range(len(OBJ['lon'])):
-            ypoints, xpoints = np.where(OBJ['label_im'] == ii+1)
-            var_pixels_x[ii,:len(xpoints)] = xpoints
-            var_pixels_y[ii,:len(ypoints)] = ypoints
+        ##
+        ## Variables
+        ##
 
-    else:
-        ## If there are no LP Objects, keep it as "missing values".
-        DS.createDimension('npoints', 1)
-        var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
-        var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
+        ## LP Object "bulk" properties.
+        var_objid = DS.createVariable('objid','d',('nobj',))
+        var_centroid_lon = DS.createVariable('centroid_lon','f4',('nobj',))
+        var_centroid_lat = DS.createVariable('centroid_lat','f4',('nobj',))
+        var_centroid_x = DS.createVariable('centroid_x','f4',('nobj',))
+        var_centroid_y = DS.createVariable('centroid_y','f4',('nobj',))
+        var_max_lon = DS.createVariable('max_lon','f4',('nobj',))
+        var_max_lat = DS.createVariable('max_lat','f4',('nobj',))
+        var_min_lon = DS.createVariable('min_lon','f4',('nobj',))
+        var_min_lat = DS.createVariable('min_lat','f4',('nobj',))
+        var_area = DS.createVariable('area','f4',('nobj',))
+
+        var_amean_inst_field = DS.createVariable('amean_inst_field','f4',('nobj',))
+        var_amean_running_field = DS.createVariable('amean_running_field','f4',('nobj',))
+        var_amean_filtered_running_field = DS.createVariable('amean_filtered_running_field','f4',('nobj',))
+        var_min_inst_field = DS.createVariable('min_inst_field','f4',('nobj',))
+        var_min_running_field = DS.createVariable('min_running_field','f4',('nobj',))
+        var_min_filtered_running_field = DS.createVariable('min_filtered_running_field','f4',('nobj',))
+        var_max_inst_field = DS.createVariable('max_inst_field','f4',('nobj',))
+        var_max_running_field = DS.createVariable('max_running_field','f4',('nobj',))
+        var_max_filtered_running_field = DS.createVariable('max_filtered_running_field','f4',('nobj',))
+
+        ## Pixels information.
+        if len(OBJ['n_points']) > 0:
+
+            max_points = np.max(OBJ['n_points'])
+            DS.createDimension('npoints', max_points)
+
+            var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
+            var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
+
+            ##
+            ## Values
+            ##
+            var_objid[:] = OBJ['id']
+            var_centroid_lon[:] = OBJ['lon']
+            var_centroid_lat[:] = OBJ['lat']
+            var_centroid_x[:] = OBJ['y']
+            var_centroid_y[:] = OBJ['x']
+            var_max_lon[:] = OBJ['max_lon']
+            var_max_lat[:] = OBJ['max_lat']
+            var_min_lon[:] = OBJ['min_lon']
+            var_min_lat[:] = OBJ['min_lat']
+            var_area[:] = OBJ['area']
+
+            var_amean_inst_field[:] = OBJ['amean_inst_field']
+            var_amean_running_field[:] = OBJ['amean_running_field']
+            var_amean_filtered_running_field[:] = OBJ['amean_filtered_running_field']
+            var_min_inst_field[:] = OBJ['min_inst_field']
+            var_min_running_field[:] = OBJ['min_running_field']
+            var_min_filtered_running_field[:] = OBJ['min_filtered_running_field']
+            var_max_inst_field[:] = OBJ['max_inst_field']
+            var_max_running_field[:] = OBJ['max_running_field']
+            var_max_filtered_running_field[:] = OBJ['max_filtered_running_field']
+
+            for ii in range(len(OBJ['lon'])):
+                ypoints, xpoints = np.where(OBJ['label_im'] == ii+1)
+                var_pixels_x[ii,:len(xpoints)] = xpoints
+                var_pixels_y[ii,:len(ypoints)] = ypoints
+
+        else:
+            ## If there are no LP Objects, keep it as "missing values".
+            DS.createDimension('npoints', 1)
+            var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
+            var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
 
 
-    ## Grid variables.
-    if OBJ['grid']['lon'].ndim == 1:
-        var_grid_lon = DS.createVariable('grid_lon','f4',('grid_x',))
-        var_grid_lat = DS.createVariable('grid_lat','f4',('grid_y',))
-    else:
-        var_grid_lon = DS.createVariable('grid_lon','f4',('grid_y','grid_x'))
-        var_grid_lat = DS.createVariable('grid_lat','f4',('grid_y','grid_x'))
+        ## Grid variables.
+        if OBJ['grid']['lon'].ndim == 1:
+            var_grid_lon = DS.createVariable('grid_lon','f4',('grid_x',))
+            var_grid_lat = DS.createVariable('grid_lat','f4',('grid_y',))
+        else:
+            var_grid_lon = DS.createVariable('grid_lon','f4',('grid_y','grid_x'))
+            var_grid_lat = DS.createVariable('grid_lat','f4',('grid_y','grid_x'))
 
-    var_grid_area = DS.createVariable('grid_area','f4',('grid_y','grid_x',), zlib=True)
-    var_grid_mask = DS.createVariable('grid_mask','i4',('grid_y','grid_x',), zlib=True, fill_value=-1)
+        var_grid_area = DS.createVariable('grid_area','f4',('grid_y','grid_x',), zlib=True)
+        var_grid_mask = DS.createVariable('grid_mask','i4',('grid_y','grid_x',), zlib=True, fill_value=-1)
 
-    var_grid_lon[:] = OBJ['grid']['lon']
-    var_grid_lat[:] = OBJ['grid']['lat']
-    var_grid_area[:] = OBJ['grid']['area']
-    mask = OBJ['label_im'] - 1
-    mask = ma.masked_array(mask, mask = (mask < -0.5))
-    var_grid_mask[:] = mask
+        var_grid_lon[:] = OBJ['grid']['lon']
+        var_grid_lat[:] = OBJ['grid']['lat']
+        var_grid_area[:] = OBJ['grid']['area']
+        mask = OBJ['label_im'] - 1
+        mask = ma.masked_array(mask, mask = (mask < -0.5))
+        var_grid_mask[:] = mask
 
 
-    ##
-    ## Attributes/Metadata
-    ##
-    var_objid.setncatts({'units':'0','long_name':'LP Object ID'
-        ,'description':'A unique ID for each LP object. Convention is YYYYMMDDHHnnnn where nnnn starts at 0000. YYYYMMDDHH is the END of running mean time.'})
+        ##
+        ## Attributes/Metadata
+        ##
+        var_objid.setncatts({'units':'0','long_name':'LP Object ID'
+            ,'description':'A unique ID for each LP object. Convention is YYYYMMDDHHnnnn where nnnn starts at 0000. YYYYMMDDHH is the END of running mean time.'})
 
-    var_centroid_lon.setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)'})
-    var_centroid_lat.setncatts({'units':'degrees_north','long_name':'centroid latitude (-90-90)'})
-    var_centroid_x.setncatts({'units':'1.0','long_name':'centroid x grid point (0 to NX-1)'})
-    var_centroid_y.setncatts({'units':'1.0','long_name':'centroid y grid point (0 to NY-1)'})
-    var_max_lon.setncatts({'units':'degrees_east','long_name':'max (eastmost) longitude (0-360)'})
-    var_max_lat.setncatts({'units':'degrees_north','long_name':'max (northmost) latitude (-90-90)'})
-    var_min_lon.setncatts({'units':'degrees_east','long_name':'min (westmost) longitude (0-360)'})
-    var_min_lat.setncatts({'units':'degrees_north','long_name':'min (southmost) latitude (-90-90)'})
-    var_area.setncatts({'units':'km2','long_name':'LP object enclosed area'})
+        var_centroid_lon.setncatts({'units':'degrees_east','long_name':'centroid longitude (0-360)'})
+        var_centroid_lat.setncatts({'units':'degrees_north','long_name':'centroid latitude (-90-90)'})
+        var_centroid_x.setncatts({'units':'1.0','long_name':'centroid x grid point (0 to NX-1)'})
+        var_centroid_y.setncatts({'units':'1.0','long_name':'centroid y grid point (0 to NY-1)'})
+        var_max_lon.setncatts({'units':'degrees_east','long_name':'max (eastmost) longitude (0-360)'})
+        var_max_lat.setncatts({'units':'degrees_north','long_name':'max (northmost) latitude (-90-90)'})
+        var_min_lon.setncatts({'units':'degrees_east','long_name':'min (westmost) longitude (0-360)'})
+        var_min_lat.setncatts({'units':'degrees_north','long_name':'min (southmost) latitude (-90-90)'})
+        var_area.setncatts({'units':'km2','long_name':'LP object enclosed area'})
 
-    var_amean_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area mean of instantaneous field', 'note': 'end of running mean time'})
-    var_amean_running_field.setncatts({'units':OBJ['units_running'],'long_name':'LP object area mean of running mean field', 'note': 'end of running mean time'})
-    var_amean_filtered_running_field.setncatts({'units':OBJ['units_filtered'],'long_name':'LP object area mean of filtered running mean field', 'note': 'end of running mean time'})
-    var_min_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area min of instantaneous field', 'note': 'end of running mean time'})
-    var_min_running_field.setncatts({'units':OBJ['units_running'],'long_name':'LP objedt area min of running mean field', 'note': 'end of running mean time'})
-    var_min_filtered_running_field.setncatts({'units':OBJ['units_filtered'],'long_name':'LP object area min of filtered running mean field', 'note': 'end of running mean time'})
-    var_max_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area max of instantaneous field', 'note': 'end of running mean time'})
-    var_max_running_field.setncatts({'units':OBJ['units_running'],'long_name':'LP object area max of running mean field', 'note': 'end of running mean time'})
-    var_max_filtered_running_field.setncatts({'units':OBJ['units_filtered'],'long_name':'LP object area max of filtered running mean field', 'note': 'end of running mean time'})
+        var_amean_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area mean of instantaneous field', 'note': 'end of running mean time'})
+        var_amean_running_field.setncatts({'units':OBJ['units_running'],'long_name':'LP object area mean of running mean field', 'note': 'end of running mean time'})
+        var_amean_filtered_running_field.setncatts({'units':OBJ['units_filtered'],'long_name':'LP object area mean of filtered running mean field', 'note': 'end of running mean time'})
+        var_min_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area min of instantaneous field', 'note': 'end of running mean time'})
+        var_min_running_field.setncatts({'units':OBJ['units_running'],'long_name':'LP objedt area min of running mean field', 'note': 'end of running mean time'})
+        var_min_filtered_running_field.setncatts({'units':OBJ['units_filtered'],'long_name':'LP object area min of filtered running mean field', 'note': 'end of running mean time'})
+        var_max_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area max of instantaneous field', 'note': 'end of running mean time'})
+        var_max_running_field.setncatts({'units':OBJ['units_running'],'long_name':'LP object area max of running mean field', 'note': 'end of running mean time'})
+        var_max_filtered_running_field.setncatts({'units':OBJ['units_filtered'],'long_name':'LP object area max of filtered running mean field', 'note': 'end of running mean time'})
 
-    var_grid_lon.setncatts({'units':'degrees_east','long_name':'grid longitude (0-360)','standard_name':'longitude','axis':'X'})
-    var_grid_lat.setncatts({'units':'degrees_north','long_name':'grid latitude (-90-90)','standard_name':'latitude','axis':'Y'})
-    var_grid_area.setncatts({'units':'km2','long_name':'area of each grid point'})
-    var_grid_mask.setncatts({'units':'0','long_name':'mask by nnnn part of LP Object ID.', 'note':'-1 for no LP Object.'})
-    var_pixels_x.setncatts({'units':'0','long_name':'grid point pixel indices in the x direction','note':'zero based (Python convention)'})
-    var_pixels_y.setncatts({'units':'0','long_name':'grid point pixel indices in the y direction','note':'zero based (Python convention)'})
+        var_grid_lon.setncatts({'units':'degrees_east','long_name':'grid longitude (0-360)','standard_name':'longitude','axis':'X'})
+        var_grid_lat.setncatts({'units':'degrees_north','long_name':'grid latitude (-90-90)','standard_name':'latitude','axis':'Y'})
+        var_grid_area.setncatts({'units':'km2','long_name':'area of each grid point'})
+        var_grid_mask.setncatts({'units':'0','long_name':'mask by nnnn part of LP Object ID.', 'note':'-1 for no LP Object.'})
+        var_pixels_x.setncatts({'units':'0','long_name':'grid point pixel indices in the x direction','note':'zero based (Python convention)'})
+        var_pixels_y.setncatts({'units':'0','long_name':'grid point pixel indices in the y direction','note':'zero based (Python convention)'})
 
-    DS.close()
-
+    print('Finished writing.')
+    
 
 def lpt_system_tracks_output_ascii(fn, TIMECLUSTERS):
     """
