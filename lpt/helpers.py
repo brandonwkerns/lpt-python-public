@@ -182,7 +182,6 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     max_lat = ndimage.maximum(lat2, label_im, range(1, nb_labels + 1))
     min_lat = ndimage.minimum(lat2, label_im, range(1, nb_labels + 1))
 
-
     ## Assign LPT IDs. Order is by longitude. Use zero-base indexing.
     id0 = 1e10 * end_of_accumulation_time.year + 1e8 * end_of_accumulation_time.month + 1e6 * end_of_accumulation_time.day + 1e4 * end_of_accumulation_time.hour
 
@@ -212,6 +211,25 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     OBJ['max_inst_field'] = max_instantaneous_field
     OBJ['max_running_field'] = max_running_field
     OBJ['max_filtered_running_field'] = max_filtered_running_field
+
+    ## Edge points to go along with the min_lon, max_lon, min_lat, max_lat.
+    w_edge_lat = 0.0 * OBJ['lon']
+    e_edge_lat = 0.0 * OBJ['lon']
+    s_edge_lon = 0.0 * OBJ['lon']
+    n_edge_lon = 0.0 * OBJ['lon']
+    for ii in range(len(OBJ['lon'])):
+        ypoints, xpoints = np.where(OBJ['label_im'] == ii+1)
+        lon_points = np.array([lon2[ypoints[x], xpoints[x]] for x in range(len(xpoints))])
+        lat_points = np.array([lat2[ypoints[x], xpoints[x]] for x in range(len(xpoints))])
+        w_edge_lat[ii] = np.mean(lat_points[lon_points < np.nanmin(lon_points) + 0.001])
+        e_edge_lat[ii] = np.mean(lat_points[lon_points > np.nanmax(lon_points) - 0.001])
+        s_edge_lon[ii] = np.mean(lon_points[lat_points < np.nanmin(lat_points) + 0.001])
+        n_edge_lon[ii] = np.mean(lon_points[lat_points > np.nanmax(lat_points) - 0.001])
+
+    OBJ['westmost_lat'] = w_edge_lat
+    OBJ['eastmost_lat'] = e_edge_lat
+    OBJ['southmost_lon'] = s_edge_lon
+    OBJ['northmost_lon'] = n_edge_lon
 
     # Grid stuff.
     OBJ['grid'] = {}

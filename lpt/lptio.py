@@ -88,6 +88,11 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_max_lat = DS.createVariable('max_lat','f4',('nobj',))
         var_min_lon = DS.createVariable('min_lon','f4',('nobj',))
         var_min_lat = DS.createVariable('min_lat','f4',('nobj',))
+        var_westmost_lat = DS.createVariable('westmost_lat','f4',('nobj',))
+        var_eastmost_lat = DS.createVariable('eastmost_lat','f4',('nobj',))
+        var_southmost_lon = DS.createVariable('southmost_lon','f4',('nobj',))
+        var_northmost_lon = DS.createVariable('northmost_lon','f4',('nobj',))
+
         var_area = DS.createVariable('area','f4',('nobj',))
 
         var_amean_inst_field = DS.createVariable('amean_inst_field','f4',('nobj',))
@@ -121,6 +126,10 @@ def lp_objects_output_netcdf(fn, OBJ):
             var_max_lat[:] = OBJ['max_lat']
             var_min_lon[:] = OBJ['min_lon']
             var_min_lat[:] = OBJ['min_lat']
+            var_westmost_lat[:] = OBJ['westmost_lat']
+            var_eastmost_lat[:] = OBJ['eastmost_lat']
+            var_southmost_lon[:] = OBJ['southmost_lon']
+            var_northmost_lon[:] = OBJ['northmost_lon']
             var_area[:] = OBJ['area']
 
             var_amean_inst_field[:] = OBJ['amean_inst_field']
@@ -178,6 +187,10 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_max_lat.setncatts({'units':'degrees_north','long_name':'max (northmost) latitude (-90-90)'})
         var_min_lon.setncatts({'units':'degrees_east','long_name':'min (westmost) longitude (0-360)'})
         var_min_lat.setncatts({'units':'degrees_north','long_name':'min (southmost) latitude (-90-90)'})
+        var_westmost_lat.setncatts({'units':'degrees_north','long_name':'Latitude at min (westmost) longitude (-90-90)'})
+        var_eastmost_lat.setncatts({'units':'degrees_north','long_name':'Latitude at mat (eastmost) longitude (-90-90)'})
+        var_southmost_lon.setncatts({'units':'degrees_east','long_name':'Longitude at min (southmost) latitude (0-360)'})
+        var_northmost_lon.setncatts({'units':'degrees_east','long_name':'Longitude at max (northmost) latitude (0-360)'})
         var_area.setncatts({'units':'km2','long_name':'LP object enclosed area'})
 
         var_amean_inst_field.setncatts({'units':OBJ['units_inst'],'long_name':'LP object area mean of instantaneous field', 'note': 'end of running mean time'})
@@ -198,7 +211,7 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_pixels_y.setncatts({'units':'0','long_name':'grid point pixel indices in the y direction','note':'zero based (Python convention)'})
 
     print('Finished writing.')
-    
+
 
 def lpt_system_tracks_output_ascii(fn, TIMECLUSTERS):
     """
