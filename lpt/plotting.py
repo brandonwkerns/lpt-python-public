@@ -125,10 +125,10 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_optio
         vmin = 1.0
 
     if 'vmax' in plotting:
-        vmax = plotting['vmin']
+        vmax = plotting['vmax']
     else:
         vmax = 50.0
-
+        
     map1 = plot_map_background(plot_area)
     cmap = cmap_map(lambda x: x/2 + 0.5, plt.cm.jet)
     cmap.set_under(color='white')
