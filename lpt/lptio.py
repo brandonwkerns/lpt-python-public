@@ -113,6 +113,8 @@ def lp_objects_output_netcdf(fn, OBJ):
 
             var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
             var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
+            var_pixels_lon = DS.createVariable('pixels_lon','i4',('nobj','npoints',), zlib=True)
+            var_pixels_lat = DS.createVariable('pixels_lat','i4',('nobj','npoints',), zlib=True)
 
             ##
             ## Values
@@ -146,12 +148,20 @@ def lp_objects_output_netcdf(fn, OBJ):
                 ypoints, xpoints = np.where(OBJ['label_im'] == ii+1)
                 var_pixels_x[ii,:len(xpoints)] = xpoints
                 var_pixels_y[ii,:len(ypoints)] = ypoints
+                if OBJ['grid']['lon'].ndim == 1:
+                    var_pixels_lon[ii,:len(xpoints)] = [OBJ['grid']['lon'][xpoints[x]] for x in range(len(xpoints))]
+                    var_pixels_lat[ii,:len(xpoints)] = [OBJ['grid']['lat'][ypoints[x]] for x in range(len(xpoints))]
+                else:
+                    var_pixels_lon[ii,:len(xpoints)] = [OBJ['grid']['lon'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
+                    var_pixels_lat[ii,:len(xpoints)] = [OBJ['grid']['lat'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
 
         else:
             ## If there are no LP Objects, keep it as "missing values".
             DS.createDimension('npoints', 1)
             var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
             var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
+            var_pixels_lon = DS.createVariable('pixels_lon','i4',('nobj','npoints',), zlib=True)
+            var_pixels_lat = DS.createVariable('pixels_lat','i4',('nobj','npoints',), zlib=True)
 
 
         ## Grid variables.
@@ -209,6 +219,8 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_grid_mask.setncatts({'units':'0','long_name':'mask by nnnn part of LP Object ID.', 'note':'-1 for no LP Object.'})
         var_pixels_x.setncatts({'units':'0','long_name':'grid point pixel indices in the x direction','note':'zero based (Python convention)'})
         var_pixels_y.setncatts({'units':'0','long_name':'grid point pixel indices in the y direction','note':'zero based (Python convention)'})
+        var_pixels_lon.setncatts({'units':'degrees_east','long_name':'grid point pixel longitude values'})
+        var_pixels_lat.setncatts({'units':'degrees_north','long_name':'grid point pixel latitude values'})
 
     print('Finished writing.')
 

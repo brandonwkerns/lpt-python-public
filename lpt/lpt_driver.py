@@ -150,7 +150,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 OBJ = lpt.helpers.calculate_lp_object_properties(
                                 DATA_RAW['lon'], DATA_RAW['lat'],
                                 DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED,
-                                label_im, 0, end_of_accumulation_time0,
+                                label_im, end_of_accumulation_time0,
                                 verbose=True)
                 
                 OBJ['units_inst'] = dataset['field_units']

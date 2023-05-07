@@ -169,9 +169,10 @@ def calc_grid_cell_area(lon, lat):
 
 
 
-def calculate_lp_object_properties(lon, lat, field, field_running, field_filtered, label_im
-                        , object_minimum_gridpoints, end_of_accumulation_time
-                        , verbose=False):
+def calculate_lp_object_properties(lon, lat, field, field_running,
+                                   field_filtered, label_im,
+                                   end_of_accumulation_time,
+                                   verbose=False):
 
     nb_labels = np.max(label_im)
     mask = 1*label_im
