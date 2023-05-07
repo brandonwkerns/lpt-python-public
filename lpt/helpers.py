@@ -233,6 +233,10 @@ def calculate_lp_object_properties(lon, lat, field, field_running,
     OBJ['n_points'] = sizes
     OBJ['area'] = area
 
+    OBJ['inst_field'] = field
+    OBJ['running_field'] = field_running
+    OBJ['filtered_field'] = field_filtered
+
     OBJ['amean_inst_field'] = amean_instantaneous_field
     OBJ['amean_running_field'] = amean_running_field
     OBJ['amean_filtered_running_field'] = amean_filtered_running_field

@@ -175,12 +175,21 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_grid_area = DS.createVariable('grid_area','f4',('grid_y','grid_x',), zlib=True)
         var_grid_mask = DS.createVariable('grid_mask','i4',('grid_y','grid_x',), zlib=True, fill_value=-1)
 
+        var_inst_field = DS.createVariable('inst_field','f4',('grid_y','grid_x',), zlib=True)
+        var_running_field = DS.createVariable('running_field','f4',('grid_y','grid_x',), zlib=True)
+        var_filtered_field = DS.createVariable('filtered_field','f4',('grid_y','grid_x',), zlib=True)
+
         var_grid_lon[:] = OBJ['grid']['lon']
         var_grid_lat[:] = OBJ['grid']['lat']
         var_grid_area[:] = OBJ['grid']['area']
-        mask = OBJ['label_im'] - 1
+        mask = OBJ['label_im'] - 1   ## Python convention: The label_im starts at 1, but LPT IDs start at 0.
         mask = ma.masked_array(mask, mask = (mask < -0.5))
         var_grid_mask[:] = mask
+
+        ## Pass the raw and filtered values.
+        var_inst_field[:] = OBJ['inst_field']
+        var_running_field[:] = OBJ['running_field']
+        var_filtered_field[:] = OBJ['filtered_field']
 
 
         ##
