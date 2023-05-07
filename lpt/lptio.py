@@ -111,6 +111,7 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
             max_points = np.max(OBJ['n_points'])
             DS.createDimension('npoints', max_points)
 
+            var_n_pixels = DS.createVariable('n_pixels','i4',('nobj',))
             var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
             var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
             var_pixels_lon = DS.createVariable('pixels_lon','i4',('nobj','npoints',), zlib=True)
@@ -149,6 +150,7 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
 
             for ii in range(len(OBJ['lon'])):
                 ypoints, xpoints = np.where(OBJ['label_im'] == ii+1)
+                var_n_pixels[ii] = len(xpoints)
                 var_pixels_x[ii,:len(xpoints)] = xpoints
                 var_pixels_y[ii,:len(ypoints)] = ypoints
                 if OBJ['grid']['lon'].ndim == 1:
@@ -165,6 +167,7 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
         else:
             ## If there are no LP Objects, keep it as "missing values".
             DS.createDimension('npoints', 1)
+            var_n_pixels = DS.createVariable('n_pixels','i4',('nobj',))
             var_pixels_x = DS.createVariable('pixels_x','i4',('nobj','npoints',), zlib=True)
             var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
             var_pixels_lon = DS.createVariable('pixels_lon','i4',('nobj','npoints',), zlib=True)
@@ -258,6 +261,7 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
         var_pixels_inst_field.setncatts({'long_name':'grid point pixel raw field values'})
         var_pixels_running_field.setncatts({'long_name':'grid point pixel running field values'})
         var_pixels_filtered_field.setncatts({'long_name':'grid point pixel filtered running field values'})
+        var_n_pixels.setncatts({'long_name':'number of pixels for each object'})
 
     print('Finished writing.')
 
