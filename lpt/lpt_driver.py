@@ -88,8 +88,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             hours_to_divide = (end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0
 
-
-            #beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
             print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
                     + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
 
@@ -123,11 +121,35 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                     , order=0, output=None, mode='reflect', cval=0.0, truncate=lpo_options['filter_n_stdev_width'])
                 print('filter done.',flush=True)
 
+                ## Step 1: Apply the threshold to the filtered field.
+                DATA_MASK0 = (DATA_FILTERED > lpo_options['thresh']) #.astype('float')
+
+                ## Step 2: Throw away small features.
+                DATA_MASK1 = lpt.helpers.discard_small_features(
+                                DATA_MASK0,
+                                min_points=lpo_options['min_points'],
+                                verbose=dataset['verbose'])
+
+                ## Step 3: Expand according to the filter width.
+                ## Expand by ONE standard deviation only.
+                npx=lpo_options['filter_stdev']; npy=lpo_options['filter_stdev']
+                [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
+                circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
+                circle_array_mask = (circle_array_dist < (npx + 0.1))
+                DATA_MASK = scipy.ndimage.binary_dilation(DATA_MASK1, circle_array_mask).astype('float')
+
                 ## Get LP objects.
-                label_im = lpt.helpers.identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
-                OBJ = lpt.helpers.calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
-                            , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
-                            , end_of_accumulation_time0, verbose=True)
+                label_im = lpt.helpers.identify_lp_objects(
+                                DATA_MASK,
+                                0.5, min_points=lpo_options['min_points'],
+                                verbose=dataset['verbose'])
+                
+                OBJ = lpt.helpers.calculate_lp_object_properties(
+                                DATA_RAW['lon'], DATA_RAW['lat'],
+                                DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED,
+                                label_im, 0, end_of_accumulation_time0,
+                                verbose=True)
+                
                 OBJ['units_inst'] = dataset['field_units']
                 OBJ['units_running'] = lpo_options['field_units']
                 OBJ['units_filtered'] = lpo_options['field_units']

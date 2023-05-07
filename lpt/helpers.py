@@ -63,6 +63,36 @@ def calc_scaled_average(data_in_accumulation_period, factor):
     return factor * np.nanmean(data_in_accumulation_period, axis=0)
 
 
+
+def discard_small_features(mask, min_points=1, verbose=False):
+
+    """
+    mask2 = discard_small_features(mask, nin_points=1)
+
+    Given an input mask [0 and 1], set features smaller than min_points to 0.
+    """
+
+    mask2 = mask.copy()
+
+    label_im, nb_labels = ndimage.label(mask)
+    if verbose:
+        print('Found '+str(nb_labels)+' objects.', flush=True) # how many regions?
+
+    label_points = ndimage.sum(1, label_im, range(nb_labels+1))
+
+    throw_away = [x for x in range(1, nb_labels+1) if label_points[x] < min_points]
+    if len(throw_away) > 0:
+        if verbose:
+            if str(len(throw_away)) == 1:
+                print('Discarding ' + str(len(throw_away)) + ' feature that was < ' + str(min_points) + ' points.',flush=True)
+            else:
+                print('Discarding ' + str(len(throw_away)) + ' features that were < ' + str(min_points) + ' points.',flush=True)
+        for nn in throw_away:
+            mask2[label_im == nn] = 0
+
+    return mask2
+
+
 def identify_lp_objects(field, threshold, min_points=1
                         , object_is_gt_threshold=True, verbose=False):
 
