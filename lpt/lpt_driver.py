@@ -132,11 +132,14 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
                 ## Step 3: Expand according to the filter width.
                 ## Expand by ONE standard deviation only.
-                npx=lpo_options['filter_stdev']; npy=lpo_options['filter_stdev']
-                [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
-                circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
-                circle_array_mask = (circle_array_dist < (npx + 0.1))
-                DATA_MASK = scipy.ndimage.binary_dilation(DATA_MASK1, circle_array_mask).astype('float')
+                if lpo_options['filter_stdev'] > 0:
+                    npx=lpo_options['filter_stdev']; npy=lpo_options['filter_stdev']
+                    [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
+                    circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
+                    circle_array_mask = (circle_array_dist < (npx + 0.1))
+                    DATA_MASK = scipy.ndimage.binary_dilation(DATA_MASK1, circle_array_mask).astype('float')
+                else:
+                    DATA_MASK = DATA_MASK1.copy() # In case no radius, don't do the calculation above.
 
                 ## Get LP objects.
                 label_im = lpt.helpers.identify_lp_objects(
