@@ -115,6 +115,9 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
             var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
             var_pixels_lon = DS.createVariable('pixels_lon','i4',('nobj','npoints',), zlib=True)
             var_pixels_lat = DS.createVariable('pixels_lat','i4',('nobj','npoints',), zlib=True)
+            var_pixels_inst_field = DS.createVariable('pixels_inst_field','i4',('nobj','npoints',), zlib=True)
+            var_pixels_running_field = DS.createVariable('pixels_running_field','i4',('nobj','npoints',), zlib=True)
+            var_pixels_filtered_field = DS.createVariable('pixels_filtered_field','i4',('nobj','npoints',), zlib=True)
 
             ##
             ## Values
@@ -155,6 +158,10 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
                     var_pixels_lon[ii,:len(xpoints)] = [OBJ['grid']['lon'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
                     var_pixels_lat[ii,:len(xpoints)] = [OBJ['grid']['lat'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
 
+                var_pixels_inst_field[ii,:len(xpoints)] = [OBJ['inst_field'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
+                var_pixels_running_field[ii,:len(xpoints)] = [OBJ['running_field'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
+                var_pixels_filtered_field[ii,:len(xpoints)] = [OBJ['filtered_field'][ypoints[x],xpoints[x]] for x in range(len(xpoints))]
+                
         else:
             ## If there are no LP Objects, keep it as "missing values".
             DS.createDimension('npoints', 1)
@@ -162,6 +169,9 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
             var_pixels_y = DS.createVariable('pixels_y','i4',('nobj','npoints',), zlib=True)
             var_pixels_lon = DS.createVariable('pixels_lon','i4',('nobj','npoints',), zlib=True)
             var_pixels_lat = DS.createVariable('pixels_lat','i4',('nobj','npoints',), zlib=True)
+            var_pixels_inst_field = DS.createVariable('pixels_inst_field','i4',('nobj','npoints',), zlib=True)
+            var_pixels_running_field = DS.createVariable('pixels_running_field','i4',('nobj','npoints',), zlib=True)
+            var_pixels_filtered_field = DS.createVariable('pixels_filtered_field','i4',('nobj','npoints',), zlib=True)
 
 
         ## Grid variables.
@@ -245,6 +255,9 @@ def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, 
         var_pixels_y.setncatts({'units':'0','long_name':'grid point pixel indices in the y direction','note':'zero based (Python convention)'})
         var_pixels_lon.setncatts({'units':'degrees_east','long_name':'grid point pixel longitude values'})
         var_pixels_lat.setncatts({'units':'degrees_north','long_name':'grid point pixel latitude values'})
+        var_pixels_inst_field.setncatts({'long_name':'grid point pixel raw field values'})
+        var_pixels_running_field.setncatts({'long_name':'grid point pixel running field values'})
+        var_pixels_filtered_field.setncatts({'long_name':'grid point pixel filtered running field values'})
 
     print('Finished writing.')
 
