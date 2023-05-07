@@ -165,7 +165,10 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
                 os.makedirs(objects_dir, exist_ok = True)
                 lpt.lptio.lp_objects_output_ascii(objects_fn, OBJ)
-                lpt.lptio.lp_objects_output_netcdf(objects_fn + '.nc', OBJ)
+                lpt.lptio.lp_objects_output_netcdf(objects_fn + '.nc', OBJ,
+                        include_raw=lpo_options['output_includes_raw_field'],
+                        include_running=lpo_options['output_includes_running_field'],
+                        include_filtered=lpo_options['output_includes_filtered_field'])
 
                 """
                 Object Plot

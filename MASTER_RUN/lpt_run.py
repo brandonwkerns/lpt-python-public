@@ -142,6 +142,10 @@ lpo_options['min_points'] = 400             # Throw away LP objects smaller than
 lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
 
+## Whether to output full 2-D fields to the objects NetCDF files.
+lpo_options['output_includes_raw_field'] = True
+lpo_options['output_includes_running_field'] = False
+lpo_options['output_includes_filtered_field'] = False
 
 """
 ################################################################################

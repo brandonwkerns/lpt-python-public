@@ -1,7 +1,7 @@
 ## Default options for input to LPT driver script.
 ## These options correspond with Kerns and Chen (2020, JGR Atmospheres)
 ## And use the generic NetCDF data format with files under ./data/trmm/interim/gridded_rain_rates.
-
+## +++ Most of these settings get over-written by your local copy of MASTER_RUN/lpt_run.py. +++
 """
 Dataset Case Settings
 """
@@ -61,6 +61,11 @@ lpo_options['min_points'] = 400             # Throw away LP objects smaller than
 # !!! the ACCUMULATION_PERIOD time prior to the initial time.  !!!
 lpo_options['cold_start_mode'] = False
 lpo_options['cold_start_const_period'] = 24.0  # hours
+
+## Whether to output full 2-D fields to the objects NetCDF files.
+lpo_options['output_includes_raw_field'] = False
+lpo_options['output_includes_running_field'] = False
+lpo_options['output_includes_filtered_field'] = False
 
 ## LPO Mask Settings.
 lpo_options['do_lpo_mask'] = False                         # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True

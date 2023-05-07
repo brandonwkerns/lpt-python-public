@@ -36,7 +36,7 @@ def lp_objects_output_ascii(fn, OBJ):
     file.close()
 
 
-def lp_objects_output_netcdf(fn, OBJ):
+def lp_objects_output_netcdf(fn, OBJ, include_raw=False, include_running=False, include_filtered=False):
     """
     This function outputs the "bulk" LP object properties (centroid, date, area)
     Plus the pixel information to a compressed netcdf file.
@@ -175,9 +175,30 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_grid_area = DS.createVariable('grid_area','f4',('grid_y','grid_x',), zlib=True)
         var_grid_mask = DS.createVariable('grid_mask','i4',('grid_y','grid_x',), zlib=True, fill_value=-1)
 
-        var_inst_field = DS.createVariable('inst_field','f4',('grid_y','grid_x',), zlib=True)
-        var_running_field = DS.createVariable('running_field','f4',('grid_y','grid_x',), zlib=True)
-        var_filtered_field = DS.createVariable('filtered_field','f4',('grid_y','grid_x',), zlib=True)
+        ## Pass the raw and filtered values (if specified. This will result in much larger files!)
+        if include_raw:
+            print('- Including full 2-D raw field.')
+            var_inst_field = DS.createVariable('inst_field','f4',('grid_y','grid_x',), zlib=True)
+            var_inst_field[:] = OBJ['inst_field']
+            var_inst_field.setncatts({'long_name':'Instantaneous grid point values -- entire area.'})
+        else:
+            print('- Not including full 2-D raw field.\n  (Set lpo_options[\'output_includes_raw_field\'] = True if you want it.)')
+            
+        if include_running:
+            print('- Including full 2-D running field.')
+            var_running_field = DS.createVariable('running_field','f4',('grid_y','grid_x',), zlib=True)
+            var_running_field[:] = OBJ['running_field']
+            var_running_field.setncatts({'long_name':'Unfiltered running grid point values -- entire area.'})
+        else:
+            print('- Not including full 2-D running field.\n  (Set lpo_options[\'output_includes_running_field\'] = True if you want it.)')
+
+        if include_filtered:
+            print('- Including full 2-D filtered running field.')
+            var_filtered_field = DS.createVariable('filtered_field','f4',('grid_y','grid_x',), zlib=True)
+            var_filtered_field[:] = OBJ['filtered_field']
+            var_filtered_field.setncatts({'long_name':'Filtered running grid point values -- entire area.'})
+        else:
+            print('- Not including full 2-D filtered running field.\n  (Set lpo_options[\'output_includes_filtered_field\'] = True if you want it.)')
 
         var_grid_lon[:] = OBJ['grid']['lon']
         var_grid_lat[:] = OBJ['grid']['lat']
@@ -185,12 +206,6 @@ def lp_objects_output_netcdf(fn, OBJ):
         mask = OBJ['label_im'] - 1   ## Python convention: The label_im starts at 1, but LPT IDs start at 0.
         mask = ma.masked_array(mask, mask = (mask < -0.5))
         var_grid_mask[:] = mask
-
-        ## Pass the raw and filtered values.
-        var_inst_field[:] = OBJ['inst_field']
-        var_running_field[:] = OBJ['running_field']
-        var_filtered_field[:] = OBJ['filtered_field']
-
 
         ##
         ## Attributes/Metadata
