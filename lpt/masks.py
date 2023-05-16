@@ -791,7 +791,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         print('Adding LPT system mask for lptid = ' + str(this_lpt_id) + ' (max = ' + str(np.max(unique_lpt_ids)) + ') of time period ' + YMDH1_YMDH2 + '.')
 
         ## Get list of LP Objects for this LPT system.
-        this_lpt_idx = np.argwhere(TC['lptid'] == this_lpt_id)[0][0]
+        this_lpt_idx = np.argwhere(np.round(10000*TC['lptid']) == np.round(10000*this_lpt_id))[0][0]
         lp_object_id_list = TC['objid'][this_lpt_idx,0:int(TC['num_objects'][this_lpt_idx])]
 
         dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
