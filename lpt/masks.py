@@ -12,6 +12,9 @@ from context import lpt
 import os
 import sys
 from scipy.sparse import dok_matrix, csr_matrix, find, SparseEfficiencyWarning
+from multiprocessing import Pool, RLock, freeze_support
+from tqdm import tqdm
+
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
@@ -85,7 +88,7 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
 
 def feature_spread_2d(data_2d, npoints):
 
-    print('.', end='', flush=True)
+    # print('.', end='', flush=True)
     array_2d = data_2d.toarray()
     array_2d_new = array_2d.copy()
 
@@ -122,11 +125,9 @@ def feature_spread(data, npoints):
     ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
     ## For this purpose, it takes a 3-D array with the first entry being time.
 
-    from multiprocessing import Pool
     with Pool(24) as p:
-        r = p.starmap(feature_spread_2d, [(x, npoints) for x in data])
+        r = p.starmap(feature_spread_2d, tqdm([(x, npoints) for x in data]), chunksize=1)
 
-    print('|')  # Force newline.
     data_new = [csr_matrix(x) for x in r]
 
     return data_new
