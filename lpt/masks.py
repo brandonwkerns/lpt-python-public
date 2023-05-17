@@ -83,12 +83,10 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
 
 
 
-def feature_spread(data, npoints):
+def feature_spread_2d(data_2d, npoints):
 
-    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
-    ## For this purpose, it takes a 3-D array with the first entry being time.
-
-    data_new = data.copy()
+    array_2d = data_2d.toarray()
+    array_2d_new = array_2d.copy()
 
     if type(npoints) is list:
         npx = npoints[0]
@@ -102,28 +100,35 @@ def feature_spread(data, npoints):
     circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
     circle_array_mask = circle_array_mask / np.sum(circle_array_mask)
 
+    ## Loop over the times.
+    ## For each time, use the convolution to "spread out" the effect of each time's field.
+    ## (I tried using 3-D convolution here, but it took almost twice as much memory
+    ##  and was slightly SLOWER than this method.)
+    unique_values = np.unique(array_2d)
+    unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
+    for this_value in unique_values:
+        starting_mask = (array_2d == this_value).astype(np.double)
+        starting_mask_spread = scipy.ndimage.binary_dilation(starting_mask,structure=circle_array_mask, iterations=1, mask=starting_mask < 0.1)
+        array_2d_new[starting_mask_spread > 0.001] = this_value
 
-    for tt in range(len(data)):
+    return array_2d_new
 
-        if tt % 100 == 0:
-            print(('Feature Spread: ' + str(tt) + ' of max ' + str(len(data)) + '.'),flush=True)
 
-        array_2d = data[tt].toarray()
 
-        array_2d_new = array_2d.copy()
 
-        ## Loop over the times.
-        ## For each time, use the convolution to "spread out" the effect of each time's field.
-        ## (I tried using 3-D convolution here, but it took almost twice as much memory
-        ##  and was slightly SLOWER than this method.)
-        unique_values = np.unique(array_2d)
-        unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
-        for this_value in unique_values:
-            starting_mask = (array_2d == this_value).astype(np.double)
-            starting_mask_spread = scipy.ndimage.binary_dilation(starting_mask,structure=circle_array_mask, iterations=1, mask=starting_mask < 0.1)
-            array_2d_new[starting_mask_spread > 0.001] = this_value
+def feature_spread(data, npoints):
 
-        data_new[tt] = csr_matrix(array_2d_new)
+    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
+    ## For this purpose, it takes a 3-D array with the first entry being time.
+
+    data_new = data.copy()
+
+    from multiprocessing import Pool
+    with Pool(4) as p:
+        r = p.starmap(feature_spread_2d, [(data[tt], npoints) for tt in range(len(data))])
+
+    print(r)
+    data_new = csr_matrix(np.array(r))
 
     return data_new
 
