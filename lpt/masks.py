@@ -23,73 +23,12 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 ## feature spread function -- used for all of the mask functions.
 ##
 
-def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
-    from scipy.interpolate import RegularGridInterpolator
-    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
-    ## For this purpose, it takes a 3-D array with the first entry being time.
-    ##
-    ## In this version of the feature_spread function,
-    ## use a reduced resolution grid then interp back to the original resolution.
-
-    print('Feature spread with reduce_res_factor = {}'.format(reduce_res_factor))
-
-    data_new = data.copy()
-
-    start_idx = int(reduce_res_factor/2) # Try to get near the middle of reduce_res_factor
-    S = data_new[0].shape
-    X = np.arange(S[1])
-    Y = np.arange(S[0])
-    X2,Y2 = np.meshgrid(X,Y)
-    pts = np.transpose([Y2.flatten().tolist(),X2.flatten().tolist()])
-    X_reduced = X[start_idx::reduce_res_factor]
-    Y_reduced = Y[start_idx::reduce_res_factor]
-
-    if type(npoints) is list:
-        npx = int(npoints[0]/reduce_res_factor)
-        npy = int(npoints[1]/reduce_res_factor)
-    else:
-        npx = int(npoints/reduce_res_factor)
-        npy = int(npoints/reduce_res_factor)
-
-    [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
-    circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
-    circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
-    circle_array_mask = circle_array_mask / np.sum(circle_array_mask)
 
 
-    for tt in range(len(data)):
-
-        if tt % 100 == 0:
-            print(('Feature Spread: ' + str(tt) + ' of max ' + str(len(data)) + '.'),flush=True)
-
-        array_2d = data_new[tt].toarray()
-        array_2d_new = array_2d.copy()
-        array_2d_reduced = array_2d[start_idx::reduce_res_factor,start_idx::reduce_res_factor]
-        array_2d_new_reduced = array_2d_reduced.copy()
-
-        ## Loop over the times.
-        ## For each time, use the convolution to "spread out" the effect of each time's field.
-        ## (I tried using 3-D convolution here, but it took almost twice as much memory
-        ##  and was slightly SLOWER than this method.)
-        unique_values = np.unique(array_2d_reduced)
-        unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
-        for this_value in unique_values:
-            starting_mask = (array_2d_reduced == this_value).astype(np.double)
-            starting_mask_spread = scipy.ndimage.binary_dilation(starting_mask,structure=circle_array_mask, iterations=1, mask=starting_mask < 0.1)
-            F = RegularGridInterpolator((Y_reduced, X_reduced,), starting_mask_spread, method='nearest',bounds_error=False)
-            starting_mask_spread2 = F(pts).reshape(S)
-            array_2d_new[starting_mask_spread2 > 0.0001] = this_value
-
-        data_new[tt] = csr_matrix(array_2d_new)
-
-    return data_new
-
-
-
-def feature_spread_2d(data_2d, npoints):
+def feature_spread_2d(array_2d, npoints):
 
     # print('.', end='', flush=True)
-    array_2d = data_2d.toarray()
+    #array_2d = data_2d.toarray()
     array_2d_new = array_2d.copy()
 
     if type(npoints) is list:
@@ -126,11 +65,86 @@ def feature_spread(data, npoints):
     ## For this purpose, it takes a 3-D array with the first entry being time.
 
     with Pool(24) as p:
-        r = p.starmap(feature_spread_2d, tqdm([(x, npoints) for x in data]), chunksize=1)
+        r = p.starmap(feature_spread_2d, tqdm([(x.toarray(), npoints) for x in data]), chunksize=1)
 
     data_new = [csr_matrix(x) for x in r]
 
     return data_new
+
+
+
+
+def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
+    from scipy.interpolate import RegularGridInterpolator
+    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
+    ## For this purpose, it takes a 3-D array with the first entry being time.
+    ##
+    ## In this version of the feature_spread function,
+    ## use a reduced resolution grid then interp back to the original resolution.
+
+    print('Feature spread with reduce_res_factor = {}'.format(reduce_res_factor))
+
+    start_idx = int(reduce_res_factor/2) # Try to get near the middle of reduce_res_factor
+
+    with Pool(24) as p:
+        r = p.starmap(feature_spread_2d, tqdm([(x.toarray()[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor)) for x in data]), chunksize=1)
+
+    ## Interpolating the coarsened data to the original resolution grid.
+    S = data[0].shape
+    X = np.arange(S[1])
+    Y = np.arange(S[0])
+    X2,Y2 = np.meshgrid(X,Y)
+    pts = np.transpose([Y2.flatten().tolist(),X2.flatten().tolist()])
+    X_reduced = X[start_idx::reduce_res_factor]
+    Y_reduced = Y[start_idx::reduce_res_factor]
+
+    data_new = []    
+    for starting_mask_spread in r:
+        F = RegularGridInterpolator((Y_reduced, X_reduced,), starting_mask_spread, method='nearest',bounds_error=False)
+        array_2d_new = F(pts).reshape(S)
+        data_new += [csr_matrix(array_2d_new)]
+
+    return data_new
+
+
+
+
+
+
+    # [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
+    # circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
+    # circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
+    # circle_array_mask = circle_array_mask / np.sum(circle_array_mask)
+
+
+    # for tt in range(len(data)):
+
+    #     if tt % 100 == 0:
+    #         print(('Feature Spread: ' + str(tt) + ' of max ' + str(len(data)) + '.'),flush=True)
+
+    #     array_2d = data_new[tt].toarray()
+    #     array_2d_new = array_2d.copy()
+    #     array_2d_reduced = array_2d[start_idx::reduce_res_factor,start_idx::reduce_res_factor]
+    #     array_2d_new_reduced = array_2d_reduced.copy()
+
+    #     ## Loop over the times.
+    #     ## For each time, use the convolution to "spread out" the effect of each time's field.
+    #     ## (I tried using 3-D convolution here, but it took almost twice as much memory
+    #     ##  and was slightly SLOWER than this method.)
+    #     unique_values = np.unique(array_2d_reduced)
+    #     unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
+    #     for this_value in unique_values:
+    #         starting_mask = (array_2d_reduced == this_value).astype(np.double)
+    #         starting_mask_spread = scipy.ndimage.binary_dilation(starting_mask,structure=circle_array_mask, iterations=1, mask=starting_mask < 0.1)
+    #         F = RegularGridInterpolator((Y_reduced, X_reduced,), starting_mask_spread, method='nearest',bounds_error=False)
+    #         starting_mask_spread2 = F(pts).reshape(S)
+    #         array_2d_new[starting_mask_spread2 > 0.0001] = this_value
+
+    #     data_new[tt] = csr_matrix(array_2d_new)
+
+    # return data_new
+
+
 
 
 
