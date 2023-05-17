@@ -85,6 +85,7 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
 
 def feature_spread_2d(data_2d, npoints):
 
+    print('.', end='', flush=True)
     array_2d = data_2d.toarray()
     array_2d_new = array_2d.copy()
 
@@ -121,14 +122,12 @@ def feature_spread(data, npoints):
     ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
     ## For this purpose, it takes a 3-D array with the first entry being time.
 
-    data_new = data.copy()
-
     from multiprocessing import Pool
-    with Pool(4) as p:
-        r = p.starmap(feature_spread_2d, [(data[tt], npoints) for tt in range(len(data))])
+    with Pool(24) as p:
+        r = p.starmap(feature_spread_2d, [(x, npoints) for x in data])
 
-    print(r)
-    data_new = csr_matrix(np.array(r))
+    print('|')  # Force newline.
+    data_new = [csr_matrix(x) for x in r]
 
     return data_new
 
