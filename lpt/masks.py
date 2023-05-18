@@ -25,7 +25,6 @@ warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 ##
 
 
-
 def feature_spread_2d(array_2d, npoints):
 
     # print('.', end='', flush=True)
@@ -58,7 +57,6 @@ def feature_spread_2d(array_2d, npoints):
     return array_2d_new
 
 
-
 def feature_spread(data, npoints, nproc=1):
 
     ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
@@ -72,14 +70,27 @@ def feature_spread(data, npoints, nproc=1):
     return data_new
 
 
-def do_interp(data, XY1, XY2):
-    X1, Y1 = XY1
-    X2, Y2 = XY2
-    S = X2.shape
-    # pts = np.transpose([Y2.flatten().tolist(),X2.flatten().tolist()])
-    F = RegularGridInterpolator((Y1, X1), data, method='nearest',bounds_error=False)
-    array_2d_new = F((Y2, X2)) #F(pts).reshape(S)
-    return csr_matrix(array_2d_new)
+def back_to_orig_res(array_2d_reduced, S_orig, reduce_res_factor):
+    """
+    array_2d_reduced: The coarsened grid data. 2-d Numpy array.
+    S_orig: The size of the original grid.
+    reduce_res_factor: The factor used for reducing the resolution.
+    """
+
+    S = array_2d_reduced.shape
+
+    ## Array of Indices
+    x = np.repeat(np.arange(S[1], dtype=np.int32), reduce_res_factor)
+    y = np.repeat(np.arange(S[0], dtype=np.int32), reduce_res_factor)
+    X, Y = np.meshgrid(x, y)
+
+    ## Apply array of indices.
+    array_2d_new0 = array_2d_reduced[Y, X]
+
+    ## Keep only the size I need.
+    array_2d_new = array_2d_new0[0:S_orig[0], 0:S_orig[1]]
+
+    return array_2d_new
 
 
 def feature_spread_reduce_res(data, npoints, reduce_res_factor=5, nproc=1):
@@ -90,9 +101,8 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5, nproc=1):
     ## use a reduced resolution grid then interp back to the original resolution.
 
     print('Feature spread with reduce_res_factor = {}'.format(reduce_res_factor))
-    data_new = data.copy()
 
-    start_idx = int(reduce_res_factor/2) # Try to get near the middle of reduce_res_factor
+    start_idx = max(0, int(reduce_res_factor/2)-1) # Try to get near the middle of reduce_res_factor
 
     with Pool(nproc) as p:
         r = p.starmap(feature_spread_2d, tqdm([(x.toarray()[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor)) for x in data]), chunksize=1)
@@ -100,23 +110,13 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5, nproc=1):
     ## Interpolating the coarsened data to the original resolution grid.
     print('Interpolate back to original grid.')
     S = data[0].shape
-    X = np.arange(S[1])
-    Y = np.arange(S[0])
-    X2,Y2 = np.meshgrid(X,Y)
-    # pts = np.transpose([Y2.flatten().tolist(),X2.flatten().tolist()])
-    X_reduced = X[start_idx::reduce_res_factor]
-    Y_reduced = Y[start_idx::reduce_res_factor]
 
-    with Pool(nproc) as p:
-        data_new = p.starmap(do_interp, [(x, (X_reduced, Y_reduced), (X2, Y2)) for x in r])
+    with Pool(nproc) as p2:
+        r2 = p2.starmap(back_to_orig_res, tqdm([(x2, S, reduce_res_factor) for x2 in r]))
 
-    # data_new = []    
-    # for tt, starting_mask_spread in enumerate(r):
-    #     data_new[tt] = do_interp(starting_mask_spread, (X_reduced, Y_reduced), (X2, Y2))
+    data_new = [csr_matrix(x3) for x3 in r2]
 
     return data_new
-
-
 
 
 def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
