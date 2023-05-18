@@ -85,9 +85,8 @@ Main settings for lpt
 """
 ## Plot settings.
 plotting['do_plotting'] = False               # True or False -- Should I make plots?
-plotting['plot_area'] = [0, 360, -50, 50]    # Plotting area for LPO maps. (Does NOT affect tracking)
-plotting['time_lon_range'] = [40, 200]       # Longitude Range for time-longitude plots. (Does NOT affect tracking)
-#plotting['time_lon_range'] = [200, 360]       # Longitude Range for time-longitude plots. (Does NOT affect tracking)
+plotting['plot_area'] = [0, 360, -50, 50]     # Plotting area for LPO maps. (Does NOT affect tracking)
+plotting['time_lon_range'] = [40, 200]        # Longitude Range for time-longitude plots. (Does NOT affect tracking)
 
 ## High level output directories. Images and data will go in here.
 output['img_dir'] = './images'
@@ -158,11 +157,12 @@ lpo_options['do_lpo_mask'] = False
 
 
 ## Options for the LPO mask output.
-lpo_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
-lpo_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
-lpo_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables.
+lpo_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
+lpo_options['mask_calc_with_filter_radius'] = True         # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
+lpo_options['mask_calc_with_accumulation_period'] = True   # Whether to calculate the mask with filter variables.
 lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
-lpo_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
+lpo_options['target_memory_for_writing_masks_MB'] = 1000   # Target to limit memory demand from writing masks to files. The more, the faster it can run.
+lpo_options['mask_n_cores'] = 1                            # How many processors to use for LPO mask calculations.
 
 
 """
@@ -202,14 +202,14 @@ mjo_id_options['do_mjo_id'] = False
 
 ## Settings for the MJO LPT identification step.
 
-mjo_id_options['do_plotting'] = False  #Generated a set of diagnostic plots
-mjo_id_options['min_zonal_speed'] = -999.0   # full LPT track net speed, in m/s.
-mjo_id_options['min_lpt_duration']    = 7.0*24.0      # In hours. Does NOT include accumulation period.
-mjo_id_options['min_eastward_prop_zonal_speed'] = 0.0  # Eastward propagation portion, in m/s.
-mjo_id_options['min_eastward_prop_duration'] = 7.0*24.0  # In hours. Doesn't include 3-Day accumulation period.
-mjo_id_options['min_eastward_prop_duration_in_lat_band'] = 7.0*24.0  # In hours. Doesn't include 3-Day accumulation period.
-mjo_id_options['min_total_eastward_lon_propagation'] = 10.0 # in deg. longitude.
-mjo_id_options['max_abs_latitude'] = 15.0 # in deg. latitude. Eastward propagation period must get this close to the Equator at some point.
+mjo_id_options['do_plotting'] = False                     # Whether to generate a set of diagnostic plots
+mjo_id_options['min_zonal_speed'] = -999.0                # full LPT track net speed, in m/s.
+mjo_id_options['min_lpt_duration']    = 7.0*24.0          # In hours. Does NOT include accumulation period.
+mjo_id_options['min_eastward_prop_zonal_speed'] = 0.0     # Eastward propagation portion, in m/s.
+mjo_id_options['min_eastward_prop_duration'] = 7.0*24.0                # In hours. Doesn't include 3-Day accumulation period.
+mjo_id_options['min_eastward_prop_duration_in_lat_band'] = 7.0*24.0    # In hours. Doesn't include 3-Day accumulation period.
+mjo_id_options['min_total_eastward_lon_propagation'] = 10.0            # in deg. longitude.
+mjo_id_options['max_abs_latitude'] = 15.0                              # in deg. latitude. Eastward propagation period must get this close to the Equator at some point.
 
 ## These settings are for the east/west propagation portions ("divide and conquer").
 mjo_id_options['duration_to_avoid_being_conquered'] = 7.0*24.0  # In hours.
@@ -231,18 +231,19 @@ mjo_id_options['backtrack_allowance'] = 5.0                     # In degrees lon
 """
 
 ## Whether to generate the LPO systems mask output, and which ones.
-lpt_options['do_lpt_individual_masks'] = False # Whether to generate mask files for each LPT system.
-lpt_options['do_lpt_composite_mask'] = False  # Whether to generate mask file for all LPT systems combined.
-lpt_options['do_mjo_lpt_composite_mask'] = False  # Whether to generate mask file for all MJO LPT systems combined.
-lpt_options['do_non_mjo_lpt_composite_mask'] = False  # Whether to generate mask file for all non MJO LPT systems combined.
+lpt_options['do_lpt_individual_masks'] = False          # Whether to generate mask files for each LPT system.
+lpt_options['do_lpt_composite_mask'] = False            # Whether to generate mask file for all LPT systems combined.
+lpt_options['do_mjo_lpt_composite_mask'] = False        # Whether to generate mask file for all MJO LPT systems combined.
+lpt_options['do_non_mjo_lpt_composite_mask'] = False    # Whether to generate mask file for all non MJO LPT systems combined.
 
 ## Options for the LPT systems mask output. Only used if one or more of the above "do" masks options are True
-lpt_options['individual_masks_begin_lptid'] = 0 # LPT ID to start with
-lpt_options['individual_masks_end_lptid'] = 1 # LPT ID to end with
-lpt_options['mask_calc_volrain'] = True       # Whether to calculate a volumetric rain and include with mask files.
+lpt_options['individual_masks_begin_lptid'] = 0           # LPT ID to start with
+lpt_options['individual_masks_end_lptid'] = 1             # LPT ID to end with
+lpt_options['mask_calc_volrain'] = True                   # Whether to calculate a volumetric rain and include with mask files.
 lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpt_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
+lpt_options['mask_n_cores'] = 1                           # How many processors to use for LPT system mask calculations.
 
 
 """

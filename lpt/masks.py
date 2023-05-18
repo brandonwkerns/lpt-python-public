@@ -59,13 +59,12 @@ def feature_spread_2d(array_2d, npoints):
 
 
 
-
-def feature_spread(data, npoints):
+def feature_spread(data, npoints, nproc=1):
 
     ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
     ## For this purpose, it takes a 3-D array with the first entry being time.
 
-    with Pool(24) as p:
+    with Pool(nproc) as p:
         r = p.starmap(feature_spread_2d, tqdm([(x.toarray(), npoints) for x in data]), chunksize=1)
 
     data_new = [csr_matrix(x) for x in r]
@@ -83,7 +82,7 @@ def do_interp(data, XY1, XY2):
     return csr_matrix(array_2d_new)
 
 
-def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
+def feature_spread_reduce_res(data, npoints, reduce_res_factor=5, nproc=1):
     ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
     ## For this purpose, it takes a 3-D array with the first entry being time.
     ##
@@ -95,7 +94,7 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
 
     start_idx = int(reduce_res_factor/2) # Try to get near the middle of reduce_res_factor
 
-    with Pool(24) as p:
+    with Pool(nproc) as p:
         r = p.starmap(feature_spread_2d, tqdm([(x.toarray()[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor)) for x in data]), chunksize=1)
 
     ## Interpolating the coarsened data to the original resolution grid.
@@ -108,7 +107,7 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5):
     X_reduced = X[start_idx::reduce_res_factor]
     Y_reduced = Y[start_idx::reduce_res_factor]
 
-    with Pool(24) as p:
+    with Pool(nproc) as p:
         data_new = p.starmap(do_interp, [(x, (X_reduced, Y_reduced), (X2, Y2)) for x in r])
 
     # data_new = []    
@@ -244,7 +243,8 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     , calc_with_accumulation_period = True
     , cold_start_mode = False
     , coarse_grid_factor = 0
-    , memory_target_mb = 1000):
+    , memory_target_mb = 1000
+    , nproc = 1):
 
     MISSING = -999.0
     FILL_VALUE = MISSING
@@ -338,14 +338,14 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     if do_filter:
         print('Filter width spreading...this may take awhile.', flush=True)
         if coarse_grid_factor > 1:
-            mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor)
+            mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
         else:
-            mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
+            mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
         if accumulation_hours > 0 and calc_with_accumulation_period:
             if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor)
+                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
             else:
-                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
+                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
 
     ## Do volumetric rain.
     if do_volrain:
@@ -422,7 +422,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , cold_start_mode = False
     , begin_lptid = 0, end_lptid = 10000, mjo_only = False
     , coarse_grid_factor = 0
-    , memory_target_mb = 1000):
+    , memory_target_mb = 1000
+    , nproc = 1):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -582,14 +583,14 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         if do_filter:
             print('Filter width spreading...this may take awhile.', flush=True)
             if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor)
+                mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
             else:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
+                mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
             if accumulation_hours > 0 and calc_with_accumulation_period:
                 if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor)
+                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
                 else:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
+                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
 
         ## Do volumetric rain.
         if do_volrain:
@@ -696,7 +697,9 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , coarse_grid_factor = 0
-    , subset='all', memory_target_mb = 1000):
+    , subset='all'
+    , memory_target_mb = 1000
+    , nproc = 1):
 
     """
     dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
@@ -852,14 +855,14 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     if do_filter:
         print('Filter width spreading...this may take awhile.', flush=True)
         if coarse_grid_factor > 1:
-            mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor)
+            mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
         else:
-            mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev)
+            mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
         if accumulation_hours > 0 and calc_with_accumulation_period:
             if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor)
+                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
             else:
-                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev)
+                mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
 
     ## Do volumetric rain.
     if do_volrain:
