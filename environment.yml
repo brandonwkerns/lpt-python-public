@@ -18,5 +18,6 @@ dependencies:
   - basemap
   - basemap-data-hires
   - gdal
+  - tqdm
   - ipython
   

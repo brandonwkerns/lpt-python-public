@@ -193,7 +193,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , cold_start_mode = lpo_options['cold_start_mode']
             , calc_with_accumulation_period = lpo_options['mask_calc_with_accumulation_period']
             , coarse_grid_factor = lpo_options['mask_coarse_grid_factor']
-            , memory_target_mb = lpo_options['target_memory_for_writing_masks_MB'])
+            , memory_target_mb = lpo_options['target_memory_for_writing_masks_MB']
+            , nproc = lpo_options['mask_n_cores'])
 
 
     """
@@ -367,7 +368,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , end_lptid = lpt_options['individual_masks_end_lptid']
             , mjo_only = lpt_options['individual_masks_mjo_only']
             , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
-            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB'])
+            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
+            , nproc = lpt_options['mask_n_cores'])
 
 
     if lpt_options['do_lpt_composite_mask']:
@@ -391,7 +393,8 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
             , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
-            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB'])
+            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
+            , nproc = lpt_options['mask_n_cores'])
 
 
     if lpt_options['do_mjo_lpt_composite_mask']:
@@ -416,6 +419,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , cold_start_mode = lpo_options['cold_start_mode']
             , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
+            , nproc = lpt_options['mask_n_cores']
             , subset='mjo')
 
     if lpt_options['do_non_mjo_lpt_composite_mask']:
@@ -440,4 +444,5 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , cold_start_mode = lpo_options['cold_start_mode']
             , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
+            , nproc = lpt_options['mask_n_cores']
             , subset='non_mjo')
