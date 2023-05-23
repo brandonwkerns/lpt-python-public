@@ -17,6 +17,13 @@ dataset['latitude_variable_name'] = 'lat'
 dataset['field_variable_name'] = 'rain'
 dataset['field_units'] = 'mm h-1'
 dataset['area'] = [0, 360, -50, 50]   # Geographical area of data to use.
+"""
+Set calendar below. Use a valid cftime calendar.
+Valid calendars are currently:
+  standard, gregorian, proleptic_gregorian, noleap,
+  365_day, 360_day, julian, all_leap, 366_day.
+"""
+dataset['calendar'] = 'standard'
 
 """
 Main settings for lpt
