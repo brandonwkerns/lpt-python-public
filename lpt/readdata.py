@@ -21,7 +21,7 @@ To add a new data set, do the following:
 
 ################################################################################
 
-def readdata(datetime_to_read, dataset_options_dict):
+def readdata(datetime_to_read, dataset_options_dict, verbose=None):
     """
     Main data read function. Get data at datetime datetime_to_read.
     Based on the oprions in dataset_options_dict, it will look in the data directory
@@ -30,7 +30,19 @@ def readdata(datetime_to_read, dataset_options_dict):
     To add a dataset type, add an elif block to this function.
 
     The function is expected to return a dictionary with keys 'lon', 'lat', and 'data'
+
+    Verbose option (new 05/2023):
+    - If set to None (default), it will use the verbose option from dataset_options_dict.
+    - Otherwise, the value will be used *instead of* dataset_options_dict.
+      This allows a function call to override the setting in dataset_options_dict.
     """
+
+    ## Manage verbose
+    if verbose is None:
+        verbose_actual = dataset_options_dict['verbose']
+    else:
+        verbose_actual = verbose
+
     if dataset_options_dict['raw_data_format'] == 'generic_netcdf':
         variable_names = (dataset_options_dict['longitude_variable_name']
                 , dataset_options_dict['latitude_variable_name']
@@ -40,21 +52,21 @@ def readdata(datetime_to_read, dataset_options_dict):
                 , variable_names = variable_names
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
                 , fmt = dataset_options_dict['file_name_format']
-                , verbose = dataset_options_dict['verbose'])
+                , verbose = verbose_actual)
 
     elif dataset_options_dict['raw_data_format'] == 'cmorph':
         DATA = read_cmorph_at_datetime(datetime_to_read
                 , area = dataset_options_dict['area']
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
                 , fmt = dataset_options_dict['file_name_format']
-                , verbose = dataset_options_dict['verbose'])
+                , verbose = verbose_actual)
 
     elif dataset_options_dict['raw_data_format'] == 'imerg_hdf5':
         DATA = read_imerg_hdf5_at_datetime(datetime_to_read
                 , area = dataset_options_dict['area']
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
                 , fmt = dataset_options_dict['file_name_format']
-                , verbose = dataset_options_dict['verbose'])
+                , verbose = verbose_actual)
 
     elif dataset_options_dict['raw_data_format'] == 'cfs_forecast':
         fcst_hour = int((datetime_to_read - dataset_options_dict['datetime_init']).total_seconds()/3600)
@@ -68,7 +80,7 @@ def readdata(datetime_to_read, dataset_options_dict):
                 , data_dir = dataset_options_dict['raw_data_parent_dir']
                 , fmt = dataset_options_dict['file_name_format']
                 , records = records
-                , verbose = dataset_options_dict['verbose'])
+                , verbose = verbose_actual)
         DATA['data'] = ma.masked_array(DATA['precip'][0])
 
     ## -- Add an elif block here for new datasets. --
