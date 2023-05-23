@@ -119,8 +119,45 @@ def feature_spread_reduce_res(data, npoints, reduce_res_factor=5, nproc=1):
     return data_new
 
 
-def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
 
+
+def get_mask_type_list(mask_arrays):
+
+    mask_type_list = [*mask_arrays]
+    mask_type_list = [x for x in mask_type_list if 'mask' in x]
+    return mask_type_list
+
+
+def get_volrain_at_time(this_dt, this_mask_array, AREA, dataset_dict):
+
+    ## Initialize
+    this_volrain = {}
+
+    mask_type_list = get_mask_type_list(this_mask_array)
+
+    ## Get rain
+    RAIN = lpt.readdata.readdata(this_dt, dataset_dict)
+
+    precip = RAIN['data'][:]
+    precip[~np.isfinite(precip)] = 0.0
+    precip[precip < -0.01] = 0.0
+
+    ## Global
+    this_volrain['volrain_global_tser'] = np.sum(precip * AREA)
+
+    ## Masked
+    for field in mask_type_list:
+        this_mask = this_mask_array[field].toarray()
+        this_mask[this_mask > 0] = 1.0
+        precip_masked = precip * this_mask
+        this_volrain[field.replace('mask','volrain')+'_tser'] = np.sum(precip_masked * AREA)
+
+    return this_volrain
+
+
+def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict, nproc=1):
+
+    this_volrain = {}
     mask_type_list = [*mask_arrays]
     mask_type_list = [x for x in mask_type_list if 'mask' in x]
 
@@ -131,33 +168,18 @@ def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict):
     VOLRAIN['volrain_global'] = 0.0
     VOLRAIN['volrain_global_tser'] = np.nan * np.zeros(len(mask_times))
 
+    #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
+    with Pool(nproc) as p:
+        r = p.starmap(get_volrain_at_time, tqdm([(mask_times[tt], {key:value[tt] for (key,value) in mask_arrays.items()}, AREA, dataset_dict) for tt in range(len(mask_times))]))
+
+    ## Put the outputs into lists for output.
+    VOLRAIN['volrain_global_tser'] = [x['volrain_global_tser']*interval_hours for x in r]
+    VOLRAIN['volrain_global'] = np.nansum(VOLRAIN['volrain_global_tser'])
+
     ## Masked
     for field in mask_type_list:
-        VOLRAIN[field.replace('mask','volrain')] = 0.0
-        VOLRAIN[field.replace('mask','volrain')+'_tser'] = np.nan * np.zeros(len(mask_times))
-
-    #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
-    for tt in range(len(mask_times)):
-        this_dt = mask_times[tt]
-
-        ## Get rain
-        RAIN = lpt.readdata.readdata(this_dt, dataset_dict)
-
-        precip = RAIN['data'][:]
-        precip[~np.isfinite(precip)] = 0.0
-        precip[precip < -0.01] = 0.0
-
-        ## Global
-        VOLRAIN['volrain_global'] += interval_hours * np.sum(precip * AREA)
-        VOLRAIN['volrain_global_tser'][tt] = interval_hours * np.sum(precip * AREA)
-
-        ## Masked
-        for field in mask_type_list:
-            this_mask = mask_arrays[field][tt].toarray()
-            this_mask[this_mask > 0] = 1.0
-            precip_masked = precip * this_mask
-            VOLRAIN[field.replace('mask','volrain')] += interval_hours * np.sum(precip_masked * AREA)
-            VOLRAIN[field.replace('mask','volrain')+'_tser'][tt] = interval_hours * np.sum(precip_masked * AREA)
+        VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser']*interval_hours for x in r]
+        VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])
 
     return VOLRAIN
 
@@ -350,7 +372,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
-        VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict)
+        VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict, nproc=nproc)
 
     ##
     ## Output.
@@ -595,7 +617,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Do volumetric rain.
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
-            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict)
+            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
 
         ##
@@ -867,7 +889,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
-        VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,AREA,mask_arrays,dataset_dict)
+        VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
     ##
     ## Output.
