@@ -136,7 +136,7 @@ def get_volrain_at_time(this_dt, this_mask_array, AREA, dataset_dict):
     mask_type_list = get_mask_type_list(this_mask_array)
 
     ## Get rain
-    RAIN = lpt.readdata.readdata(this_dt, dataset_dict)
+    RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
 
     precip = RAIN['data'][:]
     precip[~np.isfinite(precip)] = 0.0
