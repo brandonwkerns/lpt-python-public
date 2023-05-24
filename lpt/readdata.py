@@ -130,7 +130,7 @@ def read_generic_netcdf(fn, variable_names=('lon','lat','rain'), dt_to_use=None)
         DATA['lat'] = DS[variable_names[1]].values
         ## If no time variable, just retrieve the 2-D data as it is.
         if not dt_to_use is None: #'time' in list(DS.variables):
-            DATA['data'] = DS.sel(time=str(dt_to_use),method='nearest')[variable_names[3]].values
+            DATA['data'] = DS.sel({variable_names[2]:str(dt_to_use)},method='nearest')[variable_names[3]].values
         else:
             DATA['data'] = DS[variable_names[2]].values
 
