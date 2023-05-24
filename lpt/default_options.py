@@ -48,8 +48,8 @@ output['sub_directory_format'] = '%Y/%m/%Y%m%d'
 ## LP Object settings
 ##
 lpo_options={}
-#lpo_options['do_lpo_calc'] = True
 lpo_options['do_lpo_calc'] = False
+lpo_options['lpo_calc_n_cores'] = 1
 lpo_options['overwrite_existing_files'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
 lpo_options['field_units'] = 'mm d-1'
@@ -83,7 +83,6 @@ lpo_options['mask_n_cores'] = 1                            # How many processors
 ## LPT Settings
 ##
 lpt_options={}
-#lpt_options['do_lpt_calc'] = True
 lpt_options['do_lpt_calc'] = False
 lpt_options['min_overlap_points'] = 1600               # LP object connectivity is based on either points
 lpt_options['min_overlap_frac'] = 0.5                  # -- OR fraction of either LP object.
@@ -111,7 +110,6 @@ lpt_options['mask_n_cores'] = 1                           # How many processors 
 ##
 merge_split_options={}
 merge_split_options['allow_merge_split'] = True
-#merge_split_options['allow_merge_split'] = False
 merge_split_options['split_merger_min_hours'] = 72  # Min duration of a split/merging track to separate it.
 
 ##

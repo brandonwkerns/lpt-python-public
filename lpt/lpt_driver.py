@@ -48,7 +48,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
     if lpo_options['do_lpo_calc']:
 
-        with Pool(2) as p:
+        with Pool(lpo_options['lpo_calc_n_cores']) as p:
             p.starmap(lpt.helpers.do_lpo_calc,
                 [(x, begin_time, dataset, lpo_options, output, plotting) for x in time_list],
                 chunksize=1)
