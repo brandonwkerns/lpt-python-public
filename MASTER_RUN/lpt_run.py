@@ -70,6 +70,7 @@ dataset['data_time_interval'] = 3           # Time resolution of the data in hou
 dataset['verbose'] = True
 dataset['longitude_variable_name'] = 'lon'
 dataset['latitude_variable_name'] = 'lat'
+dataset['time_variable_name'] = 'time'
 dataset['field_variable_name'] = 'rain'
 dataset['field_units'] = 'mm h-1' ## This is used only for plotting and NetCDF attributes.
 """
@@ -113,7 +114,7 @@ from step 1. The decimal steps are optional, e.g., LPO mask 1.1 depends on LPO 1
 
 #lpo_options['do_lpo_calc'] = True
 lpo_options['do_lpo_calc'] = False
-
+lpo_options['lpo_calc_n_cores'] = 1         # Number of cores to use for LPO step.
 
 ## Options for the LPO Step. Only used if lpo_options['do_lpo_calc'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day, 1.0 if you already have mm/day.
