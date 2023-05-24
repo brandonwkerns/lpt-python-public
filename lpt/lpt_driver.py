@@ -9,6 +9,7 @@ import os
 import matplotlib.colors as colors
 from netCDF4 import Dataset
 import networkx as nx
+from multiprocessing import Pool
 
 ################################################################################
 ## These functions are used by lpt_generic_netcdf_data_driver.py
@@ -47,13 +48,10 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
     if lpo_options['do_lpo_calc']:
 
-        for end_of_accumulation_time0 in time_list: ## This is the nominal time of the LPO
-                                                    ## In model cold start mode, the actual
-                                                    ## times used differ in the beginning of the run.
-
-            ## Calculate the LPO, and save output.
-            lpt.helpers.do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, output, plotting)
-
+        with Pool(2) as p:
+            p.starmap(lpt.helpers.do_lpo_calc,
+                [(x, begin_time, dataset, lpo_options, output, plotting) for x in time_list],
+                chunksize=1)
 
     ##
     ## Do LPO mask, if specified.
