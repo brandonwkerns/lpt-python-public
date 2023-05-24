@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import ma
-from netCDF4 import Dataset
+import xarray as xr
 import struct
 import sys
 import os
@@ -54,6 +54,20 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
                 , fmt = dataset_options_dict['file_name_format']
                 , verbose = verbose_actual)
 
+    if dataset_options_dict['raw_data_format'] == 'generic_netcdf_with_multiple_times':
+        variable_names = (dataset_options_dict['longitude_variable_name']
+                , dataset_options_dict['latitude_variable_name']
+                , dataset_options_dict['time_variable_name']
+                , dataset_options_dict['field_variable_name'])
+
+        DATA = read_generic_netcdf_at_datetime(datetime_to_read
+                , variable_names = variable_names
+                , dt_to_use = datetime_to_read
+                , data_dir = dataset_options_dict['raw_data_parent_dir']
+                , fmt = dataset_options_dict['file_name_format']
+                , verbose = verbose_actual)
+
+
     elif dataset_options_dict['raw_data_format'] == 'cmorph':
         DATA = read_cmorph_at_datetime(datetime_to_read
                 , area = dataset_options_dict['area']
@@ -95,7 +109,7 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
 ## Read functions for generic NetCDF data.
 ################################################################################
 
-def read_generic_netcdf(fn, variable_names=('lon','lat','rain')):
+def read_generic_netcdf(fn, variable_names=('lon','lat','rain'), dt_to_use=None):
     """
     DATA = read_generic_netcdf(fn)
 
@@ -110,12 +124,17 @@ def read_generic_netcdf(fn, variable_names=('lon','lat','rain')):
     Out[23]: (400, 1440)
     """
 
-    DS = Dataset(fn)
-    DATA={}
-    DATA['lon'] = DS[variable_names[0]][:]
-    DATA['lat'] = DS[variable_names[1]][:]
-    DATA['data'] = DS[variable_names[2]][:][0]
-    DS.close()
+    DATA = {}
+    with xr.open_dataset(fn) as DS:
+        DATA['lon'] = DS[variable_names[0]].values
+        DATA['lat'] = DS[variable_names[1]].values
+        ## If no time variable, just retrieve the 2-D data as it is.
+        if not dt_to_use is None: #'time' in list(DS.variables):
+            DATA['data'] = DS.sel(time=str(dt_to_use),method='nearest')[variable_names[3]].values
+        else:
+            DATA['data'] = DS[variable_names[2]].values
+
+    DATA['data'] = np.ma.masked_array(DATA['data'], mask=np.isnan(DATA['data']))
 
     ## Need to get from (-180, 180) to (0, 360) longitude.
     lon_lt_0, = np.where(DATA['lon'] < -0.0001)
@@ -129,7 +148,7 @@ def read_generic_netcdf(fn, variable_names=('lon','lat','rain')):
 
 
 def read_generic_netcdf_at_datetime(dt, data_dir='.'
-        , variable_names=('lon','lat','rain'), fmt='gridded_rain_rates_%Y%m%d%H.nc'
+        , variable_names=('lon','lat','rain'), dt_to_use=None, fmt='gridded_rain_rates_%Y%m%d%H.nc'
         , verbose=False):
 
     fn = (data_dir + '/' + dt.strftime(fmt))
@@ -140,7 +159,9 @@ def read_generic_netcdf_at_datetime(dt, data_dir='.'
     else:
         if verbose:
             print(fn)
-        DATA=read_generic_netcdf(fn, variable_names = variable_names)
+        DATA=read_generic_netcdf(fn,
+            variable_names = variable_names,
+            dt_to_use = dt_to_use)
 
     return DATA
 
