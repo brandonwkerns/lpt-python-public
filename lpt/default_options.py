@@ -14,6 +14,7 @@ dataset['data_time_interval'] = 3           # Time resolution of the data in hou
 dataset['verbose'] = True
 dataset['longitude_variable_name'] = 'lon'
 dataset['latitude_variable_name'] = 'lat'
+dataset['time_variable_name'] = 'time'
 dataset['field_variable_name'] = 'rain'
 dataset['field_units'] = 'mm h-1'
 dataset['area'] = [0, 360, -50, 50]   # Geographical area of data to use.
