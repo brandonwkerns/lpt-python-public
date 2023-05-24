@@ -7,7 +7,6 @@ import cftime
 import sys
 import os
 import matplotlib.colors as colors
-import scipy.ndimage
 from netCDF4 import Dataset
 import networkx as nx
 
@@ -43,7 +42,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
     time_list =  lpt.helpers.dtrange(begin_time, end_time + dt.timedelta(hours=dataset['data_time_interval']), dataset['data_time_interval'])
 
     if plotting['do_plotting']:
-        fig1 = plt.figure(1, figsize = (8.5,4))
         fig2 = plt.figure(2, figsize = (8.5,11))
 
 
@@ -53,123 +51,9 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                                                     ## In model cold start mode, the actual
                                                     ## times used differ in the beginning of the run.
 
-            YMDH = end_of_accumulation_time0.strftime('%Y%m%d%H')
-            YMDH_fancy = end_of_accumulation_time0.strftime('%Y-%m-%d %H:00 UTC')
+            ## Calculate the LPO, and save output.
+            lpt.helpers.do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, output, plotting)
 
-            """
-            Check whether the output file already exists.
-            If it does and lpo_options['overwrite_existing_files'] is set to False,
-            Skip processing this time.
-            """
-            objects_dir = (output['data_dir'] + '/' + dataset['label']
-                            + '/' + filter_str(lpo_options['filter_stdev'])
-                            + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
-                            + '/thresh' + str(int(lpo_options['thresh']))
-                            + '/objects/'
-                            + end_of_accumulation_time0.strftime(output['sub_directory_format']))
-            objects_fn = (objects_dir + '/objects_' + YMDH)
-            if not lpo_options['overwrite_existing_files'] and os.path.exists(objects_fn):
-                print('-- This time already has LPO step done. Skipping.')
-                continue
-
-
-            ## NOTE: In cold start mode, the begin_time is assumed to be the model initiation time!
-            hours_since_init = (end_of_accumulation_time0 - begin_time).total_seconds()/3600
-            if (hours_since_init < lpo_options['cold_start_const_period'] and lpo_options['cold_start_mode']):
-                beginning_of_accumulation_time = begin_time
-                end_of_accumulation_time = beginning_of_accumulation_time + dt.timedelta(hours=24)
-            elif (hours_since_init >= lpo_options['cold_start_const_period']
-                  and hours_since_init <= lpo_options['accumulation_hours'] and lpo_options['cold_start_mode']):
-                beginning_of_accumulation_time = begin_time
-                end_of_accumulation_time = end_of_accumulation_time0
-            else:
-                end_of_accumulation_time = end_of_accumulation_time0
-                beginning_of_accumulation_time = end_of_accumulation_time0 - dt.timedelta(hours=lpo_options['accumulation_hours'])
-
-            hours_to_divide = (end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0
-
-
-            #beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
-            print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
-                    + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
-
-            try:
-
-                accumulation_hours = int((end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0)
-                dt_list = [beginning_of_accumulation_time
-                    + dt.timedelta(hours=x) for x in np.arange(0,accumulation_hours
-                                                      + dataset['data_time_interval'],dataset['data_time_interval']).astype('double')]
-
-                ## Get accumulated rain. # So far used only for model run, e.g., CFS.
-                data_collect = []
-                count = 0
-
-                dataset['datetime_init'] = begin_time
-                for this_dt in reversed(dt_list):
-                    DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
-                    DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
-                    DATA_RAW['data'][~np.isfinite(DATA_RAW['data'])] = 0.0
-                    if count < 1:
-                        data_collect = DATA_RAW['data'].copy()
-                    else:
-                        data_collect += DATA_RAW['data']
-                    count += 1
-
-                DATA_RUNNING = (data_collect/count) * lpo_options['multiply_factor'] # Get to the units you want for objects.
-                print('Running mean done.',flush=True)
-
-                ## Filter the data
-                DATA_FILTERED = scipy.ndimage.gaussian_filter(DATA_RUNNING, lpo_options['filter_stdev']
-                    , order=0, output=None, mode='reflect', cval=0.0, truncate=lpo_options['filter_n_stdev_width'])
-                print('filter done.',flush=True)
-
-                ## Get LP objects.
-                label_im = lpt.helpers.identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
-                OBJ = lpt.helpers.calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
-                            , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
-                            , end_of_accumulation_time0, verbose=True)
-                OBJ['units_inst'] = dataset['field_units']
-                OBJ['units_running'] = lpo_options['field_units']
-                OBJ['units_filtered'] = lpo_options['field_units']
-
-                print('objects properties.',flush=True)
-
-                """
-                Object Output files
-                """
-
-                os.makedirs(objects_dir, exist_ok = True)
-                lpt.lptio.lp_objects_output_ascii(objects_fn, OBJ)
-                lpt.lptio.lp_objects_output_netcdf(objects_fn + '.nc', OBJ)
-
-                """
-                Object Plot
-                """
-                if plotting['do_plotting']:
-                    plt.figure(1)
-                    fig1.clf()
-                    ax1 = fig1.add_subplot(111)
-                    lpt.plotting.plot_rain_map_with_filtered_contour(ax1
-                            , DATA_RUNNING, OBJ
-                            , plotting, lpo_options)
-                    ax1.set_title((dataset['label'].upper()
-                                    + str(lpo_options['accumulation_hours'])
-                                    + '-h Rain Rate and LP Objects\nEnding ' + YMDH_fancy))
-
-                    img_dir1 = (output['img_dir'] + '/' + dataset['label']
-                                    + '/' + filter_str(lpo_options['filter_stdev'])
-                                    + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
-                                    + '/thresh' + str(int(lpo_options['thresh']))
-                                    + '/objects/'
-                                    + end_of_accumulation_time0.strftime(output['sub_directory_format']))
-
-                    os.makedirs(img_dir1, exist_ok = True)
-                    file_out_base = (img_dir1 + '/lp_objects_' + dataset['label'] + '_' + YMDH)
-                    lpt.plotting.print_and_save(file_out_base)
-                    fig1.clf()
-
-            except FileNotFoundError:
-                print('Data not yet available up to this point. Skipping.')
 
     ##
     ## Do LPO mask, if specified.
