@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import ma
 import xarray as xr
+from netCDF4 import Dataset
 import struct
 import sys
 import os
