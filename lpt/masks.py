@@ -128,6 +128,40 @@ def get_mask_type_list(mask_arrays):
     return mask_type_list
 
 
+def get_masked_rain_at_time(this_dt, this_mask_array, dataset_dict):
+
+    ## Get rain
+    RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
+
+    precip = RAIN['data'][:]
+    precip[~np.isfinite(precip)] = 0.0
+    precip[precip < -0.01] = 0.0
+    precip[this_mask_array.toarray() < 0.5] = 0.0
+
+    mask_array_with_rain = csr_matrix(precip, dtype='d')
+
+    return mask_array_with_rain
+
+
+def add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=1):
+
+    mask_arrays_new = mask_arrays.copy()
+
+    fields = [*mask_arrays]
+    fields = [x for x in fields if 'mask' in x]
+    for field in fields:
+        new_field = field + '_with_rain'
+        # mask_arrays_new[new_field] = mask_arrays[field]
+
+        #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
+        with Pool(nproc) as p:
+            r = p.starmap(get_masked_rain_at_time, tqdm([(mask_times[tt], mask_arrays[field][tt], dataset_dict) for tt in range(len(mask_times))]))
+            mask_arrays_new[new_field] = r #[csr_matrix(x) for x in r]
+        # mask_arrays_new[new_field] = r
+
+    return mask_arrays_new
+
+
 def get_volrain_at_time(this_dt, this_mask_array, AREA, dataset_dict):
 
     ## Initialize
@@ -154,21 +188,6 @@ def get_volrain_at_time(this_dt, this_mask_array, AREA, dataset_dict):
 
     return this_volrain
 
-
-def add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=1):
-
-    mask_arrays_new = mask_arrays.copy()
-
-    fields = [*mask_arrays]
-    fields = [x for x in fields if 'mask' in x]
-    for field in fields:
-        new_field = field + '_with_rain'
-        mask_arrays_new[new_field] = mask_arrays[field]
-        # DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
-        # DSnew[field].setncattr('units','1')
-
-
-    return mask_arrays_new
 
 def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict, nproc=1):
 
