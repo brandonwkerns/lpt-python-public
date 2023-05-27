@@ -73,6 +73,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , dataset_dict = dataset
             , calc_with_filter_radius = lpo_options['mask_calc_with_filter_radius']
             , cold_start_mode = lpo_options['cold_start_mode']
+            , multiply_factor = lpo_options['multiply_factor']
             , calc_with_accumulation_period = lpo_options['mask_calc_with_accumulation_period']
             , coarse_grid_factor = lpo_options['mask_coarse_grid_factor']
             , memory_target_mb = lpo_options['target_memory_for_writing_masks_MB']
@@ -246,6 +247,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
+            , multiply_factor = lpo_options['multiply_factor']
             , begin_lptid = lpt_options['individual_masks_begin_lptid']
             , end_lptid = lpt_options['individual_masks_end_lptid']
             , mjo_only = lpt_options['individual_masks_mjo_only']
@@ -274,6 +276,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
+            , multiply_factor = lpo_options['multiply_factor']
             , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
             , nproc = lpt_options['mask_n_cores'])
@@ -299,6 +302,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
+            , multiply_factor = lpo_options['multiply_factor']
             , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
             , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
             , nproc = lpt_options['mask_n_cores']
