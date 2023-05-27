@@ -154,6 +154,9 @@ def get_volrain_at_time(this_dt, this_mask_array, AREA, dataset_dict):
 
     return this_volrain
 
+def add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=nproc):
+
+    return mask_arrays
 
 def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict, nproc=1):
 
@@ -260,7 +263,7 @@ def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
 
 def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'
-    , do_volrain=False, dataset_dict = {}
+    , do_include_rain_rates=False, do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
@@ -368,6 +371,11 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
             else:
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
+
+    ## Include masked rain rates, if specified.
+    if do_include_rain_rates:
+        print('Adding masked rainfall.', flush=True)
+        mask_arrays = add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=nproc)
 
     ## Do volumetric rain.
     if do_volrain:
