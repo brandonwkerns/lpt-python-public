@@ -154,9 +154,21 @@ def get_volrain_at_time(this_dt, this_mask_array, AREA, dataset_dict):
 
     return this_volrain
 
-def add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=nproc):
 
-    return mask_arrays
+def add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=1):
+
+    mask_arrays_new = mask_arrays.copy()
+
+    fields = [*mask_arrays]
+    fields = [x for x in fields if 'mask' in x]
+    for field in fields:
+        new_field = field + '_with_rain'
+        mask_arrays_new[new_field] = mask_arrays[field]
+        # DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
+        # DSnew[field].setncattr('units','1')
+
+
+    return mask_arrays_new
 
 def mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays, dataset_dict, nproc=1):
 
@@ -373,7 +385,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
 
     ## Include masked rain rates, if specified.
-    if do_include_rain_rates:
+    if True: #do_include_rain_rates:
         print('Adding masked rainfall.', flush=True)
         mask_arrays = add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=nproc)
 
@@ -893,6 +905,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
             else:
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
+
+    ## Include masked rain rates, if specified.
+    if True: #do_include_rain_rates:
+        print('Adding masked rainfall.', flush=True)
+        mask_arrays = add_masked_rain_rates(mask_arrays, grand_mask_times, dataset_dict, nproc=nproc)
+
 
     ## Do volumetric rain.
     if do_volrain:
