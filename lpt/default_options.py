@@ -72,6 +72,7 @@ lpo_options['cold_start_const_period'] = 24.0  # hours
 
 ## LPO Mask Settings.
 lpo_options['do_lpo_mask'] = False                         # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
+lpo_options['mask_include_rain_rates'] = True              # Whether to include masked rain rates in mask output files.
 lpo_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
 lpo_options['mask_calc_with_filter_radius'] = True         # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpo_options['mask_calc_with_accumulation_period'] = True   # Whether to calculate the mask with filter variables. (Takes much longer to run)
@@ -98,6 +99,7 @@ lpt_options['individual_masks_mjo_only'] = False          # If True, then only d
 lpt_options['do_lpt_composite_mask'] = False              # Whether to generate mask file for all LPT systems combined.
 lpt_options['do_mjo_lpt_composite_mask'] = False          # Whether to generate mask file for all MJO LPT systems combined.
 lpt_options['do_non_mjo_lpt_composite_mask'] = False      # Whether to generate mask file for all non MJO LPT systems combined.
+lpt_options['mask_include_rain_rates'] = True             # Whether to include masked rain rates in mask output files.
 lpt_options['mask_calc_volrain'] = True                   # Whether to calculate a volumetric rain and include with mask files.
 lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
