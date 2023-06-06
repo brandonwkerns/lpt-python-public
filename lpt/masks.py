@@ -403,7 +403,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
-        VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict, nproc=nproc)
+        VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
     ## Include masked rain rates, if specified.
     if include_rain_rates:
@@ -482,7 +482,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=True
+    , mask_output_dir = '.', verbose=False
     , do_volrain=False, include_rain_rates = False
     , dataset_dict = {}
     , calc_with_filter_radius = True
@@ -543,31 +543,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         duration_hours = int((dt1 - dt0).total_seconds()/3600)
         mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
         mask_arrays={} #Start with empty dictionary
-
-        ## Include some basic LPT info for user friendliness.
-        lptidx = [ii for ii in range(len(TC['lptid'])) if this_lpt_id == TC['lptid'][ii]][0]
-
-        basic_lpt_info_field_list = ['centroid_lon','centroid_lat','area'
-                    ,'largest_object_centroid_lon','largest_object_centroid_lat'
-                    ,'max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']
-
-        # Time varying properties
-        for var in basic_lpt_info_field_list:
-            mask_arrays[var] = MISSING * np.ones(len(mask_times))
-
-        for ttt in range(TC['i1'][lptidx],TC['i2'][lptidx]+1):
-            this_time_indx = [ii for ii in range(len(mask_times)) if TC['datetime'][ttt] == mask_times[ii]]
-            if len(this_time_indx) > 0:
-                for var in basic_lpt_info_field_list:
-                    mask_arrays[var][this_time_indx] = TC[var][ttt]
-
-        # Bulk properties
-        for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-            mask_arrays[var] = TC[var][0]
-        mask_arrays['volrain'] = MISSING
-        mask_arrays['volrain_global'] = MISSING
 
         for lp_object_id in lp_object_id_list:
 
@@ -664,8 +639,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Do volumetric rain.
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
-            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict,nproc=nproc)
-
+            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
         ## Include masked rain rates, if specified.
         if include_rain_rates:
@@ -676,6 +650,33 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 new_field = field + '_with_rain'
                 print(new_field)
                 mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
+
+        ##########################################################
+        ## Include some basic LPT info for user friendliness.  ###
+        ##########################################################
+        lptidx = [ii for ii in range(len(TC['lptid'])) if this_lpt_id == TC['lptid'][ii]][0]
+
+        basic_lpt_info_field_list = ['centroid_lon','centroid_lat','area'
+                    ,'largest_object_centroid_lon','largest_object_centroid_lat'
+                    ,'max_filtered_running_field','max_running_field','max_inst_field'
+                    ,'min_filtered_running_field','min_running_field','min_inst_field'
+                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']
+
+        # Time varying properties
+        for var in basic_lpt_info_field_list:
+            mask_arrays[var] = MISSING * np.ones(len(mask_times))
+
+        for ttt in range(TC['i1'][lptidx],TC['i2'][lptidx]+1):
+            this_time_indx = [ii for ii in range(len(mask_times)) if TC['datetime'][ttt] == mask_times[ii]]
+            if len(this_time_indx) > 0:
+                for var in basic_lpt_info_field_list:
+                    mask_arrays[var][this_time_indx] = TC[var][ttt]
+
+        # Bulk properties
+        for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+            mask_arrays[var] = TC[var][0]
+        ##########################################################
 
 
         ##
@@ -747,7 +748,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             fields = [*mask_arrays]
             fields = [x for x in fields if 'mask' in x]
             for field in fields:
-                DSnew.createVariable(field,'i1',('time','lat','lon'),zlib=True,complevel=4)
+                dtype = 'i1'
+                if 'with_rain' in field:
+                    dtype = 'd'
+                DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
                 DSnew[field].setncattr('units','1')
 
         ## Writing mask variables.
