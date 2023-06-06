@@ -128,38 +128,30 @@ def get_mask_type_list(mask_arrays):
     return mask_type_list
 
 
-def get_masked_rain_at_time(this_dt, this_mask_array, dataset_dict):
+def get_masked_rain_at_time(this_dt, this_mask_array, multiply_factor, dataset_dict):
 
-    ## Get rain
-    RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
-
-    precip = RAIN['data'][:]
-    precip[~np.isfinite(precip)] = 0.0
+    #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
+    precip = csr_matrix(np.nan_to_num(
+        lpt.readdata.readdata(this_dt,
+                              dataset_dict,
+                              verbose=False)['data'][:],   # Override verbose
+                              nan=0.0) * multiply_factor) 
     precip[precip < -0.01] = 0.0
-    precip[this_mask_array.toarray() < 0.5] = np.nan
+    precip[this_mask_array < 0.5] = np.nan
 
-    mask_array_with_rain = csr_matrix(precip, dtype='d')
-
-    return mask_array_with_rain
+    return precip
 
 
-def add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=1):
+def add_masked_rain_rates(mask_array, mask_times, multiply_factor, dataset_dict, nproc=1):
 
-    mask_arrays_new = mask_arrays.copy()
+    ## Parallelize in time.
+    with Pool(nproc) as p:
+        mask_array_new = p.starmap(get_masked_rain_at_time, tqdm([(mask_times[tt],
+                                    mask_array[tt],
+                                    multiply_factor,
+                                    dataset_dict) for tt in range(len(mask_times))]))
 
-    fields = [*mask_arrays]
-    fields = [x for x in fields if 'mask' in x]
-    for field in fields:
-        new_field = field + '_with_rain'
-        # mask_arrays_new[new_field] = mask_arrays[field]
-
-        #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
-        with Pool(nproc) as p:
-            r = p.starmap(get_masked_rain_at_time, tqdm([(mask_times[tt], mask_arrays[field][tt], dataset_dict) for tt in range(len(mask_times))]))
-            mask_arrays_new[new_field] = r #[csr_matrix(x) for x in r]
-        # mask_arrays_new[new_field] = r
-
-    return mask_arrays_new
+    return mask_array_new
 
 
 def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset_dict):
@@ -212,8 +204,9 @@ def mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays
 
     ## Masked
     for field in mask_type_list:
-        VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser']*interval_hours for x in r]
-        VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])
+        if not 'with_rain' in field:   # Skip the ones that are masked rain rates.
+            VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser']*interval_hours for x in r]
+            VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])
 
     return VOLRAIN
 
@@ -934,16 +927,21 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             else:
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
 
-    ## Include masked rain rates, if specified.
-    if True: #do_include_rain_rates:
-        print('Adding masked rainfall.', flush=True)
-        mask_arrays = add_masked_rain_rates(mask_arrays, grand_mask_times, dataset_dict, nproc=nproc)
-
-
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
         VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
+
+    ## Include masked rain rates, if specified.
+    if True: #do_include_rain_rates:
+        print('Adding masked rainfall.', flush=True)
+        fields = [*mask_arrays]
+        fields = [x for x in fields if 'mask' in x]
+        for field in fields:
+            new_field = field + '_with_rain'
+            print(new_field)
+            mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], grand_mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
 
     ##
     ## Output.
