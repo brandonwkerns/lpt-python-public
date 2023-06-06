@@ -290,7 +290,7 @@ def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
 
 def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'
-    , do_include_rain_rates=False, do_volrain=False, dataset_dict = {}
+    , include_rain_rates=False, do_volrain=False, dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
@@ -400,15 +400,21 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
             else:
                 mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
 
-    ## Include masked rain rates, if specified.
-    if True: #do_include_rain_rates:
-        print('Adding masked rainfall.', flush=True)
-        mask_arrays = add_masked_rain_rates(mask_arrays, mask_times, dataset_dict, nproc=nproc)
-
     ## Do volumetric rain.
     if do_volrain:
         print('Now calculating the volumetric rain.', flush=True)
         VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict, nproc=nproc)
+
+    ## Include masked rain rates, if specified.
+    if include_rain_rates:
+        print('Adding masked rainfall.', flush=True)
+        fields = [*mask_arrays]
+        fields = [x for x in fields if 'mask' in x]
+        for field in fields:
+            new_field = field + '_with_rain'
+            print(new_field)
+            mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
 
     ##
     ## Output.
@@ -477,7 +483,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
-    , do_volrain=False, dataset_dict = {}
+    , do_volrain=False, include_rain_rates = False
+    , dataset_dict = {}
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
@@ -660,6 +667,17 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             VOLRAIN = mask_calc_volrain(mask_times,interval_hours,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
 
+        ## Include masked rain rates, if specified.
+        if include_rain_rates:
+            print('Adding masked rainfall.', flush=True)
+            fields = [*mask_arrays]
+            fields = [x for x in fields if 'mask' in x]
+            for field in fields:
+                new_field = field + '_with_rain'
+                print(new_field)
+                mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
+
         ##
         ## Output.
         ##
@@ -691,7 +709,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
             print(mask_var, mask_arrays[mask_var])
             data_dict[mask_var] = (['n',], [mask_arrays[mask_var],])
-
 
         ## Create XArray Dataset
         DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
@@ -754,7 +771,8 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
     , mask_output_dir = '.', verbose=True
-    , do_volrain=False, dataset_dict = {}
+    , do_volrain=False, include_rain_rates = False
+    , dataset_dict = {}
     , cold_start_mode = False
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
@@ -933,7 +951,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
     ## Include masked rain rates, if specified.
-    if True: #do_include_rain_rates:
+    if include_rain_rates:
         print('Adding masked rainfall.', flush=True)
         fields = [*mask_arrays]
         fields = [x for x in fields if 'mask' in x]
