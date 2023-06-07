@@ -296,6 +296,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     , cold_start_mode = False
     , coarse_grid_factor = 0
     , multiply_factor = 1.0
+    , units = '1'
     , memory_target_mb = 1000
     , nproc = 1):
 
@@ -457,10 +458,12 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     fields = [x for x in fields if 'mask' in x]
     for field in fields:
         dtype = 'i1'
+        this_units = '1'
         if 'with_rain' in field:
-            dtype = 'd'
+            dtype = 'float32'
+            this_units = units
         DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
-        DSnew[field].setncattr('units','1')
+        DSnew[field].setncattr('units',this_units)
     DSnew.close()
 
     ## Writing mask variables.
@@ -490,6 +493,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , cold_start_mode = False
     , begin_lptid = 0, end_lptid = 10000, mjo_only = False
     , multiply_factor = 1.0
+    , units = '1'
     , coarse_grid_factor = 0
     , memory_target_mb = 1000
     , nproc = 1):
@@ -749,10 +753,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             fields = [x for x in fields if 'mask' in x]
             for field in fields:
                 dtype = 'i1'
+                this_units = '1'
                 if 'with_rain' in field:
-                    dtype = 'd'
+                    dtype = 'float32'
+                    this_units = units
                 DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
-                DSnew[field].setncattr('units','1')
+                DSnew[field].setncattr('units',this_units)
 
         ## Writing mask variables.
         ## Do them one at a time so it uses less memory while writing them.
@@ -781,6 +787,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , multiply_factor = 1.0
+    , units = '1'
     , coarse_grid_factor = 0
     , subset='all'
     , memory_target_mb = 1000
@@ -1012,10 +1019,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         fields = [x for x in fields if 'mask' in x]
         for field in fields:
             dtype = 'i1'
+            this_units = '1'
             if 'with_rain' in field:
-                dtype = 'd'
+                dtype = 'float32'
+                this_units = units
             DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
-            DSnew[field].setncattr('units','1')
+            DSnew[field].setncattr('units',this_units)
 
     ## Writing mask variables.
     ## Do them one at a time so it uses less memory while writing them.
