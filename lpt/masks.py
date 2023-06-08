@@ -131,15 +131,15 @@ def get_mask_type_list(mask_arrays):
 def get_masked_rain_at_time(this_dt, this_mask_array, multiply_factor, dataset_dict):
 
     #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
-    precip = csr_matrix(np.nan_to_num(
+    precip = np.nan_to_num(
         lpt.readdata.readdata(this_dt,
                               dataset_dict,
                               verbose=False)['data'][:],   # Override verbose
-                              nan=0.0) * multiply_factor) 
+                              nan=0.0) * multiply_factor
     precip[precip < -0.01] = 0.0
-    precip[this_mask_array < 0.5] = np.nan
+    precip[this_mask_array.toarray() < 0.5] = 0.0
 
-    return precip
+    return csr_matrix(precip)
 
 
 def add_masked_rain_rates(mask_array, mask_times, multiply_factor, dataset_dict, nproc=1):
@@ -211,7 +211,7 @@ def mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays
     return VOLRAIN
 
 
-def add_mask_var_to_netcdf(fn, mask_var, data, memory_target_mb = 1000):
+def add_mask_var_to_netcdf(fn, mask_var_name, data, memory_target_mb = 1000, data_mask = None):
     """
     Append a 3-D mask variable to a NetCDF file.
     FILE MUST EXIST AND HAVE mask_var DEFINED!!!
@@ -240,13 +240,18 @@ def add_mask_var_to_netcdf(fn, mask_var, data, memory_target_mb = 1000):
     batch_n_time = max(1,int(np.floor(memory_target_mb/(2*memory_of_dense_single_time))))
 
     for tt1 in range(0,len(data),batch_n_time):
-        DS = Dataset(fn, 'r+')
-        tt2 = min(tt1 + batch_n_time, len(data))
-        if 'with_rain' in mask_var:
-            DS[mask_var][tt1:tt2,:,:] = np.array([data[tt].toarray() for tt in range(tt1,tt2)])
-        else:
-            DS[mask_var][tt1:tt2,:,:] = np.array([data[tt].toarray() for tt in range(tt1,tt2)], dtype='bool_')
-        DS.close()
+        with Dataset(fn, 'r+') as DS:
+            tt2 = min(tt1 + batch_n_time, len(data))
+            if 'with_rain' in mask_var_name:
+                if data_mask == None:
+                    data_to_write = np.array([data[tt].toarray() for tt in range(tt1,tt2)], dtype=np.float32)
+                else:
+                    data_to_write = np.array([data[tt].toarray() for tt in range(tt1,tt2)], dtype=np.float32)
+                    data_to_write[np.logical_not(np.array([data_mask[tt].toarray() for tt in range(tt1,tt2)], dtype=np.float32))] = np.nan
+                DS[mask_var_name][tt1:tt2,:,:] = data_to_write
+
+            else:
+                DS[mask_var_name][tt1:tt2,:,:] = np.array([data[tt].toarray() for tt in range(tt1,tt2)], dtype='bool_')
 
 
 def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
@@ -317,7 +322,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
         dt0 = dt_begin
         dt_idx0 = 0
     duration_hours = int((dt1 - dt0).total_seconds()/3600)
-    mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
+    mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+interval_hours,interval_hours)]
 
     mask_arrays={} #Start with empty dictionary
 
@@ -406,15 +411,6 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
         print('Now calculating the volumetric rain.', flush=True)
         VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
-    ## Include masked rain rates, if specified.
-    if include_rain_rates:
-        print('Adding masked rainfall.', flush=True)
-        fields = [*mask_arrays]
-        fields = [x for x in fields if 'mask' in x]
-        for field in fields:
-            new_field = field + '_with_rain'
-            print(new_field)
-            mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
 
 
     ##
@@ -459,9 +455,6 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     for field in fields:
         dtype = 'i1'
         this_units = '1'
-        if 'with_rain' in field:
-            dtype = 'float32'
-            this_units = units
         DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
         DSnew[field].setncattr('units',this_units)
     DSnew.close()
@@ -472,6 +465,28 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
         print('- ' + field)
         add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
                             , memory_target_mb = memory_target_mb)
+
+    ## Include masked rain rates, if specified.
+    if include_rain_rates:
+        print('Adding masked rainfall.', flush=True)
+        fields = [*mask_arrays]
+        fields = [x for x in fields if 'mask' in x]
+        dtype = 'float32'
+        this_units = units
+
+        for field in fields:
+            new_field = field + '_with_rain'
+            print(new_field)
+            mask_array_with_rain = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
+            with Dataset(fn_out, 'a') as DSnew:
+                DSnew.createVariable(new_field,dtype,('time','lat','lon'),zlib=True,complevel=4)
+                DSnew[new_field].setncattr('units',this_units)
+            add_mask_var_to_netcdf(fn_out, new_field, mask_array_with_rain
+                                , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
+
+        print('Done adding masked rainfall.')
+
 
 ################################################################################
 ################################################################################
@@ -545,7 +560,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         dt11 = dt.datetime.strptime(str(int(np.max(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
         dt1 = cftime.datetime(dt11.year,dt11.month,dt11.day,dt11.hour,calendar=TC['datetime'][0].calendar)
         duration_hours = int((dt1 - dt0).total_seconds()/3600)
-        mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+1,interval_hours)]
+        mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+interval_hours,interval_hours)]
         mask_arrays={} #Start with empty dictionary
 
         for lp_object_id in lp_object_id_list:
@@ -644,16 +659,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
             VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
-
-        ## Include masked rain rates, if specified.
-        if include_rain_rates:
-            print('Adding masked rainfall.', flush=True)
-            fields = [*mask_arrays]
-            fields = [x for x in fields if 'mask' in x]
-            for field in fields:
-                new_field = field + '_with_rain'
-                print(new_field)
-                mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
 
 
         ##########################################################
@@ -754,9 +759,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             for field in fields:
                 dtype = 'i1'
                 this_units = '1'
-                if 'with_rain' in field:
-                    dtype = 'float32'
-                    this_units = units
                 DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
                 DSnew[field].setncattr('units',this_units)
 
@@ -766,6 +768,28 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             print('- ' + field)
             add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
                                 , memory_target_mb = memory_target_mb)
+
+        ## Include masked rain rates, if specified.
+        if include_rain_rates:
+            print('Adding masked rainfall.', flush=True)
+            fields = [*mask_arrays]
+            fields = [x for x in fields if 'mask' in x]
+            dtype = 'float32'
+            this_units = units
+
+            for field in fields:
+                new_field = field + '_with_rain'
+                print(new_field)
+                mask_array_with_rain = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
+                with Dataset(fn_out, 'a') as DSnew:
+                    DSnew.createVariable(new_field,dtype,('time','lat','lon'),zlib=True,complevel=4)
+                    DSnew[new_field].setncattr('units',this_units)
+                add_mask_var_to_netcdf(fn_out, new_field, mask_array_with_rain
+                                    , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
+
+            print('Done adding masked rainfall.')
+
 
 
 ################################################################################
@@ -961,16 +985,6 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         print('Now calculating the volumetric rain.', flush=True)
         VOLRAIN = mask_calc_volrain(grand_mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
-    ## Include masked rain rates, if specified.
-    if include_rain_rates:
-        print('Adding masked rainfall.', flush=True)
-        fields = [*mask_arrays]
-        fields = [x for x in fields if 'mask' in x]
-        for field in fields:
-            new_field = field + '_with_rain'
-            print(new_field)
-            mask_arrays[new_field] = add_masked_rain_rates(mask_arrays[field], grand_mask_times, multiply_factor, dataset_dict, nproc=nproc)
-
 
     ##
     ## Output.
@@ -1020,9 +1034,6 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         for field in fields:
             dtype = 'i1'
             this_units = '1'
-            if 'with_rain' in field:
-                dtype = 'float32'
-                this_units = units
             DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
             DSnew[field].setncattr('units',this_units)
 
@@ -1032,3 +1043,25 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         print('- ' + field)
         add_mask_var_to_netcdf(fn_out, field, mask_arrays[field]
                             , memory_target_mb = memory_target_mb)
+
+    ## Include masked rain rates, if specified.
+    if include_rain_rates:
+        print('Adding masked rainfall.', flush=True)
+        fields = [*mask_arrays]
+        fields = [x for x in fields if 'mask' in x]
+        dtype = 'float32'
+        this_units = units
+
+        for field in fields:
+            new_field = field + '_with_rain'
+            print(new_field)
+            mask_array_with_rain = add_masked_rain_rates(mask_arrays[field], grand_mask_times, multiply_factor, dataset_dict, nproc=nproc)
+
+            with Dataset(fn_out, 'a') as DSnew:
+                DSnew.createVariable(new_field,dtype,('time','lat','lon'),zlib=True,complevel=4)
+                DSnew[new_field].setncattr('units',this_units)
+            add_mask_var_to_netcdf(fn_out, new_field, mask_array_with_rain
+                                , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
+
+        print('Done adding masked rainfall.')
+
