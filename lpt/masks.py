@@ -196,7 +196,10 @@ def mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays
 
     #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
     with Pool(nproc) as p:
-        r = p.starmap(get_volrain_at_time, tqdm([(mask_times[tt], {key:value[tt] for (key,value) in mask_arrays.items()}, multiply_factor, AREA, dataset_dict) for tt in range(len(mask_times))]))
+        r = p.starmap(get_volrain_at_time,
+                      tqdm([(mask_times[tt], 
+                             {key:value[tt] for (key,value) in mask_arrays.items()}, 
+                             multiply_factor, AREA, dataset_dict) for tt in range(len(mask_times))]))
 
     ## Put the outputs into lists for output.
     VOLRAIN['volrain_global_tser'] = [x['volrain_global_tser']*interval_hours for x in r]
@@ -343,13 +346,11 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
         ## Initialize the mask arrays dictionary if this is the first LP object.
         ## First, I need the grid information. Get this from the first LP object.
         if len(mask_arrays) < 1:
-            lon = DS['grid_lon'][:]
-            lat = DS['grid_lat'][:]
+            mask_lon = DS['grid_lon'][:]
+            mask_lat = DS['grid_lat'][:]
             AREA = DS['grid_area'][:]
-            mask_arrays['lon'] = DS['grid_lon'][:]
-            mask_arrays['lat'] = DS['grid_lat'][:]
 
-            mask_arrays_shape2d = (len(lat), len(lon))
+            mask_arrays_shape2d = (len(mask_lat), len(mask_lon))
             mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(mask_times))]
             if accumulation_hours > 0 and calc_with_accumulation_period:
                 mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(mask_times))]
@@ -421,8 +422,8 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     coords_dict = {}
     coords_dict['n'] = (['n',], [1,])
     coords_dict['time'] = (['time',], mask_times)
-    coords_dict['lon'] = (['lon',], lon, {'units':'degrees_east'})
-    coords_dict['lat'] = (['lat',], lat, {'units':'degrees_north'})
+    coords_dict['lon'] = (['lon',], mask_lon, {'units':'degrees_east'})
+    coords_dict['lat'] = (['lat',], mask_lat, {'units':'degrees_north'})
 
     ## Set Data
     data_dict = {}
@@ -591,13 +592,11 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             ## Initialize the mask arrays dictionary if this is the first LP object.
             ## First, I need the grid information. Get this from the first LP object.
             if not 'lon' in mask_arrays:
-                lon = DS['grid_lon'][:]
-                lat = DS['grid_lat'][:]
+                mask_lon = DS['grid_lon'][:]
+                mask_lat = DS['grid_lat'][:]
                 AREA = DS['grid_area'][:]
-                mask_arrays['lon'] = DS['grid_lon'][:]
-                mask_arrays['lat'] = DS['grid_lat'][:]
 
-                mask_arrays_shape2d = (len(lat), len(lon))
+                mask_arrays_shape2d = (len(mask_lat), len(mask_lon))
                 mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(mask_times))]
                 if accumulation_hours > 0 and calc_with_accumulation_period:
                     mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(mask_times))]
@@ -696,8 +695,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         coords_dict = {}
         coords_dict['n'] = (['n',], [1,])
         coords_dict['time'] = (['time',], mask_times)
-        coords_dict['lon'] = (['lon',], lon, {'units':'degrees_east'})
-        coords_dict['lat'] = (['lat',], lat, {'units':'degrees_north'})
+        coords_dict['lon'] = (['lon',], mask_lon, {'units':'degrees_east'})
+        coords_dict['lat'] = (['lat',], mask_lat, {'units':'degrees_north'})
 
         ## Set Data
         data_dict = {}
