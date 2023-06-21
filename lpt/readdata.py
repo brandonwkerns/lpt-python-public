@@ -101,7 +101,7 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
     ## -- Add an elif block here for new datasets. --
 
     else:
-        print(('ERROR! '+dataset['raw_data_format'] + ' is not a valid raw_data_format!'), flush=True)
+        print(('ERROR! '+dataset_options_dict['raw_data_format'] + ' is not a valid raw_data_format!'), flush=True)
         DATA = None
 
     return DATA
