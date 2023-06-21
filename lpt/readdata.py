@@ -55,7 +55,7 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
                 , fmt = dataset_options_dict['file_name_format']
                 , verbose = verbose_actual)
 
-    if dataset_options_dict['raw_data_format'] == 'generic_netcdf_with_multiple_times':
+    elif dataset_options_dict['raw_data_format'] == 'generic_netcdf_with_multiple_times':
         variable_names = (dataset_options_dict['longitude_variable_name']
                 , dataset_options_dict['latitude_variable_name']
                 , dataset_options_dict['time_variable_name']
