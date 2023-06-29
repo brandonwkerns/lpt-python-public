@@ -565,7 +565,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         mask_arrays={} #Start with empty dictionary
 
         for lp_object_id in lp_object_id_list:
-
             nnnn = int(str(int(lp_object_id))[-4:])
             try:
                 dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
@@ -591,7 +590,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             ## Initialize the mask arrays dictionary if this is the first LP object.
             ## First, I need the grid information. Get this from the first LP object.
-            if not 'lon' in mask_arrays:
+            if not 'mask_at_end_time' in mask_arrays:
                 mask_lon = DS['grid_lon'][:]
                 mask_lat = DS['grid_lat'][:]
                 AREA = DS['grid_area'][:]
