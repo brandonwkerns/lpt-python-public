@@ -1075,8 +1075,12 @@ def get_list_of_path_graphs(G):
         iii+=1
         print(('    root ' + str(iii) + ' of max ' + str(len(roots)-1) + '.'), flush=True)
         for leaf in leaves:
-            for path in nx.all_simple_paths(G, source=root, target=leaf):
-                Plist.append(G.subgraph(path).copy())  # Add to list.
+            ## HACK: I really should check if the paths connect here.
+            ## HACK: Use try/except for now, it will skip it if no path can be found.
+            try:
+                Plist.append(G.subgraph(nx.shortest_path(G, source=root, target=leaf)).copy())
+            except:
+                continue
 
     return Plist
 
