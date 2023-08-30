@@ -208,8 +208,7 @@ def west_east_divide_and_conquer(datetime_list, lon, opts, do_plotting=False, pl
 
         if ( len(statsE.index) < 1 or len(statsW.index) < 1):
             break
-
-        statsEW = statsE.append(statsW)
+        statsEW = pd.concat([statsE, statsW],ignore_index=True)
         statsEW.sort_values('begin_indx',inplace=True)
         statsEW.index = range(len(statsEW.index))
 
@@ -428,7 +427,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
                 if east_prop_group_df is None:
                     east_prop_group_df = east_prop_df
                 else:
-                    east_prop_group_df = east_prop_group_df.append(east_prop_df)
+                    east_prop_group_df = pd.concat([east_prop_group_df,east_prop_df],ignore_index=True)
 
         if east_prop_group_df is None:
 
