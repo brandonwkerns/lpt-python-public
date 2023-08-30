@@ -527,7 +527,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
     ## Read Stitched data.
     TC = lpt.lptio.read_lpt_systems_netcdf(lpt_systems_file)
-    
     unique_lpt_ids = np.unique(TC['lptid'])
 
     if mjo_only:
@@ -682,7 +681,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
         # Bulk properties
         for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-            mask_arrays[var] = TC[var][0]
+            mask_arrays[var] = TC[var][this_lpt_idx]
         ##########################################################
 
 
