@@ -159,7 +159,7 @@ lpo_options['do_lpo_mask'] = False
 
 ## Options for the LPO mask output.
 lpo_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
-lpt_options['mask_include_rain_rates'] = True              # Whether to include masked rain rates in mask output files.
+lpo_options['mask_include_rain_rates'] = True              # Whether to include masked rain rates in mask output files.
 lpo_options['mask_calc_with_filter_radius'] = True         # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
 lpo_options['mask_calc_with_accumulation_period'] = True   # Whether to calculate the mask with filter variables.
 lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
