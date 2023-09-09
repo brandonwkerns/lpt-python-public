@@ -178,10 +178,18 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
 
             timelon_rain = []
             for this_dt in time_list:
-                DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
-                lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
-                timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
+                try:
+                    DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
+                    lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
+                    timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
+                except:
+                    print('WARNING: Had issue with data file for {}. Using NaN for this time.'.format(str(this_dt)))
+                    timelon_rain.append([]) # Append empty for now. Fill in with NaN below.
 
+            lon_length = np.max([len(x) for x in timelon_rain])
+            ## Replace short rows with all NaN values.
+            timelon_rain = [np.full(lon_length, np.nan) if len(x) < lon_length else x for x in timelon_rain]
+            
             timelon_rain = np.array(timelon_rain)
             timelon_rain *= lpo_options['multiply_factor'] / 24.0
 
