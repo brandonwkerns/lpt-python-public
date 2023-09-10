@@ -162,22 +162,30 @@ def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset
     mask_type_list = get_mask_type_list(this_mask_array)
 
     ## Get rain
-    RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
+    try:
+        RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
 
-    precip = RAIN['data'][:] * multiply_factor
-    precip[~np.isfinite(precip)] = 0.0
-    precip[precip < -0.01] = 0.0
+        precip = RAIN['data'][:] * multiply_factor
+        precip[~np.isfinite(precip)] = 0.0
+        precip[precip < -0.01] = 0.0
 
-    ## Global
-    this_volrain['volrain_global_tser'] = np.sum(precip * AREA)
+        
+        ## Global
+        this_volrain['volrain_global_tser'] = np.sum(precip * AREA)
 
-    ## Masked
-    for field in mask_type_list:
-        this_mask = this_mask_array[field].toarray()
-        this_mask[this_mask > 0] = 1.0
-        precip_masked = precip * this_mask
-        this_volrain[field.replace('mask','volrain')+'_tser'] = np.sum(precip_masked * AREA)
+        ## Masked
+        for field in mask_type_list:
+            this_mask = this_mask_array[field].toarray()
+            this_mask[this_mask > 0] = 1.0
+            precip_masked = precip * this_mask
+            this_volrain[field.replace('mask','volrain')+'_tser'] = np.sum(precip_masked * AREA)
 
+    ## If there is a problem reading the rain file (missint or corrupt), return NaN.
+    except:
+        this_volrain['volrain_global_tser'] = np.nan
+        for field in mask_type_list:
+            this_volrain[field.replace('mask','volrain')+'_tser'] = np.nan
+            
     return this_volrain
 
 
