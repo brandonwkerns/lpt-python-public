@@ -234,6 +234,7 @@ mjo_id_options['backtrack_allowance'] = 5.0                     # In degrees lon
 
 ## Whether to generate the LPO systems mask output, and which ones.
 lpt_options['do_lpt_individual_masks'] = False          # Whether to generate mask files for each LPT system.
+lpt_options['do_lpt_individual_group_masks'] = False    # Whether to generate mask files for each group of overlapping LPT systems.
 lpt_options['do_lpt_composite_mask'] = False            # Whether to generate mask file for all LPT systems combined.
 lpt_options['do_mjo_lpt_composite_mask'] = False        # Whether to generate mask file for all MJO LPT systems combined.
 lpt_options['do_non_mjo_lpt_composite_mask'] = False    # Whether to generate mask file for all non MJO LPT systems combined.
