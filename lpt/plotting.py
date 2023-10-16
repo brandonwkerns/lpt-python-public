@@ -205,8 +205,8 @@ def plot_timelon_with_lpt(ax2, dt_list, lon, timelon_rain, TIMECLUSTERS
         x2[abs(lat) > 15.0] = np.nan
         ax2.plot(x2, y2, '-', color=this_color, linewidth=2.0)
 
-        ax2.text(x[0], y[0], str(TIMECLUSTERS[ii]['lpt_id']), fontweight='bold', color='k',clip_on=True, fontsize=14, ha='center', va='top')
-        ax2.text(x[-1], y[-1], str(TIMECLUSTERS[ii]['lpt_id']), fontweight='bold', color='k',clip_on=True, fontsize=14, ha='center', va='bottom')
+        ax2.text(x[0], y[0], str(np.round(TIMECLUSTERS[ii]['lpt_id'],4)), fontweight='bold', color='k',clip_on=True, fontsize=14, ha='center', va='top')
+        ax2.text(x[-1], y[-1], str(np.round(TIMECLUSTERS[ii]['lpt_id'],4)), fontweight='bold', color='k',clip_on=True, fontsize=14, ha='center', va='bottom')
 
     ax2.set_xlim(lon_range)
     yticks = [x*86400 for x in range(0, (dt_list[-1] - dt_list[0]).days + 1 ,7)]
