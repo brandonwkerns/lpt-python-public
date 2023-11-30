@@ -146,7 +146,7 @@ def print_and_save(file_out_base):
 ####################################################################
 """
 
-def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_options, label_font_size=10):
+def plot_rain_map_with_filtered_contour(DATA_ACCUM, OBJ, plotting, lpo_options, label_font_size=10):
 
     proj0 = ccrs.PlateCarree(central_longitude=0)
 
@@ -165,7 +165,6 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_optio
     else:
         vmax = 50.0
         
-    fig = plt.figure(figsize=[10.0, 6.0])
     map1 = plot_map_background(plot_area)
     cmap = cmap_map(lambda x: x/2 + 0.5, plt.cm.jet)
     cmap.set_under(color='white')
@@ -174,13 +173,13 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_optio
 
     label_im = np.array(OBJ['label_im'])
     label_im[label_im > 0.5] = 1
-    Hobj = plt.contour(lon, lat, label_im, [0.5,], colors='k', linewidths=1.0,
+    Hobj = plt.contour(lon, lat, label_im, [0.5,], colors='k', linewidths=1.5,
                        transform=proj0)
 
     map1.plot(OBJ['lon'], OBJ['lat'], 'kx', markersize=7,
               transform=proj0)
 
-    cax = fig.add_axes([0.92, 0.2, 0.025, 0.6])
+    cax = plt.gcf().add_axes([0.92, 0.2, 0.025, 0.6])
     CB = plt.colorbar(H1, cax=cax)
     CB.set_label(label='[{}]'.format(lpo_options['field_units']),
                  fontsize=label_font_size)
@@ -342,6 +341,6 @@ def manage_time_lon(year1, parent_dir='.'):
 def print_and_save(file_out_base, pdf=False):
     if pdf:
         print(file_out_base + '.pdf')
-        plt.savefig(file_out_base + '.pdf' ,bbox_inches='tight', dpi=150)
+        plt.savefig(file_out_base + '.pdf', bbox_inches='tight', dpi=150)
     print(file_out_base + '.png')
-    plt.savefig(file_out_base + '.png' ,bbox_inches='tight', dpi=150)
+    plt.savefig(file_out_base + '.png', bbox_inches='tight', dpi=150)
