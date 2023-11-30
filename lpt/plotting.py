@@ -8,9 +8,10 @@ import sys
 import os
 import os.path
 import matplotlib.colors as colors
-from mpl_toolkits.basemap import Basemap
 from matplotlib.colors import ListedColormap
 import matplotlib.colors as colors
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
 from netCDF4 import Dataset
 
 """
@@ -81,23 +82,56 @@ def cmap_map(function, cmap):
     return colors.LinearSegmentedColormap('colormap',cdict,1024)
 
 
-def plot_map_background(plotArea=[0,360,-60,60], lon_labels = [1,0,0,0], lat_labels = [0,0,0,1], res='c', anchor='C'
-                        , coast_color = 'k', fontsize=10):
-    map = Basemap(projection='cyl',resolution=res, anchor=anchor,
-                  llcrnrlat = plotArea[2],
-                  urcrnrlat = plotArea[3],
-                  llcrnrlon = plotArea[0],
-                  urcrnrlon = plotArea[1])
+def get_projection(plot_area = [0,360,-60,60]):
 
-    #map.fillcontinents(color='lightgray', lake_color='lightgray')
-    map.drawcoastlines(linewidth=0.5, color=coast_color)
-    map.drawparallels(np.arange(-80,81,20), linewidth=0.5, labels = lon_labels, fontsize = fontsize)
-    if plotArea[1] - plotArea[0] < 180.1:
-        map.drawmeridians(np.arange(0,361,20), linewidth=0.5, labels = lat_labels, fontsize = fontsize)
+    """
+    get_projection(plot_area = [0,360,-60,60])
+
+    Choose a Cartopy projection based on the longitude range.
+    Default to central_longitude of 180.
+    If plotArea specified with first entry < 0,
+    Then use central_longitude = 0.
+    """
+
+    if plot_area[0] < -0.0001:
+        proj = ccrs.PlateCarree(central_longitude = 0)
     else:
-        map.drawmeridians(np.arange(0,361,40), linewidth=0.5, labels = lat_labels, fontsize = fontsize)
+        proj = ccrs.PlateCarree(central_longitude = 180)
 
-    return map
+    return proj
+
+
+def plot_map_background(plot_area=[0,360,-60,60], coast_color = 'k',
+                        borders_color='darkgrey', fontsize=10):
+
+    proj = get_projection(plot_area)
+
+    # This is needed when I specify the area to plot.
+    proj0 = ccrs.PlateCarree(central_longitude=0)
+
+    ax = plt.gcf().add_axes([0,0,0.9,1], projection=proj)
+
+    # Geographical features
+    # Plot states and borders first so they don't overlap coastline.
+    ax.add_feature(cfeature.STATES, edgecolor=borders_color, linewidth=0.5)
+    ax.add_feature(cfeature.BORDERS, color=borders_color)
+    ax.coastlines(color=coast_color)
+
+    # Limit plot extent
+    ax.set_extent(plot_area, crs = proj0)
+
+    # Draw parallels and meridians.
+    gl = ax.gridlines(draw_labels=True, dms=False,
+                      x_inline=False, y_inline=False,
+                      color='gray', alpha=0.5, linestyle='--')
+    gl.top_labels = False
+    gl.bottom_labels = True
+    gl.right_labels = False
+    gl.left_labels = True
+    gl.xlabel_style = {'size': fontsize}
+    gl.ylabel_style = {'size': fontsize}
+
+    return ax
 
 
 def print_and_save(file_out_base):
@@ -114,6 +148,8 @@ def print_and_save(file_out_base):
 
 def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_options, label_font_size=10):
 
+    proj0 = ccrs.PlateCarree(central_longitude=0)
+
     plot_area = plotting['plot_area']
 
     lon = OBJ['grid']['lon']
@@ -129,20 +165,28 @@ def plot_rain_map_with_filtered_contour(ax, DATA_ACCUM, OBJ, plotting, lpo_optio
     else:
         vmax = 50.0
         
+    fig = plt.figure(figsize=[10.0, 6.0])
     map1 = plot_map_background(plot_area)
     cmap = cmap_map(lambda x: x/2 + 0.5, plt.cm.jet)
     cmap.set_under(color='white')
-    H1 = map1.pcolormesh(lon, lat, DATA_ACCUM, cmap=cmap, vmin=vmin, vmax=vmax)
+    H1 = map1.pcolormesh(lon, lat, DATA_ACCUM, cmap=cmap, vmin=vmin, vmax=vmax,
+                         transform=proj0)
 
     label_im = np.array(OBJ['label_im'])
     label_im[label_im > 0.5] = 1
-    Hobj = plt.contour(lon, lat, label_im, [0.5,], colors='k', linewidths=1.0)
+    Hobj = plt.contour(lon, lat, label_im, [0.5,], colors='k', linewidths=1.0,
+                       transform=proj0)
 
-    map1.plot(OBJ['lon'], OBJ['lat'], 'kx', markersize=7)
-    cax = plt.gcf().add_axes([0.92, 0.2, 0.025, 0.6])
+    map1.plot(OBJ['lon'], OBJ['lat'], 'kx', markersize=7,
+              transform=proj0)
+
+    cax = fig.add_axes([0.92, 0.2, 0.025, 0.6])
     CB = plt.colorbar(H1, cax=cax)
-    CB.set_label(label='[{}]'.format(lpo_options['field_units']), fontsize=label_font_size)
+    CB.set_label(label='[{}]'.format(lpo_options['field_units']),
+                 fontsize=label_font_size)
+
     CB.ax.tick_params(labelsize=label_font_size)
+
     return (map1, H1, Hobj, CB)
 
 
