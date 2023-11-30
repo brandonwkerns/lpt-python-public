@@ -249,15 +249,15 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
             """
             if plotting['do_plotting']:
                 fig1 = plt.figure(1, figsize = (8.5,4))
-                # plt.figure(1)
-                # fig1.clf()
-                ax1 = fig1.add_subplot(111)
-                lpt.plotting.plot_rain_map_with_filtered_contour(ax1
-                        , DATA_RUNNING, OBJ
-                        , plotting, lpo_options)
-                ax1.set_title((dataset['label'].upper()
-                                + str(lpo_options['accumulation_hours'])
-                                + '-h Rain Rate and LP Objects\nEnding ' + YMDH_fancy))
+                ax1,x,y,z = lpt.plotting.plot_rain_map_with_filtered_contour(
+                    DATA_RUNNING, OBJ, plotting, lpo_options)
+
+                ax1.set_title((dataset['label'].upper()+' LPOs  ' + YMDH_fancy
+                    + '\n(Avg.:{0} h, Filter: {1} pts., Thresh: {2})'.format(
+                        lpo_options['accumulation_hours'],
+                        lpo_options['filter_stdev'],
+                        lpo_options['thresh'])
+                    ), fontsize=11)
 
                 img_dir1 = (output['img_dir'] + '/' + dataset['label']
                                 + '/' + filter_str(lpo_options['filter_stdev'])
@@ -269,7 +269,7 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
                 os.makedirs(img_dir1, exist_ok = True)
                 file_out_base = (img_dir1 + '/lp_objects_' + dataset['label'] + '_' + YMDH)
                 lpt.plotting.print_and_save(file_out_base)
-                fig1.clf()
+                plt.close(fig1)
 
         except FileNotFoundError:
             print('Data not yet available up to this point. Skipping.')

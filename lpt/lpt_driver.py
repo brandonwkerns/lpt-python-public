@@ -42,9 +42,6 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
     end_time =   lpt.helpers.str2cftime(str(argv[2]), '%Y%m%d%H', dataset['calendar'])  # command line arg #1 format: YYYYMMDDHH
     time_list =  lpt.helpers.dtrange(begin_time, end_time + dt.timedelta(hours=dataset['data_time_interval']), dataset['data_time_interval'])
 
-    if plotting['do_plotting']:
-        fig2 = plt.figure(2, figsize = (8.5,11))
-
 
     if lpo_options['do_lpo_calc']:
 
@@ -169,8 +166,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         """
 
         if plotting['do_plotting']:
-            plt.figure(2)
-            fig2.clf()
+            fig2 = plt.figure(2)
             ax2 = fig2.add_subplot(111)
 
             ## matplotlib needs datetime.datetime to plot. Can't use cftime.datetime.
