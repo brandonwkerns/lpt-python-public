@@ -66,7 +66,7 @@ def calc_scaled_average(data_in_accumulation_period, factor):
     return factor * np.nanmean(data_in_accumulation_period, axis=0)
 
 
-def identify_lp_objects(field, threshold, min_points=1
+def identify_lp_objects(lon, lat, field, threshold, min_points=1
                         , object_is_gt_threshold=True, verbose=False):
 
     """
@@ -89,8 +89,30 @@ def identify_lp_objects(field, threshold, min_points=1
     if verbose:
         print('Found '+str(nb_labels)+' objects.', flush=True) # how many regions?
 
-    label_points = ndimage.sum(1, label_im, range(nb_labels+1))
+    ## Sort feature labels by area.
+    ## If lon and lat not in 2d arrays, put them through np.meshgrid.
+    if lon.ndim == 1:
+        if verbose:
+            print('Detected 1-D lat/lon. Using np.meshgrid to get 2d lat/lon.', flush=True)
+        lon2, lat2 = np.meshgrid(lon, lat)
+    else:
+        lon2 = lon
+        lat2 = lat
 
+    X2, Y2 = np.meshgrid(np.arange(lon2.shape[1]), np.arange(lon2.shape[0]))
+
+    area2d = calc_grid_cell_area(lon2, lat2)
+
+    label_points = ndimage.sum(area2d, label_im, range(nb_labels+1))
+    sort_indices = np.argsort(label_points)[::-1]
+    print(sort_indices)
+    label_im_old = label_im.copy()
+    id_list = sorted(np.unique(label_im_old))
+    for nn in range(1, nb_labels+1):
+        label_im[label_im_old == id_list[sort_indices[nn]]] = nn
+
+    ## Throw away small features.
+    label_points = ndimage.sum(1, label_im, range(nb_labels+1))
     throw_away = [x for x in range(1, nb_labels+1) if label_points[x] < min_points]
     if len(throw_away) > 0:
         if verbose:
@@ -106,6 +128,8 @@ def identify_lp_objects(field, threshold, min_points=1
         id_list = sorted(np.unique(label_im_old))
         for nn in range(len(id_list)):
             label_im[label_im_old == id_list[nn]] = nn
+
+
 
     return label_im
 
@@ -226,10 +250,14 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
             print('filter done.',flush=True)
 
             ## Get LP objects.
-            label_im = identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
-            OBJ = calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
-                        , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
-                        , end_of_accumulation_time0, verbose=True)
+            label_im = identify_lp_objects(
+                DATA_RAW['lon'], DATA_RAW['lat'], DATA_FILTERED,
+                lpo_options['thresh'], min_points=lpo_options['min_points'],
+                verbose=dataset['verbose'])
+            OBJ = calculate_lp_object_properties(
+                DATA_RAW['lon'], DATA_RAW['lat'], DATA_RAW['data'],
+                DATA_RUNNING, DATA_FILTERED, label_im, 0,
+                end_of_accumulation_time0, verbose=True)
             OBJ['units_inst'] = dataset['field_units']
             OBJ['units_running'] = lpo_options['field_units']
             OBJ['units_filtered'] = lpo_options['field_units']
