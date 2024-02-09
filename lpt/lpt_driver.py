@@ -264,6 +264,38 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , nproc = lpt_options['mask_n_cores'])
 
 
+    if lpt_options['do_lpt_individual_group_masks']:
+
+        ## In case LPO wasn't calculated, make sure the relevant stuff is defined.
+        objects_dir = (output['data_dir'] + '/' + dataset['label']
+                        + '/' + filter_str(lpo_options['filter_stdev'])
+                        + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                        + '/thresh' + str(int(lpo_options['thresh']))
+                        + '/objects/')
+
+        lpt.masks.calc_individual_lpt_group_masks(begin_time, end_time, dataset['data_time_interval']
+            , prod = dataset['label']
+            , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
+            , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
+            , lpt_systems_dir=options['outdir']
+            , mask_output_dir=options['outdir']
+            , include_rain_rates = lpt_options['mask_include_rain_rates']
+            , do_volrain = lpt_options['mask_calc_volrain']
+            , dataset_dict = dataset
+            , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
+            , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
+            , cold_start_mode = lpo_options['cold_start_mode']
+            , multiply_factor = lpo_options['multiply_factor']
+            , units = lpo_options['field_units']
+            , begin_lptid = lpt_options['individual_masks_begin_lptid']
+            , end_lptid = lpt_options['individual_masks_end_lptid']
+            , mjo_only = lpt_options['individual_masks_mjo_only']
+            , coarse_grid_factor = lpt_options['mask_coarse_grid_factor']
+            , memory_target_mb = lpt_options['target_memory_for_writing_masks_MB']
+            , nproc = lpt_options['mask_n_cores'])
+
+
+
     if lpt_options['do_lpt_composite_mask']:
 
         ## In case LPO wasn't calculated, make sure the relevant stuff is defined.

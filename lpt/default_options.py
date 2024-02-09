@@ -93,6 +93,7 @@ lpt_options['fall_below_threshold_max_hours'] = 3*24   # How long to allow cente
 
 ## LPT Mask Settings.
 lpt_options['do_lpt_individual_masks'] = True             # Whether to generate mask files for each LPT system.
+lpt_options['do_lpt_individual_group_masks'] = False      # Whether to generate mask files for each group of overlapping LPT systems.
 lpt_options['individual_masks_begin_lptid'] = 0           # LPT ID to start with
 lpt_options['individual_masks_end_lptid'] = 10000         # LPT ID to end with
 lpt_options['individual_masks_mjo_only'] = False          # If True, then only do MJO LPTs only.
