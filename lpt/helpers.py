@@ -787,8 +787,128 @@ def lpt_graph_remove_short_duration_systems(G, min_duration
 
     return G
 
+######################################################################
+######################################################################
+######################################################################
+
+
+
+def get_segment_duration(nodes):
+    datetime_of_nodes = sorted([get_objid_datetime(x) for x in nodes])
+    # dur = (get_objid_datetime(nodes[0]) - get_objid_datetime(nodes[-2])).total_seconds()/3600.0
+    dur = (datetime_of_nodes[-1] - datetime_of_nodes[0]).total_seconds()/3600.0
+    return dur #len(nodes)
+
 
 def get_short_ends(G):
+
+    Grev = G.reverse() # Reversed graph is used for splits below.
+
+    ## Break in to individual paths (e.g., LPT branches).
+    roots = []
+    leaves = []
+    for node in sorted(G.nodes): # Sort by node ID.
+        if G.in_degree(node) == 0: # it's a root
+            roots.append(node)
+        elif G.out_degree(node) == 0: # it's a leaf
+            leaves.append(node)
+
+    ## Root short ends -- mergers.
+    Plist_mergers = []
+    for root in roots:
+        this_short_end = [root]
+        this_node = root
+        more_to_do = True
+        while more_to_do:
+            more_to_do = False
+            next_node = list(G[this_node])[0]
+            if G.in_degree(next_node) == 1 and G.out_degree(next_node) == 1:
+                this_node = next_node
+                more_to_do = True
+                this_short_end.append(next_node)
+
+        Plist_mergers.append(this_short_end)
+
+    ## Leaf short ends -- splits.
+    Plist_splits = []
+    for leaf in leaves:
+        this_short_end = [leaf]
+        this_node = leaf
+        more_to_do = True
+        while more_to_do:
+            more_to_do = False
+            next_node = list(Grev[this_node])[0]
+            if Grev.in_degree(next_node) == 1 and Grev.out_degree(next_node) == 1:
+                this_node = next_node
+                more_to_do = True
+                this_short_end.append(next_node)
+
+        Plist_splits.append(this_short_end)
+
+        ## Sort by number of entries.
+        Plist_mergers = sorted(Plist_mergers, key=len)
+        Plist_splits = sorted(Plist_splits, key=len)
+
+    return (Plist_mergers, Plist_splits)
+
+## For this simple test, "duration" is simply the number of nodes.
+
+def lpt_graph_remove_short_ends(G, min_duration_to_keep):
+
+    Gnew = G.copy()
+
+    ## Work on each connected component (DAG, directed acyclical graph) separately.
+    ## First, I get a list of DAG sub groups to loop through.
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    ## Loop over each DAG (LPG Group)
+    for kk in range(len(SG)):
+        more_to_do = True
+        print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
+        niter = 0
+        while more_to_do:
+            niter += 1
+            more_to_do = False
+
+            # more_to_do = True
+            # while more_to_do:
+            #     more_to_do = False
+
+            Plist_mergers, Plist_splits = get_short_ends(SG[kk])
+            print(('----> Iteration #'+str(niter)+': Found '
+                   + str(len(Plist_mergers))+' merge ends and '
+                   + str(len(Plist_splits))+' split ends.'),flush=True)
+
+            # Remove shortest merger
+            if len(Plist_mergers) > 0:
+                segment = Plist_mergers[0]
+                dur = get_segment_duration(segment)
+                if dur < min_duration_to_keep:
+                    Gnew.remove_nodes_from(segment)
+                    SG[kk].remove_nodes_from(segment)
+                    more_to_do = True
+
+            # Remove the shortest split.
+            if len(Plist_splits) > 0:
+                segment = Plist_splits[0]
+                dur = get_segment_duration(segment)
+                if dur < min_duration_to_keep:
+                    Gnew.remove_nodes_from(segment)
+                    SG[kk].remove_nodes_from(segment)
+                    more_to_do = True
+
+    return Gnew
+
+
+
+######################################################################
+######################################################################
+######################################################################
+
+
+
+def get_short_ends_old(G):
 
     Grev = G.reverse() # Reversed graph is used for splits below.
 
@@ -834,7 +954,7 @@ def get_short_ends(G):
     return (Plist_mergers, Plist_splits)
 
 
-def lpt_graph_remove_short_ends(G, min_duration_to_keep):
+def lpt_graph_remove_short_ends_old(G, min_duration_to_keep):
 
     ## Work on each connected component (DAG, directed acyclical graph) separately.
     ## First, I get a list of DAG sub groups to loop through.
