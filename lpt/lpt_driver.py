@@ -251,6 +251,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , include_rain_rates = lpt_options['mask_include_rain_rates']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
+            , detailed_output = lpt_options['mask_detailed_output']
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
@@ -282,6 +283,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , include_rain_rates = lpt_options['mask_include_rain_rates']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
+            , detailed_output = lpt_options['mask_detailed_output']
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
@@ -314,6 +316,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , include_rain_rates = lpt_options['mask_include_rain_rates']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
+            , detailed_output = lpt_options['mask_detailed_output']
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
@@ -342,6 +345,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , include_rain_rates = lpt_options['mask_include_rain_rates']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
+            , detailed_output = lpt_options['mask_detailed_output']
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']
@@ -370,6 +374,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , include_rain_rates = lpt_options['mask_include_rain_rates']
             , do_volrain = lpt_options['mask_calc_volrain']
             , dataset_dict = dataset
+            , detailed_output = lpt_options['mask_detailed_output']
             , calc_with_filter_radius = lpt_options['mask_calc_with_filter_radius']
             , calc_with_accumulation_period = lpt_options['mask_calc_with_accumulation_period']
             , cold_start_mode = lpo_options['cold_start_mode']

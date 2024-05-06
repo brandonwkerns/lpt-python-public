@@ -512,6 +512,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , mask_output_dir = '.', verbose=False
     , do_volrain=False, include_rain_rates = False
     , dataset_dict = {}
+    , detailed_output = False
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
@@ -603,6 +604,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 AREA = DS['grid_area'][:]
 
                 mask_arrays_shape2d = (len(mask_lat), len(mask_lon))
+
+
+
                 mask_arrays['mask_at_end_time'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(mask_times))]
                 if accumulation_hours > 0 and calc_with_accumulation_period:
                     mask_arrays['mask_with_accumulation'] = [csr_matrix(mask_arrays_shape2d, dtype=np.bool_) for x in range(len(mask_times))]
@@ -807,6 +811,7 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
     , mask_output_dir = '.', verbose=False
     , do_volrain=False, include_rain_rates = False
     , dataset_dict = {}
+    , detailed_output = False
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
@@ -1124,6 +1129,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , mask_output_dir = '.', verbose=True
     , do_volrain=False, include_rain_rates = False
     , dataset_dict = {}
+    , detailed_output = False
     , cold_start_mode = False
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
