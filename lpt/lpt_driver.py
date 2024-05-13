@@ -66,6 +66,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , accumulation_hours = lpo_options['accumulation_hours'], filter_stdev = lpo_options['filter_stdev']
             , lp_objects_dir=objects_dir, lp_objects_fn_format=(output['sub_directory_format']+'/objects_%Y%m%d%H.nc')
             , mask_output_dir=objects_dir
+            , detailed_output = lpo_options['mask_detailed_output']
             , include_rain_rates = lpo_options['mask_include_rain_rates']
             , do_volrain = lpo_options['mask_calc_volrain']
             , dataset_dict = dataset
