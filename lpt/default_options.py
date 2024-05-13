@@ -74,6 +74,7 @@ lpo_options['cold_start_const_period'] = 24.0  # hours
 lpo_options['do_lpo_mask'] = False                         # Whether to generate LPO mask file. Does not require lpo_options['do_lpo_calc'] = True
 lpo_options['mask_include_rain_rates'] = True              # Whether to include masked rain rates in mask output files.
 lpo_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
+lpo_options['mask_detailed_output'] = False               # Whether to output separate masks with filter and/or accumulation.
 lpo_options['mask_calc_with_filter_radius'] = True         # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpo_options['mask_calc_with_accumulation_period'] = True   # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
