@@ -68,6 +68,12 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
                 , fmt = dataset_options_dict['file_name_format']
                 , verbose = verbose_actual)
 
+    elif dataset_options_dict['raw_data_format'] == 'tmpa':
+        DATA = read_tmpa_hdf_at_datetime(datetime_to_read
+                , area = dataset_options_dict['area']
+                , data_dir = dataset_options_dict['raw_data_parent_dir']
+                , fmt = dataset_options_dict['file_name_format']
+                , verbose = verbose_actual)
 
     elif dataset_options_dict['raw_data_format'] == 'cmorph':
         DATA = read_cmorph_at_datetime(datetime_to_read
@@ -170,6 +176,77 @@ def read_generic_netcdf_at_datetime(dt, data_dir='.'
 ################################################################################
 ## Read functions for specific datasets.
 ################################################################################
+
+"""
+TMPA (TRMM 3B42) reading functions
+"""
+
+def read_tmpa_hdf(fn, area=[0,360,-90,90]):
+    """
+    DATA = read_tmpa_hdf(fn)
+
+    output:
+    list(DATA)
+    Out[12]: ['lon', 'lat', 'precip']
+    In [21]: DATA['lon'].shape
+    Out[21]: (1440,)
+    In [22]: DATA['lat'].shape
+    Out[22]: (400,)
+    In [23]: DATA['data'].shape
+    Out[23]: (400, 1440)
+    """
+
+    ## The TMPA HDF files can be read using NetCDF4 Dataset.
+    DS = Dataset(fn)
+    DATA={}
+    DATA['lon'] = np.arange(-179.875, 180.0, 0.25)
+    DATA['lat'] = np.arange(-49.875, 50.0, 0.25)
+    DATA['data'] = DS['precipitation'][:].T
+    DS.close()
+
+    ## Need to get from (-180, 180) to (0, 360) longitude.
+    lon_lt_0, = np.where(DATA['lon'] < -0.0001)
+    lon_ge_0, = np.where(DATA['lon'] > -0.0001)
+    DATA['lon'][lon_lt_0] += 360.0
+    DATA['lon'] = np.concatenate((DATA['lon'][lon_ge_0], DATA['lon'][lon_lt_0]))
+    DATA['data'] = np.concatenate((DATA['data'][:,lon_ge_0], DATA['data'][:,lon_lt_0]), axis=1)
+
+    ## Cut out area.
+    keep_lon, = np.where(np.logical_and(DATA['lon'] > area[0], DATA['lon'] < area[1]))
+    keep_lat, = np.where(np.logical_and(DATA['lat'] > area[2], DATA['lat'] < area[3]))
+
+    DATA['lon'] = DATA['lon'][keep_lon[0]:keep_lon[-1]+1]
+    DATA['lat'] = DATA['lat'][keep_lat[0]:keep_lat[-1]+1]
+    DATA['data'] = DATA['data'][keep_lat[0]:keep_lat[-1]+1, keep_lon[0]:keep_lon[-1]+1]
+
+    return DATA
+
+
+def read_tmpa_hdf_at_datetime(dt_this, data_dir='.'
+        , fmt='3B42.%Y%m%d.%H.7*.HDF'
+        , verbose=False, area=[0,360,-90,90]):
+
+    """
+    DATA = read_cmorph_at_datetime(dt, force_rt=False, verbose=False)
+
+    DATA is a dict with keys lon, lat, and precip.
+
+    Based on the provided datetime dt, read in the CMORPH data.
+
+    By default, it will first check for the research product,
+    and use the realtime product if the research product was not found.
+    However, if force_rt = True, it just uses the realtime product.
+    """
+
+    # Get the file name and read in tmpa data
+    fn = glob.glob(data_dir + '/' + dt_this.strftime(fmt))[0]
+    if verbose:
+        print(fn)
+    DATA = read_tmpa_hdf(fn, area=area)
+
+    DATA['data'] = ma.masked_array(DATA['data'])
+    return DATA
+
 
 """
 CMORPH reading functions.
