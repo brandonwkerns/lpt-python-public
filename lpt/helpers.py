@@ -642,12 +642,13 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
                 frac1 = overlapping_frac1[idx1,idx2]
                 frac2 = overlapping_frac2[idx1,idx2]
 
-                if n_overlap >= options['min_overlap_points']:
-                    matches.append(jj)
-                elif 1.0*frac1 > options['min_overlap_frac']:
-                    matches.append(jj)
-                elif 1.0*frac2 > options['min_overlap_frac']:
-                    matches.append(jj)
+                if min(frac1, frac2) > options['bare_min_overlap_frac']:
+                    if n_overlap >= options['min_overlap_points']:
+                        matches.append(jj)
+                    elif 1.0*frac1 > options['min_overlap_frac']:
+                        matches.append(jj)
+                    elif 1.0*frac2 > options['min_overlap_frac']:
+                        matches.append(jj)
             if verbose:
                 print(str(this_objid),flush=True)
 
