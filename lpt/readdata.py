@@ -361,12 +361,13 @@ def read_imerg_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
     if len(fn_list) < 1:
         if not force_rt:
             ## Try "late" realtime data.
-            print('Final data version not found. Trying to use late realtime data instead.')
+            if verbose:
+                print('Final data version not found. Trying to use late realtime data instead.')
             fmt_rt = 'late/' + fmt.replace('3B-HHR','3B-HHR-L')
             fn_list = sorted(glob.glob(data_dir + '/' + dt_this.strftime(fmt_rt)))
 
     if len(fn_list) < 1:
-        print('WARNING: No input data found.')
+        print(f'WARNING: No input data found for {dt_this}.')
 
     fn = fn_list[0]
     if verbose:
@@ -437,12 +438,13 @@ def read_imerg_v7_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
     if len(fn_list) < 1:
         if not force_rt:
             ## Try "late" realtime data.
-            print('Final data version not found. Trying to use late realtime data instead.')
+            if verbose:
+                print('Final data version not found. Trying to use late realtime data instead.')
             fmt_rt = 'late/' + fmt.replace('3B-HHR','3B-HHR-L')
             fn_list = sorted(glob.glob(data_dir + '/' + dt_this.strftime(fmt_rt)))
 
     if len(fn_list) < 1:
-        print('WARNING: No input data found.')
+        print(f'WARNING: No input data found for {dt_this}.')
 
     fn = fn_list[0]
     if verbose:
