@@ -336,12 +336,12 @@ def read_cmorph_at_datetime(dt_this, force_rt=False, data_dir='.'
 
 
 def read_imerg_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
-        , fmt='%Y/%m/%d/3B-HHR.MS.MRG.3IMERG.%Y%m%d-S%H*.HDF5'
+        , fmt='%Y/%m/%d/3B-HHR.MS.MRG.3IMERG.%Y%m%d-S%H*.V06?.HDF5'
         , verbose=False, area=[0,360,-90,90]):
 
     """
     DATA = read_imerg_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
-        , fmt='%Y/%m/%d/3B-HHR.MS.MRG.3IMERG.%Y%m%d-S%H*.HDF5'
+        , fmt='%Y/%m/%d/3B-HHR.MS.MRG.3IMERG.%Y%m%d-S%H*.V06?.HDF5'
         , verbose=False, area=[0,360,-90,90])
 
     DATA is a dict with keys lon, lat, and precip.
