@@ -89,6 +89,13 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
                 , fmt = dataset_options_dict['file_name_format']
                 , verbose = verbose_actual)
 
+    elif dataset_options_dict['raw_data_format'] == 'imerg_v7_hdf5':
+        DATA = read_imerg_v7_hdf5_at_datetime(datetime_to_read
+                , area = dataset_options_dict['area']
+                , data_dir = dataset_options_dict['raw_data_parent_dir']
+                , fmt = dataset_options_dict['file_name_format']
+                , verbose = verbose_actual)
+
     elif dataset_options_dict['raw_data_format'] == 'cfs_forecast':
         fcst_hour = int((datetime_to_read - dataset_options_dict['datetime_init']).total_seconds()/3600)
         fcst_resolution_hours = dataset_options_dict['data_time_interval']
@@ -401,6 +408,83 @@ def read_imerg_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
     DATA['data'] = DATA['data'][keep_lat[0]:keep_lat[-1]+1, keep_lon[0]:keep_lon[-1]+1]
 
     return DATA
+
+
+
+def read_imerg_v7_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
+        , fmt='%Y/%m/%d/%Y/%m/%d/3B-HHR.MS.MRG.3IMERG.%Y%m%d-S%H*.V07?.HDF5'
+        , verbose=False, area=[0,360,-90,90]):
+
+    """
+    DATA = read_imerg_v7_hdf5_at_datetime(dt_this, force_rt=False, data_dir='.'
+        , fmt='%Y/%m/%d/%Y/%m/%d/3B-HHR.MS.MRG.3IMERG.%Y%m%d-S%H*.V07?.HDF5'
+        , verbose=False, area=[0,360,-90,90])
+
+    DATA is a dict with keys lon, lat, and precip.
+
+    Based on the provided datetime dt, read in the IMERG HDF data.
+
+    By default, it will first check for the final product,
+    and use the "late" realtime product if the final product was not found.
+    However, if force_rt = True, it just uses the "late" realtime product.
+
+    (It will search for a filename with modified fmt to check for "late" product
+    - append 'late/' to the front of the directory path.
+    - replace '3B-HHR' with '3B-HHR-L').
+    """
+
+    fn_list = sorted(glob.glob(data_dir + '/' + dt_this.strftime(fmt)))
+    if len(fn_list) < 1:
+        if not force_rt:
+            ## Try "late" realtime data.
+            print('Final data version not found. Trying to use late realtime data instead.')
+            fmt_rt = 'late/' + fmt.replace('3B-HHR','3B-HHR-L')
+            fn_list = sorted(glob.glob(data_dir + '/' + dt_this.strftime(fmt_rt)))
+
+    if len(fn_list) < 1:
+        print('WARNING: No input data found.')
+
+    fn = fn_list[0]
+    if verbose:
+        print(fn)
+
+    with Dataset(fn) as DS:
+        lon_rain = DS['Grid']['lon'][:]
+        lat_rain = DS['Grid']['lat'][:]
+        rain = DS['Grid']['precipitation'][:][0].T
+
+    if len(fn_list) > 1:
+        fn = fn_list[1]
+        if verbose:
+            print(fn)
+
+        with Dataset(fn) as DS:
+            rain30 = DS['Grid']['precipitation'][:][0].T
+
+        rain = 0.5 * (rain + rain30)
+
+    ## lon -180:0 --> 180:360
+    idx_neg_lon = [x for x in range(len(lon_rain)) if lon_rain[x] < -0.0001]
+    idx_pos_lon = [x for x in range(len(lon_rain)) if lon_rain[x] > -0.0001]
+
+    lon_rain = np.append(lon_rain[idx_pos_lon[0]:idx_pos_lon[-1]+1], 360.0 + lon_rain[idx_neg_lon[0]:idx_neg_lon[-1]+1], axis=0)
+    rain = np.append(rain[:,idx_pos_lon[0]:idx_pos_lon[-1]+1], rain[:,idx_neg_lon[0]:idx_neg_lon[-1]+1], axis=1)
+    
+    DATA={}
+    DATA['lon'] = lon_rain
+    DATA['lat'] = lat_rain
+    DATA['data'] = ma.masked_array(rain)
+
+    ## Cut out area.
+    keep_lon, = np.where(np.logical_and(DATA['lon'] > area[0], DATA['lon'] < area[1]))
+    keep_lat, = np.where(np.logical_and(DATA['lat'] > area[2], DATA['lat'] < area[3]))
+
+    DATA['lon'] = DATA['lon'][keep_lon[0]:keep_lon[-1]+1]
+    DATA['lat'] = DATA['lat'][keep_lat[0]:keep_lat[-1]+1]
+    DATA['data'] = DATA['data'][keep_lat[0]:keep_lat[-1]+1, keep_lon[0]:keep_lon[-1]+1]
+
+    return DATA
+
 
 
 ################################################################################
