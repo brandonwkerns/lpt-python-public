@@ -13,7 +13,7 @@ import datetime as dt
 ###################################################
 ### Output functions
 ###################################################
-def lp_objects_output_ascii(fn, OBJ):
+def lp_objects_output_ascii(fn, OBJ, verbose=False):
     """
     This function outputs the "bulk" LP object properties (centroid, date, area)
     to an ascii file.
@@ -25,9 +25,10 @@ def lp_objects_output_ascii(fn, OBJ):
     file.write(' lat.__  lon.__    y._    x._         area[km2]._     YYYYMMDDHHnnnn\n') # Header line.
     for ii in range(len(OBJ['lon'])):
 
-        print(fmt % (OBJ['lat'][ii], OBJ['lon'][ii],
-                OBJ['y'][ii], OBJ['x'][ii],
-                OBJ['area'][ii], OBJ['id'][ii]))
+        if verbose:
+            print(fmt % (OBJ['lat'][ii], OBJ['lon'][ii],
+                    OBJ['y'][ii], OBJ['x'][ii],
+                    OBJ['area'][ii], OBJ['id'][ii]))
 
         file.write(fmt % (OBJ['lat'][ii], OBJ['lon'][ii],
                 OBJ['y'][ii], OBJ['x'][ii],
@@ -209,8 +210,6 @@ def lp_objects_output_netcdf(fn, OBJ):
         var_grid_mask.setncatts({'units':'0','long_name':'mask by nnnn part of LP Object ID.', 'note':'-1 for no LP Object.'})
         var_pixels_x.setncatts({'units':'0','long_name':'grid point pixel indices in the x direction','note':'zero based (Python convention)'})
         var_pixels_y.setncatts({'units':'0','long_name':'grid point pixel indices in the y direction','note':'zero based (Python convention)'})
-
-    print('Finished writing.')
 
 
 def lpt_system_tracks_output_ascii(fn, TIMECLUSTERS):

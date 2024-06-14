@@ -172,7 +172,7 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
                     + end_of_accumulation_time0.strftime(output['sub_directory_format']))
     objects_fn = (objects_dir + '/objects_' + YMDH)
     if not lpo_options['overwrite_existing_files'] and os.path.exists(objects_fn):
-        print('-- This time already has LPO step done. Skipping.')
+        print(f'{YMDH}: This time already has LPO step done. Skipping.')
 
     else:
         ## NOTE: In cold start mode, the begin_time is assumed to be the model initiation time!
@@ -192,8 +192,9 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
 
 
         #beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
-        print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
-                + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
+        if dataset['verbose']:
+            print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
+                    + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
 
         try:
 
@@ -218,31 +219,36 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
                 count += 1
 
             DATA_RUNNING = (data_collect/count) * lpo_options['multiply_factor'] # Get to the units you want for objects.
-            print('Running mean done.',flush=True)
+            if dataset['verbose']:
+                print('Running mean done.',flush=True)
 
             ## Filter the data
             DATA_FILTERED = scipy.ndimage.gaussian_filter(DATA_RUNNING, lpo_options['filter_stdev']
                 , order=0, output=None, mode='reflect', cval=0.0, truncate=lpo_options['filter_n_stdev_width'])
-            print('filter done.',flush=True)
+            if dataset['verbose']:
+                print('filter done.',flush=True)
 
             ## Get LP objects.
             label_im = identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
             OBJ = calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
                         , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
-                        , end_of_accumulation_time0, verbose=True)
+                        , end_of_accumulation_time0, verbose=dataset['verbose'])
             OBJ['units_inst'] = dataset['field_units']
             OBJ['units_running'] = lpo_options['field_units']
             OBJ['units_filtered'] = lpo_options['field_units']
 
-            print('objects properties.',flush=True)
+            if dataset['verbose']:
+                print('objects properties.',flush=True)
 
             """
             Object Output files
             """
 
             os.makedirs(objects_dir, exist_ok = True)
-            lpt.lptio.lp_objects_output_ascii(objects_fn, OBJ)
-            lpt.lptio.lp_objects_output_netcdf(objects_fn + '.nc', OBJ)
+            lpt.lptio.lp_objects_output_ascii(
+                objects_fn, OBJ, verbose=dataset['verbose'])
+            lpt.lptio.lp_objects_output_netcdf(
+                objects_fn + '.nc', OBJ)
 
             """
             Object Plot
