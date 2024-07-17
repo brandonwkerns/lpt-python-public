@@ -335,10 +335,7 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         f['area'] = ds['area_stitched'][:].values
         ts = ds['timestamp_stitched'][:].values
 
-    ## Initialize the is_mjo vaiables.
-    is_mjo = np.zeros(len(f['lptid']))
-    is_mjo_stitched = np.zeros(len(f['lon']))
-    is_mjo_eastward_stitched = np.zeros(len(f['lon']))
+
 
     ## For some reason xarray converts my duration values to np.timedelta64 objects
     ## I want the data to be read in as just simple hours, which NetCDF4 Dataset does.
@@ -662,19 +659,59 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         n = text_file.write(header)
         text_file.close()
 
-
+    ##
     ## Add variables for: is_mjo, is_mjo_stitched, is_mjo_eastward_stitched
+    ##
+
+    # Initialize the is_mjo vaiables to 0
+    is_mjo = np.zeros(len(f['lptid']))
+    is_mjo_stitched = np.zeros(len(f['lon']))
+    is_mjo_eastward_stitched = np.zeros(len(f['lon']))
+
+    # Loop through the identified MJO LPTs, and assign is_mjo variables
+    # from 0 to 1 where appropriate.
+    if len(FOUT_mjo_lpt) > 0:
+        print('Setting is_mjo variables in LPT systems file.')
+        for idx in range(len(FOUT_mjo_lpt)):
+            this_lptid = FOUT_mjo_lpt[idx][2]
+            this_eprop_idx1 = FOUT_mjo_lpt[idx][14]
+            this_eprop_idx2 = FOUT_mjo_lpt[idx][15]
+
+            print('LPT ID: ' + str(this_lptid))
+            this_lpt_idx = np.where(f['lptid'] == this_lptid)[0][0]
+            i1 = f['i1'][this_lpt_idx]
+            i2 = f['i2'][this_lpt_idx]
+
+            is_mjo[this_lpt_idx] = 1
+            is_mjo_stitched[i1:i2+1] = 1 
+            is_mjo_eastward_stitched[i1+this_eprop_idx1:i1+this_eprop_idx2+1] = 1
+
+            # include NaN value in between the LPTs.
+            is_mjo_stitched[i1-1] = 1
+            is_mjo_eastward_stitched[i1-1] = 1
+
+    else:
+        print('None found.')
+
+    # Add the is_mjo variables to the output NetCDF file.
+    print(f'Adding is_mjo variables to: {lpt_systems_file}')
+
     data_vars = {
         'is_mjo': (['nlpt',], is_mjo),
         'is_mjo_stitched': (['nstitch',], is_mjo_stitched),
-        'is_mjo_eastward_stitched': (['nstitch',],
+        'is_mjo_eprop_stitched': (['nstitch',],
                                         is_mjo_eastward_stitched),
     }
 
     with xr.open_dataset(lpt_systems_file) as ds:
         ds2 = ds.copy().assign(data_vars)
 
-    encoding = {'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'}, 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-        'num_objects': {'dtype': 'i'}} #, 'objid': {'dtype': 'i8'}}
+    encoding = {
+        'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+        'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+        'num_objects': {'dtype': 'i'},
+        'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+        'is_mjo_eprop_stitched': {'dtype': 'bool'}}
+
     ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
     os.rename('./temp.nc', lpt_systems_file)
