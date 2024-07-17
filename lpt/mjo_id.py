@@ -334,6 +334,12 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         f['lat'] = ds['centroid_lat_stitched'][:].values
         f['area'] = ds['area_stitched'][:].values
         ts = ds['timestamp_stitched'][:].values
+
+    ## Initialize the is_mjo vaiables.
+    is_mjo = np.zeros(len(f['lptid']))
+    is_mjo_stitched = np.zeros(len(f['lon']))
+    is_mjo_eastward_stitched = np.zeros(len(f['lon']))
+
     ## For some reason xarray converts my duration values to np.timedelta64 objects
     ## I want the data to be read in as just simple hours, which NetCDF4 Dataset does.
     with Dataset(lpt_systems_file, 'r') as ds:
@@ -655,3 +661,20 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         text_file = open(non_mjo_lpt_file, "wt")
         n = text_file.write(header)
         text_file.close()
+
+
+    ## Add variables for: is_mjo, is_mjo_stitched, is_mjo_eastward_stitched
+    data_vars = {
+        'is_mjo': (['nlpt',], is_mjo),
+        'is_mjo_stitched': (['nstitch',], is_mjo_stitched),
+        'is_mjo_eastward_stitched': (['nstitch',],
+                                        is_mjo_eastward_stitched),
+    }
+
+    with xr.open_dataset(lpt_systems_file) as ds:
+        ds2 = ds.copy().assign(data_vars)
+
+    encoding = {'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'}, 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+        'num_objects': {'dtype': 'i'}} #, 'objid': {'dtype': 'i8'}}
+    ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
+    os.rename('./temp.nc', lpt_systems_file)
