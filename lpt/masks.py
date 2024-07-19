@@ -749,9 +749,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Get contours from the grid.
         ##
 
-        # with open('test.txt', 'w') as f:
-        # if True:
-
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
         max_len = 1000
         max_len_core = 1000
@@ -759,36 +756,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         with xr.open_dataset(lpt_systems_file) as ds:
             if 'mask_contour_lon' in ds:
 
-                F0_lon = ds['mask_contour_lon'].data
-                F0_lat = ds['mask_contour_lat'].data
-                # mask_contour_lon = [[],]
-                # mask_contour_lat = [[],]
-                # for tt in range(ntimes):
-                #     n = [xx for xx in range(len(F0_lon[tt,:])) if np.isfinite(F0_lon[tt,xx])] #[-1]
-                #     if len(n) > 0:
-                #         mask_contour_lon += F0_lon[tt,0:n[-1]+1].tolist()
-                #         mask_contour_lat += F0_lat[tt,0:n[-1]+1].tolist()
-                #     else:
-                #         mask_contour_lon += []
-                #         mask_contour_lat += []
-
-                F0_lon_core = ds['mask_contour_core_lon'].data
-                F0_lat_core = ds['mask_contour_core_lat'].data
-            #     mask_contour_lon_core = [[],]
-            #     mask_contour_lat_core = [[],]
-            #     for tt in range(ntimes):
-            #         n = [xx for xx in range(len(F0_lon_core[tt,:])) if np.isfinite(F0_lon_core[tt,xx])] #[-1]
-            #         if len(n) > 0:
-            #             mask_contour_lon_core += F0_lon_core[tt,0:n[-1]+1].tolist()
-            #             mask_contour_lat_core += F0_lat_core[tt,0:n[-1]+1].tolist()
-            #         else:
-            #             mask_contour_lon_core += []
-            #             mask_contour_lat_core += []
-
-            #     mask_contour_lon = mask_contour_lon[1:]
-            #     mask_contour_lat = mask_contour_lat[1:]
-            #     mask_contour_lon_core = mask_contour_lon_core[1:]
-            #     mask_contour_lat_core = mask_contour_lat_core[1:]
+                F_lon = ds['mask_contour_lon'].data
+                F_lat = ds['mask_contour_lat'].data
+                F_lon_core = ds['mask_contour_core_lon'].data
+                F_lat_core = ds['mask_contour_core_lat'].data
 
             else:
 
@@ -796,8 +767,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 F_lat = np.full([ntimes, max_len], np.nan)
                 F_lon_core = np.full([ntimes, max_len_core], np.nan)
                 F_lat_core = np.full([ntimes, max_len_core], np.nan)
-
-
 
             mask_contour_lon = [[] for x in range(len(mask_times))]
             mask_contour_lat = [[] for x in range(len(mask_times))]
@@ -816,7 +785,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             for dt_idx, dt_this in enumerate(mask_times):
 
                 # timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
-
                 cg = contourpy.contour_generator(
                     mask_lon, mask_lat, mask_arrays['mask'][dt_idx].todense())
 
@@ -829,11 +797,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     mask_contour_lat_core[dt_idx] += [np.nan,]
                     mask_contour_lon_core[dt_idx] += this_contour[:,0].flatten().tolist()
                     mask_contour_lat_core[dt_idx] += this_contour[:,1].flatten().tolist()
-
-                    # mask_contour_lon_core[timestamp_stitched_idx] += [np.nan,]
-                    # mask_contour_lat_core[timestamp_stitched_idx] += [np.nan,]
-                    # mask_contour_lon_core[timestamp_stitched_idx] += this_contour[:,0].flatten().tolist()
-                    # mask_contour_lat_core[timestamp_stitched_idx] += this_contour[:,1].flatten().tolist()
 
                 # Filter width spreading. (Only for the outer contour)
                 for this_contour in contours:
@@ -848,26 +811,19 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     mask_contour_lon[dt_idx] += t2_coords[:,0].flatten().tolist()
                     mask_contour_lat[dt_idx] += t2_coords[:,1].flatten().tolist()
 
-                    # mask_contour_lon[timestamp_stitched_idx] += [np.nan,]
-                    # mask_contour_lat[timestamp_stitched_idx] += [np.nan,]
-                    # mask_contour_lon[timestamp_stitched_idx] += t2_coords[:,0].flatten().tolist()
-                    # mask_contour_lat[timestamp_stitched_idx] += t2_coords[:,1].flatten().tolist()
-
-            # max_len = np.nanmax([len(x) for x in mask_contour_lon])
-            # max_len_core = np.nanmax([len(x) for x in mask_contour_lon_core])
-            # print((max_len, max_len_core))
-
-
-            # for dt_idx in range(ntimes):
-            #     F_lon[dt_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
-            #     F_lat[dt_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
-            #     F_lon_core[dt_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
-            #     F_lat_core[dt_idx, 0:len(mask_contour_lat_core[dt_idx])] = mask_contour_lat_core[dt_idx]
-
             for dt_idx, dt_this in enumerate(mask_times):
 
-                timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
+                if dt_idx < 24:
+                    continue
 
+                # timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
+
+                timestamp_stitched_idx = np.argwhere(
+                    np.logical_and(
+                        TC['lptid_stitched'] == this_lpt_id, 
+                        TC['timestamp_stitched'] == dt_this)) 
+
+                print((dt_idx, timestamp_stitched_idx, len(mask_times)))
                 F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
                 F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
                 F_lon_core[timestamp_stitched_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
@@ -895,8 +851,15 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
                 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
                 'num_objects': {'dtype': 'i'},
+                'mask_contour_npts': {'dtype': 'i'},
+                'mask_contour_core_npts': {'dtype': 'i'},
                 'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
-                'is_mjo_eprop_stitched': {'dtype': 'bool'}}
+                'is_mjo_eprop_stitched': {'dtype': 'bool'},
+                'mask_contour_lon': {'zlib': True},
+                'mask_contour_lat': {'zlib': True},
+                'mask_contour_core_lon': {'zlib': True},
+                'mask_contour_core_lat': {'zlib': True},
+                }
 
             print(f'Update mask contour coordinates in {lpt_systems_file}')
             ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
