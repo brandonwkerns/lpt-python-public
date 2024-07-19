@@ -800,9 +800,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
                 # Filter width spreading. (Only for the outer contour)
                 for this_contour in contours:
-
+                    res = mask_lon[1] - mask_lon[0]
                     s = Polygon(LinearRing(this_contour))
-                    t2 = Polygon(s.buffer(filter_stdev).exterior)
+                    t2 = Polygon(s.buffer(filter_stdev*res).exterior)
                     t2_coords = np.array(
                         [t2.exterior.coords[x] for x in range(len(t2.exterior.coords))])
 
@@ -909,6 +909,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
             VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
+
+        # Save the volrain to the LPT systems file.
 
 
         ##########################################################
