@@ -4,6 +4,9 @@ import numpy as np
 import xarray as xr
 import scipy.ndimage
 from scipy.interpolate import RegularGridInterpolator
+import contourpy
+from shapely.geometry import LinearRing, Polygon
+
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import datetime as dt
@@ -741,6 +744,166 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 # Set the "inner core" of the mask to 2.
                 mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
+
+        ##
+        ## Get contours from the grid.
+        ##
+
+        # with open('test.txt', 'w') as f:
+        # if True:
+
+        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
+        max_len = 1000
+        max_len_core = 1000
+
+        with xr.open_dataset(lpt_systems_file) as ds:
+            if 'mask_contour_lon' in ds:
+
+                F0_lon = ds['mask_contour_lon'].data
+                F0_lat = ds['mask_contour_lat'].data
+                # mask_contour_lon = [[],]
+                # mask_contour_lat = [[],]
+                # for tt in range(ntimes):
+                #     n = [xx for xx in range(len(F0_lon[tt,:])) if np.isfinite(F0_lon[tt,xx])] #[-1]
+                #     if len(n) > 0:
+                #         mask_contour_lon += F0_lon[tt,0:n[-1]+1].tolist()
+                #         mask_contour_lat += F0_lat[tt,0:n[-1]+1].tolist()
+                #     else:
+                #         mask_contour_lon += []
+                #         mask_contour_lat += []
+
+                F0_lon_core = ds['mask_contour_core_lon'].data
+                F0_lat_core = ds['mask_contour_core_lat'].data
+            #     mask_contour_lon_core = [[],]
+            #     mask_contour_lat_core = [[],]
+            #     for tt in range(ntimes):
+            #         n = [xx for xx in range(len(F0_lon_core[tt,:])) if np.isfinite(F0_lon_core[tt,xx])] #[-1]
+            #         if len(n) > 0:
+            #             mask_contour_lon_core += F0_lon_core[tt,0:n[-1]+1].tolist()
+            #             mask_contour_lat_core += F0_lat_core[tt,0:n[-1]+1].tolist()
+            #         else:
+            #             mask_contour_lon_core += []
+            #             mask_contour_lat_core += []
+
+            #     mask_contour_lon = mask_contour_lon[1:]
+            #     mask_contour_lat = mask_contour_lat[1:]
+            #     mask_contour_lon_core = mask_contour_lon_core[1:]
+            #     mask_contour_lat_core = mask_contour_lat_core[1:]
+
+            else:
+
+                F_lon = np.full([ntimes, max_len], np.nan)
+                F_lat = np.full([ntimes, max_len], np.nan)
+                F_lon_core = np.full([ntimes, max_len_core], np.nan)
+                F_lat_core = np.full([ntimes, max_len_core], np.nan)
+
+
+
+            mask_contour_lon = [[] for x in range(len(mask_times))]
+            mask_contour_lat = [[] for x in range(len(mask_times))]
+            mask_contour_lon_core = [[] for x in range(len(mask_times))]
+            mask_contour_lat_core = [[] for x in range(len(mask_times))]
+
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            # NOTE: I will run in to trouble if:
+            # - Mask contour has > 1000 points. That's hard coded.
+            # It needs to adapt as new data comes in.
+            # ALSO: 
+            # I need to add the "spin-up" time (e.g., 3 days) to the stitched variables.
+            # Right now, the consecutive LPT systems are running in to eachother.
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            for dt_idx, dt_this in enumerate(mask_times):
+
+                # timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
+
+                cg = contourpy.contour_generator(
+                    mask_lon, mask_lat, mask_arrays['mask'][dt_idx].todense())
+
+                # [np.array[[n_pts, lat/lon]]]
+                contours = cg.lines(0.5)
+                contours_core = cg.lines(1.5)
+
+                for this_contour in contours_core:
+                    mask_contour_lon_core[dt_idx] += [np.nan,]
+                    mask_contour_lat_core[dt_idx] += [np.nan,]
+                    mask_contour_lon_core[dt_idx] += this_contour[:,0].flatten().tolist()
+                    mask_contour_lat_core[dt_idx] += this_contour[:,1].flatten().tolist()
+
+                    # mask_contour_lon_core[timestamp_stitched_idx] += [np.nan,]
+                    # mask_contour_lat_core[timestamp_stitched_idx] += [np.nan,]
+                    # mask_contour_lon_core[timestamp_stitched_idx] += this_contour[:,0].flatten().tolist()
+                    # mask_contour_lat_core[timestamp_stitched_idx] += this_contour[:,1].flatten().tolist()
+
+                # Filter width spreading. (Only for the outer contour)
+                for this_contour in contours:
+
+                    s = Polygon(LinearRing(this_contour))
+                    t2 = Polygon(s.buffer(filter_stdev).exterior)
+                    t2_coords = np.array(
+                        [t2.exterior.coords[x] for x in range(len(t2.exterior.coords))])
+
+                    mask_contour_lon[dt_idx] += [np.nan,]
+                    mask_contour_lat[dt_idx] += [np.nan,]
+                    mask_contour_lon[dt_idx] += t2_coords[:,0].flatten().tolist()
+                    mask_contour_lat[dt_idx] += t2_coords[:,1].flatten().tolist()
+
+                    # mask_contour_lon[timestamp_stitched_idx] += [np.nan,]
+                    # mask_contour_lat[timestamp_stitched_idx] += [np.nan,]
+                    # mask_contour_lon[timestamp_stitched_idx] += t2_coords[:,0].flatten().tolist()
+                    # mask_contour_lat[timestamp_stitched_idx] += t2_coords[:,1].flatten().tolist()
+
+            # max_len = np.nanmax([len(x) for x in mask_contour_lon])
+            # max_len_core = np.nanmax([len(x) for x in mask_contour_lon_core])
+            # print((max_len, max_len_core))
+
+
+            # for dt_idx in range(ntimes):
+            #     F_lon[dt_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
+            #     F_lat[dt_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
+            #     F_lon_core[dt_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
+            #     F_lat_core[dt_idx, 0:len(mask_contour_lat_core[dt_idx])] = mask_contour_lat_core[dt_idx]
+
+            for dt_idx, dt_this in enumerate(mask_times):
+
+                timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
+
+                F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
+                F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
+                F_lon_core[timestamp_stitched_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
+                F_lat_core[timestamp_stitched_idx, 0:len(mask_contour_lat_core[dt_idx])] = mask_contour_lat_core[dt_idx]
+
+
+            ## Write mask contour coordinates to LPT systems file.
+            ## First, start a new set of variables if it does not yet exist.
+            ## Otherwise modify the existing variables.
+
+            with xr.open_dataset(lpt_systems_file) as ds:
+
+                new_coords = {'mask_contour_npts': (['mask_contour_npts',], range(max_len)),
+                                'mask_contour_core_npts': (['mask_contour_core_npts',], range(max_len_core))}
+
+                new_data_vars = {'mask_contour_lon': (['nstitch','mask_contour_npts'], F_lon),
+                                    'mask_contour_lat': (['nstitch','mask_contour_npts'], F_lat),
+                                    'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core),
+                                    'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core)}
+
+                ds2 = ds.copy().assign_coords(new_coords)
+                ds2 = ds2.assign(new_data_vars)
+
+            encoding = {
+                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+                'num_objects': {'dtype': 'i'},
+                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+                'is_mjo_eprop_stitched': {'dtype': 'bool'}}
+
+            print(f'Update mask contour coordinates in {lpt_systems_file}')
+            ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
+            os.rename('./temp.nc', lpt_systems_file)
+
+
+
         ##
         ## Do filter width spreading.
         ##
@@ -913,6 +1076,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                                     , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
 
             print('Done adding masked rainfall.')
+
+
 
 
 def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm'
