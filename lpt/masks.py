@@ -231,7 +231,7 @@ def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset
     try:
         RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
 
-        precip = RAIN['data'][:] * multiply_factor
+        precip = RAIN['data'][:] * multiply_factor / 24.0  # Assuming LPT analysis is in mm/day, get mm/h.
         precip[~np.isfinite(precip)] = 0.0
         precip[precip < -0.01] = 0.0
 
@@ -276,14 +276,14 @@ def mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays
                              multiply_factor, AREA, dataset_dict) for tt in range(len(mask_times))]))
 
     ## Put the outputs into lists for output.
-    VOLRAIN['volrain_global_tser'] = [x['volrain_global_tser']*interval_hours for x in r]
-    VOLRAIN['volrain_global'] = np.nansum(VOLRAIN['volrain_global_tser'])
+    VOLRAIN['volrain_global_tser'] = [x['volrain_global_tser'] for x in r]
+    VOLRAIN['volrain_global'] = np.nansum(VOLRAIN['volrain_global_tser'])*interval_hours
 
     ## Masked
     for field in mask_type_list:
         if not 'with_rain' in field:   # Skip the ones that are masked rain rates.
-            VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser']*interval_hours for x in r]
-            VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])
+            VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser'] for x in r]
+            VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])*interval_hours
 
     return VOLRAIN
 
@@ -751,7 +751,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
         max_len = 1000
-        max_len_core = 1000
+        max_len_core = 2000
 
         with xr.open_dataset(lpt_systems_file) as ds:
             if 'mask_contour_lon' in ds:
@@ -834,10 +834,17 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 new_coords = {'mask_contour_npts': (['mask_contour_npts',], range(max_len)),
                                 'mask_contour_core_npts': (['mask_contour_core_npts',], range(max_len_core))}
 
-                new_data_vars = {'mask_contour_lon': (['nstitch','mask_contour_npts'], F_lon),
-                                    'mask_contour_lat': (['nstitch','mask_contour_npts'], F_lat),
-                                    'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core),
-                                    'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core)}
+                desc = ('The mask_contour_core is the contour of the LPOs which make up the LPT system.'
+                    + ' The mask_contour includes the entire LPO area swept out during the accumulation period'
+                    + ' as well as a buffer of one standard deviation.'
+                    + ' The mask_contour contains the full extent of rainfall contributing to the LPT system,'
+                    + ' whereas the mask_contour_core is regarded as the core region of the LPT system.')
+
+                new_data_vars = {
+                    'mask_contour_lon': (['nstitch','mask_contour_npts'], F_lon, {'units':'degrees_east','description':desc}),
+                    'mask_contour_lat': (['nstitch','mask_contour_npts'], F_lat, {'units':'degrees_north','description':desc}),
+                    'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core, {'units':'degrees_east','description':desc}),
+                    'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core, {'units':'degrees_north','description':desc})}
 
                 ds2 = ds.copy().assign_coords(new_coords)
                 ds2 = ds2.assign(new_data_vars)
@@ -945,14 +952,44 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             # Add the volrain variables to the output NetCDF file.
             print(f'Adding volrain variables to: {lpt_systems_file}')
 
+            volrain_atts1 = {
+                'units':'mm h-1 km2',
+                'description':'Instantaneous volumetric rain flux of the LPT system.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts2 = {
+                'units':'mm h-1 km2',
+                'description':'Instantaneous volumetric rain flux: Entire area with rainfall data.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts3 = {
+                'units':'mm h-1 km2',
+                'description':'Max of volrain over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts4 = {
+                'units':'mm h-1 km2',
+                'description':'Max of volrain_global over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts5 = {
+                'units':'mm km2',
+                'description':'Time integral of volrain over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts6 = {
+                'units':'mm km2',
+                'description':'Time integral of volrain_global over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+
             data_vars = {
-                'volrain': (['nlpt',], volrain),
-                'volrain_global': (['nlpt',], volrain_global),
-                'maxvolrain': (['nlpt',], maxvolrain),
-                'maxvolrain_global': (['nlpt',], maxvolrain_global),
-                'volrain_stitched': (['nstitch',], volrain_tser),
-                'volrain_global_stitched': (['nstitch',],
-                                                volrain_global_tser),
+                'volrain_stitched': (['nstitch',], volrain_tser, volrain_atts1),
+                'volrain_global_stitched': (['nstitch',], volrain_global_tser, volrain_atts2),
+                'maxvolrain': (['nlpt',], maxvolrain, volrain_atts3),
+                'maxvolrain_global': (['nlpt',], maxvolrain_global, volrain_atts4),
+                'volrain': (['nlpt',], volrain, volrain_atts5),
+                'volrain_global': (['nlpt',], volrain_global, volrain_atts6),
             }
 
             with xr.open_dataset(lpt_systems_file) as ds:
