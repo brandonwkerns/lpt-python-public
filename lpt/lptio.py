@@ -299,7 +299,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     os.makedirs(os.path.dirname(fn), exist_ok=True) # Make directory if needed.
 
 
-    MISSING = np.nan  #17127768  -999.0
+    MISSING = np.nan
     FILL_VALUE = -999999999.0
 
     ##
@@ -350,6 +350,10 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         max_lpo = max(max_lpo, len(TIMECLUSTERS[ii]['objid'])) # will be used below.
 
         lpt_begin_index += [len(lptid_collect)] # zero based, so next index is the length.
+
+        # TODO: 
+        # All the entries   =   LPT tracked centroids          +    initial "spin up" period
+        # n_entries_in_stitch = len(TIMECLUSTERS[ii]['datetime'] +    
 
         lptid_collect = np.append(np.append(lptid_collect, np.ones(len(TIMECLUSTERS[ii]['datetime']))*TIMECLUSTERS[ii]['lpt_id']),MISSING)
         this_timestamp = [(TIMECLUSTERS[ii]['datetime'][x] - REFTIME).total_seconds()/3600.0 for x in range(len(TIMECLUSTERS[ii]['datetime']))]
@@ -516,6 +520,7 @@ def read_lpt_systems_netcdf(lpt_systems_file):
     with xr.open_dataset(lpt_systems_file, use_cftime=True) as DS:
         TC={}
         TC['lptid'] = DS['lptid'].data
+        TC['lptid_stitched'] = DS['lptid_stitched'].data
         TC['objid'] = DS['objid'].data
         TC['num_objects'] = DS['num_objects'].data
         TC['i1'] = DS['lpt_begin_index'].data
