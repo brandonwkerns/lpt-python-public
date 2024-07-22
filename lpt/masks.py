@@ -816,14 +816,11 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 if dt_idx < 24:
                     continue
 
-                # timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
-
                 timestamp_stitched_idx = np.argwhere(
                     np.logical_and(
                         TC['lptid_stitched'] == this_lpt_id, 
                         TC['timestamp_stitched'] == dt_this)) 
 
-                print((dt_idx, timestamp_stitched_idx, len(mask_times)))
                 F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
                 F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
                 F_lon_core[timestamp_stitched_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
@@ -864,8 +861,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             print(f'Update mask contour coordinates in {lpt_systems_file}')
             ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
             os.rename('./temp.nc', lpt_systems_file)
-
-
 
         ##
         ## Do filter width spreading.
@@ -910,8 +905,71 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             print('Now calculating the volumetric rain.', flush=True)
             VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
-        # Save the volrain to the LPT systems file.
+            # Save the volrain to the LPT systems file.
+            with xr.open_dataset(lpt_systems_file) as ds:
+                if 'volrain' in ds:
 
+                    volrain = ds['volrain'].data
+                    volrain_global = ds['volrain_global'].data
+                    volrain_tser = ds['volrain_tser'].data
+                    volrain_global_tser = ds['volrain_global_tser'].data
+
+                else:
+
+                    volrain = np.full([len(TC['lptid']),], np.nan)
+                    volrain_global = np.full([len(TC['lptid']),], np.nan)
+                    volrain_tser = np.full([ntimes,], np.nan)
+                    volrain_global_tser = np.full([ntimes,], np.nan)
+
+            volrain[this_lpt_idx] = VOLRAIN['volrain']
+            volrain_global[this_lpt_idx] = VOLRAIN['volrain_global']
+
+            for dt_idx, dt_this in enumerate(mask_times):
+
+                if dt_idx < 24:
+                    continue
+
+                timestamp_stitched_idx = np.argwhere(
+                    np.logical_and(
+                        TC['lptid_stitched'] == this_lpt_id, 
+                        TC['timestamp_stitched'] == dt_this)) 
+
+                print((dt_idx, timestamp_stitched_idx, len(mask_times)))
+                volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
+                volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
+
+
+            # Add the volrain variables to the output NetCDF file.
+            print(f'Adding volrain variables to: {lpt_systems_file}')
+
+            data_vars = {
+                'volrain': (['nlpt',], volrain),
+                'volrain_global': (['nlpt',], volrain_global),
+                'volrain_tser': (['nstitch',], volrain_tser),
+                'volrain_global_tser': (['nstitch',],
+                                                volrain_global_tser),
+            }
+
+            with xr.open_dataset(lpt_systems_file) as ds:
+                ds2 = ds.copy().assign(data_vars)
+
+
+            encoding = {
+                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+                'num_objects': {'dtype': 'i'},
+                'mask_contour_npts': {'dtype': 'i'},
+                'mask_contour_core_npts': {'dtype': 'i'},
+                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+                'is_mjo_eprop_stitched': {'dtype': 'bool'},
+                'mask_contour_lon': {'zlib': True},
+                'mask_contour_lat': {'zlib': True},
+                'mask_contour_core_lon': {'zlib': True},
+                'mask_contour_core_lat': {'zlib': True},
+                }
+
+            ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
+            os.rename('./temp.nc', lpt_systems_file)
 
         ##########################################################
         ## Include some basic LPT info for user friendliness.  ###
