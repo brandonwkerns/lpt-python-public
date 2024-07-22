@@ -913,8 +913,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     volrain_global = ds['volrain_global'].data
                     maxvolrain = ds['maxvolrain'].data
                     maxvolrain_global = ds['maxvolrain_global'].data
-                    volrain_tser = ds['volrain_tser'].data
-                    volrain_global_tser = ds['volrain_global_tser'].data
+                    volrain_tser = ds['volrain_stitched'].data
+                    volrain_global_tser = ds['volrain_global_stitched'].data
 
                 else:
 
@@ -953,8 +953,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 'volrain_global': (['nlpt',], volrain_global),
                 'maxvolrain': (['nlpt',], maxvolrain),
                 'maxvolrain_global': (['nlpt',], maxvolrain_global),
-                'volrain_tser': (['nstitch',], volrain_tser),
-                'volrain_global_tser': (['nstitch',],
+                'volrain_stitched': (['nstitch',], volrain_tser),
+                'volrain_global_stitched': (['nstitch',],
                                                 volrain_global_tser),
             }
 
