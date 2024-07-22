@@ -784,11 +784,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             for dt_idx, dt_this in enumerate(mask_times):
 
-                # timestamp_stitched_idx = TC['i1'][this_lpt_idx] + dt_idx #HACK: For now, this does NOT accuont for initial 3-day "spinup" period.
                 cg = contourpy.contour_generator(
                     mask_lon, mask_lat, mask_arrays['mask'][dt_idx].todense())
 
-                # [np.array[[n_pts, lat/lon]]]
                 contours = cg.lines(0.5)
                 contours_core = cg.lines(1.5)
 
@@ -938,7 +936,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                         TC['lptid_stitched'] == this_lpt_id, 
                         TC['timestamp_stitched'] == dt_this)) 
 
-                print((dt_idx, timestamp_stitched_idx, len(mask_times)))
                 volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
                 volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
 
