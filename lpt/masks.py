@@ -911,6 +911,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
                     volrain = ds['volrain'].data
                     volrain_global = ds['volrain_global'].data
+                    maxvolrain = ds['maxvolrain'].data
+                    maxvolrain_global = ds['maxvolrain_global'].data
                     volrain_tser = ds['volrain_tser'].data
                     volrain_global_tser = ds['volrain_global_tser'].data
 
@@ -918,6 +920,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
                     volrain = np.full([len(TC['lptid']),], np.nan)
                     volrain_global = np.full([len(TC['lptid']),], np.nan)
+                    maxvolrain = np.full([len(TC['lptid']),], np.nan)
+                    maxvolrain_global = np.full([len(TC['lptid']),], np.nan)
                     volrain_tser = np.full([ntimes,], np.nan)
                     volrain_global_tser = np.full([ntimes,], np.nan)
 
@@ -938,6 +942,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
                 volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
 
+            maxvolrain[this_lpt_idx] = np.nanmax(volrain_tser)
+            maxvolrain_global[this_lpt_idx] = np.nanmax(volrain_global_tser)
 
             # Add the volrain variables to the output NetCDF file.
             print(f'Adding volrain variables to: {lpt_systems_file}')
@@ -945,6 +951,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             data_vars = {
                 'volrain': (['nlpt',], volrain),
                 'volrain_global': (['nlpt',], volrain_global),
+                'maxvolrain': (['nlpt',], maxvolrain),
+                'maxvolrain_global': (['nlpt',], maxvolrain_global),
                 'volrain_tser': (['nstitch',], volrain_tser),
                 'volrain_global_tser': (['nstitch',],
                                                 volrain_global_tser),
