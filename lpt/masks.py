@@ -4,6 +4,9 @@ import numpy as np
 import xarray as xr
 import scipy.ndimage
 from scipy.interpolate import RegularGridInterpolator
+import contourpy
+from shapely.geometry import LinearRing, Polygon
+
 import matplotlib.pyplot as plt
 from netCDF4 import Dataset
 import datetime as dt
@@ -228,7 +231,7 @@ def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset
     try:
         RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
 
-        precip = RAIN['data'][:] * multiply_factor
+        precip = RAIN['data'][:] * multiply_factor / 24.0  # Assuming LPT analysis is in mm/day, get mm/h.
         precip[~np.isfinite(precip)] = 0.0
         precip[precip < -0.01] = 0.0
 
@@ -273,14 +276,14 @@ def mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays
                              multiply_factor, AREA, dataset_dict) for tt in range(len(mask_times))]))
 
     ## Put the outputs into lists for output.
-    VOLRAIN['volrain_global_tser'] = [x['volrain_global_tser']*interval_hours for x in r]
-    VOLRAIN['volrain_global'] = np.nansum(VOLRAIN['volrain_global_tser'])
+    VOLRAIN['volrain_global_tser'] = [x['volrain_global_tser'] for x in r]
+    VOLRAIN['volrain_global'] = np.nansum(VOLRAIN['volrain_global_tser'])*interval_hours
 
     ## Masked
     for field in mask_type_list:
         if not 'with_rain' in field:   # Skip the ones that are masked rain rates.
-            VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser']*interval_hours for x in r]
-            VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])
+            VOLRAIN[field.replace('mask','volrain')+'_tser'] = [x[field.replace('mask','volrain')+'_tser'] for x in r]
+            VOLRAIN[field.replace('mask','volrain')] = np.nansum(VOLRAIN[field.replace('mask','volrain')+'_tser'])*interval_hours
 
     return VOLRAIN
 
@@ -741,6 +744,130 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 # Set the "inner core" of the mask to 2.
                 mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
+
+        ##
+        ## Get contours from the grid.
+        ##
+
+        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
+        max_len = 2000
+        max_len_core = 4000
+
+        with xr.open_dataset(lpt_systems_file) as ds:
+            if 'mask_contour_lon' in ds:
+
+                F_lon = ds['mask_contour_lon'].data
+                F_lat = ds['mask_contour_lat'].data
+                F_lon_core = ds['mask_contour_core_lon'].data
+                F_lat_core = ds['mask_contour_core_lat'].data
+
+            else:
+
+                F_lon = np.full([ntimes, max_len], np.nan)
+                F_lat = np.full([ntimes, max_len], np.nan)
+                F_lon_core = np.full([ntimes, max_len_core], np.nan)
+                F_lat_core = np.full([ntimes, max_len_core], np.nan)
+
+            mask_contour_lon = [[] for x in range(len(mask_times))]
+            mask_contour_lat = [[] for x in range(len(mask_times))]
+            mask_contour_lon_core = [[] for x in range(len(mask_times))]
+            mask_contour_lat_core = [[] for x in range(len(mask_times))]
+
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            # NOTE: I will run in to trouble if:
+            # - Mask contour has > 1000 points. That's hard coded.
+            # It needs to adapt as new data comes in.
+            # ALSO: 
+            # I need to add the "spin-up" time (e.g., 3 days) to the stitched variables.
+            # Right now, the consecutive LPT systems are running in to eachother.
+            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            for dt_idx, dt_this in enumerate(mask_times):
+
+                cg = contourpy.contour_generator(
+                    mask_lon, mask_lat, mask_arrays['mask'][dt_idx].todense())
+
+                contours = cg.lines(0.5)
+                contours_core = cg.lines(1.5)
+
+                for this_contour in contours_core:
+                    mask_contour_lon_core[dt_idx] += [np.nan,]
+                    mask_contour_lat_core[dt_idx] += [np.nan,]
+                    mask_contour_lon_core[dt_idx] += this_contour[:,0].flatten().tolist()
+                    mask_contour_lat_core[dt_idx] += this_contour[:,1].flatten().tolist()
+
+                # Filter width spreading. (Only for the outer contour)
+                for this_contour in contours:
+                    res = mask_lon[1] - mask_lon[0]
+                    s = Polygon(LinearRing(this_contour))
+                    t2 = Polygon(s.buffer(filter_stdev*res).exterior)
+                    t2_coords = np.array(
+                        [t2.exterior.coords[x] for x in range(len(t2.exterior.coords))])
+
+                    mask_contour_lon[dt_idx] += [np.nan,]
+                    mask_contour_lat[dt_idx] += [np.nan,]
+                    mask_contour_lon[dt_idx] += t2_coords[:,0].flatten().tolist()
+                    mask_contour_lat[dt_idx] += t2_coords[:,1].flatten().tolist()
+
+            for dt_idx, dt_this in enumerate(mask_times):
+
+                if dt_idx < 24:
+                    continue
+
+                timestamp_stitched_idx = np.argwhere(
+                    np.logical_and(
+                        TC['lptid_stitched'] == this_lpt_id, 
+                        TC['timestamp_stitched'] == dt_this)) 
+
+                F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
+                F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
+                F_lon_core[timestamp_stitched_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
+                F_lat_core[timestamp_stitched_idx, 0:len(mask_contour_lat_core[dt_idx])] = mask_contour_lat_core[dt_idx]
+
+
+            ## Write mask contour coordinates to LPT systems file.
+            ## First, start a new set of variables if it does not yet exist.
+            ## Otherwise modify the existing variables.
+
+            with xr.open_dataset(lpt_systems_file) as ds:
+
+                new_coords = {'mask_contour_npts': (['mask_contour_npts',], range(max_len)),
+                                'mask_contour_core_npts': (['mask_contour_core_npts',], range(max_len_core))}
+
+                desc = ('The mask_contour_core is the contour of the LPOs which make up the LPT system.'
+                    + ' The mask_contour includes the entire LPO area swept out during the accumulation period'
+                    + ' as well as a buffer of one standard deviation.'
+                    + ' The mask_contour contains the full extent of rainfall contributing to the LPT system,'
+                    + ' whereas the mask_contour_core is regarded as the core region of the LPT system.')
+
+                new_data_vars = {
+                    'mask_contour_lon': (['nstitch','mask_contour_npts'], F_lon, {'units':'degrees_east','description':desc}),
+                    'mask_contour_lat': (['nstitch','mask_contour_npts'], F_lat, {'units':'degrees_north','description':desc}),
+                    'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core, {'units':'degrees_east','description':desc}),
+                    'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core, {'units':'degrees_north','description':desc})}
+
+                ds2 = ds.copy().assign_coords(new_coords)
+                ds2 = ds2.assign(new_data_vars)
+
+            encoding = {
+                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+                'num_objects': {'dtype': 'i'},
+                'mask_contour_npts': {'dtype': 'i'},
+                'mask_contour_core_npts': {'dtype': 'i'},
+                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+                'is_mjo_eprop_stitched': {'dtype': 'bool'},
+                'mask_contour_lon': {'zlib': True},
+                'mask_contour_lat': {'zlib': True},
+                'mask_contour_core_lon': {'zlib': True},
+                'mask_contour_core_lat': {'zlib': True},
+                }
+
+            print(f'Update mask contour coordinates in {lpt_systems_file}')
+            fn_temp = f'temp.{os.getpid()}.nc'
+            ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
+            os.rename(fn_temp, lpt_systems_file)
+
         ##
         ## Do filter width spreading.
         ##
@@ -784,6 +911,108 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             print('Now calculating the volumetric rain.', flush=True)
             VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
+            # Save the volrain to the LPT systems file.
+            with xr.open_dataset(lpt_systems_file) as ds:
+                if 'volrain' in ds:
+
+                    volrain = ds['volrain'].data
+                    volrain_global = ds['volrain_global'].data
+                    maxvolrain = ds['maxvolrain'].data
+                    maxvolrain_global = ds['maxvolrain_global'].data
+                    volrain_tser = ds['volrain_stitched'].data
+                    volrain_global_tser = ds['volrain_global_stitched'].data
+
+                else:
+
+                    volrain = np.full([len(TC['lptid']),], np.nan)
+                    volrain_global = np.full([len(TC['lptid']),], np.nan)
+                    maxvolrain = np.full([len(TC['lptid']),], np.nan)
+                    maxvolrain_global = np.full([len(TC['lptid']),], np.nan)
+                    volrain_tser = np.full([ntimes,], np.nan)
+                    volrain_global_tser = np.full([ntimes,], np.nan)
+
+            volrain[this_lpt_idx] = VOLRAIN['volrain']
+            volrain_global[this_lpt_idx] = VOLRAIN['volrain_global']
+
+            for dt_idx, dt_this in enumerate(mask_times):
+
+                if dt_idx < 24:
+                    continue
+
+                timestamp_stitched_idx = np.argwhere(
+                    np.logical_and(
+                        TC['lptid_stitched'] == this_lpt_id, 
+                        TC['timestamp_stitched'] == dt_this)) 
+
+                volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
+                volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
+
+            maxvolrain[this_lpt_idx] = np.nanmax(volrain_tser)
+            maxvolrain_global[this_lpt_idx] = np.nanmax(volrain_global_tser)
+
+            # Add the volrain variables to the output NetCDF file.
+            print(f'Adding volrain variables to: {lpt_systems_file}')
+
+            volrain_atts1 = {
+                'units':'mm h-1 km2',
+                'description':'Instantaneous volumetric rain flux of the LPT system.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts2 = {
+                'units':'mm h-1 km2',
+                'description':'Instantaneous volumetric rain flux: Entire area with rainfall data.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts3 = {
+                'units':'mm h-1 km2',
+                'description':'Max of volrain over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts4 = {
+                'units':'mm h-1 km2',
+                'description':'Max of volrain_global over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts5 = {
+                'units':'mm km2',
+                'description':'Time integral of volrain over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+            volrain_atts6 = {
+                'units':'mm km2',
+                'description':'Time integral of volrain_global over the LPT system lifetime.',
+                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+
+
+            data_vars = {
+                'volrain_stitched': (['nstitch',], volrain_tser, volrain_atts1),
+                'volrain_global_stitched': (['nstitch',], volrain_global_tser, volrain_atts2),
+                'maxvolrain': (['nlpt',], maxvolrain, volrain_atts3),
+                'maxvolrain_global': (['nlpt',], maxvolrain_global, volrain_atts4),
+                'volrain': (['nlpt',], volrain, volrain_atts5),
+                'volrain_global': (['nlpt',], volrain_global, volrain_atts6),
+            }
+
+            with xr.open_dataset(lpt_systems_file) as ds:
+                ds2 = ds.copy().assign(data_vars)
+
+
+            encoding = {
+                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+                'num_objects': {'dtype': 'i'},
+                'mask_contour_npts': {'dtype': 'i'},
+                'mask_contour_core_npts': {'dtype': 'i'},
+                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+                'is_mjo_eprop_stitched': {'dtype': 'bool'},
+                'mask_contour_lon': {'zlib': True},
+                'mask_contour_lat': {'zlib': True},
+                'mask_contour_core_lon': {'zlib': True},
+                'mask_contour_core_lat': {'zlib': True},
+                }
+
+            ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
+            os.rename('./temp.nc', lpt_systems_file)
 
         ##########################################################
         ## Include some basic LPT info for user friendliness.  ###
@@ -913,6 +1142,49 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                                     , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
 
             print('Done adding masked rainfall.')
+
+        # Add the volrain variables to the output NetCDF file.
+        if do_volrain:
+            print(f'Adding volrain to: {lpt_systems_file}')
+
+            fields = [*VOLRAIN]
+            for field in fields:
+                if not 'tser' in field:
+                    with xr.open_dataset(lpt_systems_file) as ds:
+
+                        # Which indices do I use for this LPT system?
+                        this_lpt = (np.abs(ds['lptid'].data - this_lpt_id) < 0.0001)
+                        this_lpt_stitched = (np.abs(ds['lptid_stitched'].data - this_lpt_id) < 0.0001)
+                        print((np.abs(ds['lptid'].data - this_lpt_id), this_lpt))
+
+                        if not field in ds:
+                            volrain_all = np.nan * ds['lptid'].data
+                            volrain_all_stitched = np.nan * ds['lptid_stitched'].data
+                        else:
+                            volrain_all = ds[field].data
+                            volrain_all_stitched = ds[field+'_stitched'].data
+
+                        volrain_all[this_lpt] = VOLRAIN[field]
+                        # volrain_all_stitched[this_lpt_stitched] = VOLRAIN[field+'_tser'][72:] # Skip accum. period.
+                        volrain_all_stitched[this_lpt_stitched] = VOLRAIN[field+'_tser'][-1*len(volrain_all_stitched[this_lpt_stitched]):] # Skip accum. period.
+
+                        data_vars = {
+                            field: (['nlpt',], volrain_all),
+                            field+'_stitched': (['nstitch',], volrain_all_stitched),
+                        }
+
+                        encoding = {
+                            'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+                            'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+                            'num_objects': {'dtype': 'i'},
+                            'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+                            'is_mjo_eprop_stitched': {'dtype': 'bool'}}
+
+                        ds2 = ds.copy().assign(data_vars)
+
+                    fn_temp = f'temp.{os.getpid()}.nc'
+                    ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
+                    os.rename(fn_temp, lpt_systems_file)
 
 
 def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm'
