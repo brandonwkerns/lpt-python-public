@@ -750,8 +750,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ##
 
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
-        max_len = 1000
-        max_len_core = 2000
+        max_len = 2000
+        max_len_core = 4000
 
         with xr.open_dataset(lpt_systems_file) as ds:
             if 'mask_contour_lon' in ds:
@@ -864,8 +864,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 }
 
             print(f'Update mask contour coordinates in {lpt_systems_file}')
-            ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
-            os.rename('./temp.nc', lpt_systems_file)
+            fn_temp = f'temp.{os.getpid()}.nc'
+            ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
+            os.rename(fn_temp, lpt_systems_file)
 
         ##
         ## Do filter width spreading.
@@ -1181,7 +1182,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
                         ds2 = ds.copy().assign(data_vars)
 
-                    fn_temp = f'temp.{os. getpid()}.nc'
+                    fn_temp = f'temp.{os.getpid()}.nc'
                     ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
                     os.rename(fn_temp, lpt_systems_file)
 
