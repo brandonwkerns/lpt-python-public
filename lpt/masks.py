@@ -13,6 +13,7 @@ import datetime as dt
 import cftime
 from dateutil.relativedelta import relativedelta
 from context import lpt
+import lpt.lptio
 import os
 import sys
 from scipy.sparse import dok_matrix, csr_matrix, find, SparseEfficiencyWarning
@@ -21,7 +22,6 @@ from tqdm import tqdm
 
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
-
 
 
 ##
@@ -864,9 +864,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 }
 
             print(f'Update mask contour coordinates in {lpt_systems_file}')
-            fn_temp = f'temp.{os.getpid()}.nc'
-            ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
-            os.rename(fn_temp, lpt_systems_file)
+            lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
 
         ##
         ## Do filter width spreading.
@@ -1011,8 +1009,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 'mask_contour_core_lat': {'zlib': True},
                 }
 
-            ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
-            os.rename('./temp.nc', lpt_systems_file)
+            lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
+
 
         ##########################################################
         ## Include some basic LPT info for user friendliness.  ###
@@ -1182,9 +1180,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
                         ds2 = ds.copy().assign(data_vars)
 
-                    fn_temp = f'temp.{os.getpid()}.nc'
-                    ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
-                    os.rename(fn_temp, lpt_systems_file)
+                    lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
 
 
 def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm'

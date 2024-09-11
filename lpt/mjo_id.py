@@ -8,6 +8,7 @@ from netCDF4 import Dataset
 import datetime as dt
 import cftime
 from context import lpt
+import lpt.lptio
 import os
 import glob
 import sys
@@ -713,5 +714,4 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
         'is_mjo_eprop_stitched': {'dtype': 'bool'}}
 
-    ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
-    os.rename('./temp.nc', lpt_systems_file)
+    lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)

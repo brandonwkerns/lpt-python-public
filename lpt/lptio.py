@@ -543,3 +543,9 @@ def read_lpt_systems_netcdf(lpt_systems_file):
         TC['duration'] = DS['duration'][:]
 
     return TC
+
+
+def replace_nc_file_with_dataset(fn, ds, encoding):
+    fn_temp = f'temp.{os.getpid()}.nc'
+    ds.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
+    os.rename(fn_temp, fn)
