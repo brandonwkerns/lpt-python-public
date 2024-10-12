@@ -468,7 +468,11 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
                         mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
 
                 # Set the "inner core" of the mask to 2.
-                mask_arrays['mask'][dt_idx][jjj, iii] = 2
+                # (or 1, if no filter or accumulation)
+                if accumulation_hours < 0.01 and filter_stdev < 0.01:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
+                else:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
         except:
             DS.close()
@@ -742,7 +746,11 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                         mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
 
                 # Set the "inner core" of the mask to 2.
-                mask_arrays['mask'][dt_idx][jjj, iii] = 2
+                # (or 1, if no filter or accumulation)
+                if accumulation_hours < 0.01 and filter_stdev < 0.01:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
+                else:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
 
         ##
@@ -776,10 +784,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             mask_contour_lat_core = [[] for x in range(len(mask_times))]
 
             # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            # NOTE: I will run in to trouble if:
-            # - Mask contour has > 1000 points. That's hard coded.
-            # It needs to adapt as new data comes in.
-            # ALSO: 
+            # NOTE: 
             # I need to add the "spin-up" time (e.g., 3 days) to the stitched variables.
             # Right now, the consecutive LPT systems are running in to eachother.
             # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1366,7 +1371,11 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
                         mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
 
                 # Set the "inner core" of the mask to 2.
-                mask_arrays['mask'][dt_idx][jjj, iii] = 2
+                # (or 1, if no filter or accumulation)
+                if accumulation_hours < 0.01 and filter_stdev < 0.01:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
+                else:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
         ##
         ## Do filter width spreading.
@@ -1724,7 +1733,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                         mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
 
                 # Set the "inner core" of the mask to 2.
-                mask_arrays['mask'][dt_idx][jjj, iii] = 2
+                # (or 1, if no filter or accumulation)
+                if accumulation_hours < 0.01 and filter_stdev < 0.01:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
+                else:
+                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
+
 
     ##
     ## Do filter width spreading.
