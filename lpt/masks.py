@@ -750,8 +750,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ##
 
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
-        max_len = 2000
-        max_len_core = 4000
+        max_len = 1   # 2000
+        max_len_core = 1 # 4000
 
         with xr.open_dataset(lpt_systems_file) as ds:
             if 'mask_contour_lon' in ds:
@@ -760,6 +760,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 F_lat = ds['mask_contour_lat'].data
                 F_lon_core = ds['mask_contour_core_lon'].data
                 F_lat_core = ds['mask_contour_core_lat'].data
+                max_len = F_lat.shape[1]
+                max_len_core = F_lat_core.shape[1]
 
             else:
 
@@ -818,6 +820,19 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     np.logical_and(
                         TC['lptid_stitched'] == this_lpt_id, 
                         TC['timestamp_stitched'] == dt_this)) 
+                # Check if I need to expand the arrays.
+                if len(mask_contour_lon[dt_idx]) > max_len:
+                    print('Expand max_lon to: ', len(mask_contour_lon[dt_idx]))
+                    array_to_stack = np.full([ntimes, len(mask_contour_lon[dt_idx]) - max_len], np.nan)
+                    F_lon = np.column_stack((F_lon, array_to_stack))
+                    F_lat = np.column_stack((F_lat, array_to_stack))
+                    max_len = len(mask_contour_lon[dt_idx])
+                if len(mask_contour_lon_core[dt_idx]) > max_len_core:
+                    print('Expand max_lon to: ', len(mask_contour_lon_core[dt_idx]))
+                    array_to_stack = np.full([ntimes, len(mask_contour_lon_core[dt_idx]) - max_len_core], np.nan)
+                    F_lon_core = np.column_stack((F_lon_core, array_to_stack))
+                    F_lat_core = np.column_stack((F_lat_core, array_to_stack))
+                    max_len_core = len(mask_contour_lon_core[dt_idx])
 
                 F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
                 F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
@@ -846,7 +861,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core, {'units':'degrees_east','description':desc}),
                     'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core, {'units':'degrees_north','description':desc})}
 
-                ds2 = ds.copy().assign_coords(new_coords)
+                ds2 = ds.copy()
+                if 'mask_contour_lon' in ds2.variables:
+                    ds2 = ds2.drop_vars(['mask_contour_lon','mask_contour_lat','mask_contour_core_lon','mask_contour_core_lat'])
+                ds2 = ds2.assign_coords(new_coords)
                 ds2 = ds2.assign(new_data_vars)
 
             encoding = {
@@ -1036,7 +1054,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     mask_arrays[var][this_time_indx] = TC[var][ttt]
 
         # Bulk properties
-        for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+        bulk_lpt_info_field_list = ['lptid','duration','maxarea',
+            'zonal_propagation_speed','meridional_propagation_speed']
+        for var in bulk_lpt_info_field_list:
             mask_arrays[var] = TC[var][this_lpt_idx]
         ##########################################################
 
@@ -1069,7 +1089,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 else:
                     data_dict[field] = (['n',], [VOLRAIN[field],])
 
-        for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+        for mask_var in bulk_lpt_info_field_list:
             print(mask_var, mask_arrays[mask_var])
             data_dict[mask_var] = (['n',], [mask_arrays[mask_var],])
 
@@ -1415,8 +1435,13 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
                     mask_arrays[var][this_time_indx] = TC[var][ttt]
 
         # Bulk properties
-        for var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
-            mask_arrays[var] = TC[var][this_lpt_idx]
+        bulk_lpt_info_field_list = ['group','duration','maxarea',
+            'zonal_propagation_speed','meridional_propagation_speed']
+        for var in bulk_lpt_info_field_list:
+            if var == 'group':
+                mask_arrays[var] = this_lpt_group
+            else:
+                mask_arrays[var] = TC[var][this_lpt_idx]
         ##########################################################
 
 
@@ -1448,7 +1473,7 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
                 else:
                     data_dict[field] = (['n',], [VOLRAIN[field],])
 
-        for mask_var in ['duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
+        for mask_var in bulk_lpt_info_field_list:
             print(mask_var, mask_arrays[mask_var])
             data_dict[mask_var] = (['n',], [mask_arrays[mask_var],])
 
