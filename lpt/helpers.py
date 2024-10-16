@@ -53,6 +53,52 @@ def dtrange(begin_datetime, ending_datetime, interval_hours):
 ###################################################################
 
 
+def reorder_image_labels(label_im):
+    label_im_new = label_im.copy()
+    unique_labels = sorted(np.unique(label_im))
+    for n, label in enumerate(unique_labels):
+        if n > 0:
+            label_im_new[label_im == label] = n
+    return (label_im_new, len(unique_labels)-1)
+
+
+def ndimage_label_periodic_x(image):
+    label_im, labels = ndimage.label(image)
+
+    more_changes = True
+    while more_changes:
+        more_changes = False
+        west_edge_ids = []
+        east_edge_ids = []
+        for n in range(1, labels+1):
+            # Check left side.
+            this_feature = label_im == n
+            if np.sum(this_feature[:,0]) > 0:
+                west_edge_ids += [n]
+            # Check right side.
+            if np.sum(this_feature[:,-1]) > 0:
+                east_edge_ids += [n]
+
+        # Check whether the western and eastern edge features should be combined.
+        changes = 0
+        for n in west_edge_ids:
+            this_feature_n = label_im == n
+            for m in east_edge_ids:
+                if not m == n: # Check if already the same id.
+                    this_feature_m = label_im == m
+                    if np.nansum(np.logical_and(this_feature_n[:,0], this_feature_m[:,-1])):
+                        # I have a match! So set the east edge system to the west edge ID.
+                        label_im[this_feature_m] = n
+                        changes += 1
+
+        if changes > 0:
+            label_im, labels = reorder_image_labels(label_im)
+            more_changes = True
+
+    return (label_im, labels)
+
+
+
 def calc_scaled_average(data_in_accumulation_period, factor):
     """
     accumulated_data = calc_accumulation(data_in accumulation_period, factor)
@@ -92,7 +138,7 @@ def identify_lp_objects(field, threshold, min_points=1,
         else:
             field_bw[(field < threshold)] = 1
 
-    label_im, nb_labels = ndimage.label(field_bw)
+    label_im, nb_labels = ndimage_label_periodic_x(field_bw)
     if verbose:
         print('Found '+str(nb_labels)+' objects.', flush=True) # how many regions?
 
@@ -339,6 +385,25 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     max_lat = ndimage.maximum(lat2, label_im, range(1, nb_labels + 1))
     min_lat = ndimage.minimum(lat2, label_im, range(1, nb_labels + 1))
 
+    # Longitude may wrap around.
+    # HACK: THIS ASSUMES SYSTEMS DO NOT ALSO CROSS THE DATELINE 
+    for id in range(1, nb_labels + 1):
+        this_mask = label_im == id
+        if np.min(X2[this_mask]) == 0 and np.max(X2[this_mask]) == X2.shape[1]-1:
+            print(id, ': Crossed the prime meridian.')
+
+            lon2_180 = 1.0*lon2
+            lon2_180[lon2 < 180] += 360.0
+            centroid_lon[id-1] = np.nansum(lon2_180 * area2d * this_mask) / np.nansum(area2d * this_mask)
+            if centroid_lon[id-1] > 360.0:
+                centroid_lon[id-1] -= 360.0
+
+            X2_180 = 1.0*X2
+            X2_180[lon2 < 180] += X2.shape[1]
+            centroid_x[id-1] = np.nansum(X2_180 * area2d * this_mask) / np.nansum(area2d * this_mask)
+            if centroid_x[id-1] > X2.shape[1]-1:
+                centroid_x[id-1] -= X2.shape[1]
+
     ## Assign LPT IDs. Order is by longitude. Use zero-base indexing.
     id0 = 1e10 * end_of_accumulation_time.year + 1e8 * end_of_accumulation_time.month + 1e6 * end_of_accumulation_time.day + 1e4 * end_of_accumulation_time.hour
 
@@ -558,7 +623,7 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%
     ## Each overlap must necessarily be one LPO against another single LPO.
     ##
     overlap = np.logical_and(mask1 > -1, mask2 > -1)
-    label_im, nb_labels = ndimage.label(overlap)
+    label_im, nb_labels = ndimage_label_periodic_x(overlap)
 
     ########################################################################
     ## Construct overlapping points "look up table" array.
