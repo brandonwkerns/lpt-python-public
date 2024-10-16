@@ -54,6 +54,8 @@ lpo_options['overwrite_existing_files'] = True
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day.
 lpo_options['field_units'] = 'mm d-1'
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
+lpo_options['object_is_gt_threshold'] = True # Is LP object > theshold? T = yes, F = no
+lpo_options['thresh_or_equal'] = False       # Should >= or <= be used?
 lpo_options['accumulation_hours'] = 72      # Accumulation period for LP objects (hours).
 lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of grid points.
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?

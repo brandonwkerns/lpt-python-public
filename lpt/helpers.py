@@ -66,13 +66,14 @@ def calc_scaled_average(data_in_accumulation_period, factor):
     return factor * np.nanmean(data_in_accumulation_period, axis=0)
 
 
-def identify_lp_objects(field, threshold, min_points=1
-                        , object_is_gt_threshold=True, verbose=False):
+def identify_lp_objects(field, threshold, min_points=1,
+                        object_is_gt_threshold=True,
+                        thresh_or_equal=False, verbose=False):
 
     """
-    label_im = identify_lp_objects(lon, lat, field, threshold
-                            , object_minimum_gridpoints=0
-                            , object_is_gt_threshold=True)
+    label_im = identify_lp_objects(field, threshold, min_points=1,
+                        object_is_gt_threshold=True,
+                        thresh_or_equal=False, verbose=False)
 
     Given an input data field (e.g., already accumulated and filtered),
     identify the LP Objects in that field. Return an array the same size
@@ -81,9 +82,15 @@ def identify_lp_objects(field, threshold, min_points=1
 
     field_bw = 0 * field
     if object_is_gt_threshold:
-        field_bw[(field > threshold)] = 1
+        if thresh_or_equal:
+            field_bw[(field >= threshold)] = 1
+        else:
+            field_bw[(field > threshold)] = 1
     else:
-        field_bw[(field < threshold)] = 1
+        if thresh_or_equal:
+            field_bw[(field <= threshold)] = 1
+        else:
+            field_bw[(field < threshold)] = 1
 
     label_im, nb_labels = ndimage.label(field_bw)
     if verbose:
@@ -229,7 +236,12 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
                 print('filter done.',flush=True)
 
             ## Get LP objects.
-            label_im = identify_lp_objects(DATA_FILTERED, lpo_options['thresh'], min_points=lpo_options['min_points'], verbose=dataset['verbose'])
+            label_im = identify_lp_objects(
+                DATA_FILTERED, lpo_options['thresh'],
+                min_points=lpo_options['min_points'], 
+                object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
+                thresh_or_equal=lpo_options['thresh_or_equal'],
+                verbose=dataset['verbose'])
             OBJ = calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
                         , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
                         , end_of_accumulation_time0, verbose=dataset['verbose'])
