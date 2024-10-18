@@ -157,8 +157,8 @@ def identify_lp_objects(field, threshold, min_points=1,
         ## Re-order LP Object IDs.
         label_im_old = label_im.copy()
         id_list = sorted(np.unique(label_im_old))
-        for nn in range(len(id_list)):
-            label_im[label_im_old == id_list[nn]] = nn
+        for nn, this_id in enumerate(id_list):
+            label_im[label_im_old == this_id] = nn
 
     return label_im
 
@@ -574,10 +574,10 @@ def init_lpt_graph(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects
                 id_list = [] # In case of no LPOs at this time.
             DS.close()
 
-            for ii in range(len(id_list)):
+            for ii, this_id in enumerate(id_list):
                 npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
                 if npts >= min_points:
-                    G.add_node(int(id_list[ii]), timestamp=(this_dt - REFTIME).total_seconds()
+                    G.add_node(int(this_id), timestamp=(this_dt - REFTIME).total_seconds()
                         , lon = lon[ii], lat=lat[ii], area=area[ii]
                         , pos = (lon[ii], (this_dt - REFTIME).total_seconds()))
 
@@ -757,9 +757,9 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
     CC = list(nx.connected_components(nx.to_undirected(G)))
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
-    for kk in range(len(SG)):
+    for kk, this_SG in enumerate(SG):
 
-        end_nodes = [x for x in SG[kk].nodes() if SG[kk].out_degree(x)==0 and SG[kk].in_degree(x)>=1]
+        end_nodes = [x for x in this_SG.nodes() if this_SG.out_degree(x)==0 and this_SG.in_degree(x)>=1]
         if len(end_nodes) < 0:
             continue
 
@@ -898,16 +898,16 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
     ## Loop over each DAG (LPG Group)
-    for kk in range(len(SG)):
+    for kk, this_SG in enumerate(SG):
         more_to_do = True
         print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
         niter = 0
         while more_to_do:
             niter += 1
             more_to_do = False
-            areas = nx.get_node_attributes(SG[kk],'area') # used for tie breaker if same duration
+            areas = nx.get_node_attributes(this_SG,'area') # used for tie breaker if same duration
 
-            Plist_mergers, Plist_splits = get_short_ends(SG[kk])
+            Plist_mergers, Plist_splits = get_short_ends(this_SG)
             print('----> Iteration #'+str(niter)+': Found '+str(len(Plist_mergers))+' merge ends and '+str(len(Plist_splits))+' split ends.',flush=True)
 
             nodes_to_remove = []
@@ -916,8 +916,8 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
 
                 merger_datetimes = [get_objid_datetime(x[-1]) for x in Plist_mergers]
                 merger_timestamps = np.array([(x - cftime.datetime(1970,1,1,0,0,0,calendar=merger_datetimes[0].calendar)).total_seconds()/3600 for x in merger_datetimes])
-                for iiii in range(len(Plist_mergers)):
-                    path1 = Plist_mergers[iiii]
+                for iiii, path1 in enumerate(Plist_mergers):
+                    # path1 = Plist_mergers[iiii]
                     # Don't use the last node, as it intersects the paths I want to keep.
                     dur1 = (get_objid_datetime(path1[-2]) - get_objid_datetime(path1[0])).total_seconds()/3600.0
 
@@ -960,7 +960,7 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                 split_datetimes = [get_objid_datetime(x[-1]) for x in Plist_splits]
                 split_timestamps = np.array([(x - cftime.datetime(1970,1,1,0,0,0,calendar=split_datetimes[0].calendar)).total_seconds()/3600 for x in split_datetimes])
 
-                for iiii in range(len(Plist_splits)):
+                for iiii, path1 in enumerate(Plist_splits):
                     path1 = Plist_splits[iiii]
                     # Don't use the last node, as it intersects the paths I want to keep.
                     dur1 = (get_objid_datetime(path1[0]) - get_objid_datetime(path1[-2])).total_seconds()/3600.0
@@ -996,7 +996,7 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
 
             if len(nodes_to_remove) > 0:
                 G.remove_nodes_from(nodes_to_remove)
-                SG[kk].remove_nodes_from(nodes_to_remove)
+                this_SG.remove_nodes_from(nodes_to_remove)
 
                 ## In some situations, the branch removal process leaves behind "isolates"
                 ##  -- Nodes without any neighbors! This has occurred in the following situation:
@@ -1011,10 +1011,10 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
                 ##             *
                 ## Where ^ is the node that was left "stranded", e.g, the isolate.
                 ## To handle this, remove any isolates from main graph and current sub graph.
-                isolates_list = list(nx.isolates(SG[kk]))
+                isolates_list = list(nx.isolates(this_SG))
                 if len(isolates_list) > 0:
                     G.remove_nodes_from(isolates_list)
-                    SG[kk].remove_nodes_from(isolates_list)
+                    this_SG.remove_nodes_from(isolates_list)
 
                 more_to_do = True
 
@@ -1053,15 +1053,15 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
     ## Loop over each DAG
-    for kk in range(len(SG)):
+    for kk, this_SG in enumerate(SG):
         print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
 
         TC_this = {}
         TC_this['lpt_group_id'] = kk
         TC_this['lpt_id'] = 1.0*kk
 
-        TC_this['objid'] = sorted(list(SG[kk].nodes()))
-        ts=nx.get_node_attributes(SG[kk],'timestamp')
+        TC_this['objid'] = sorted(list(this_SG.nodes()))
+        ts=nx.get_node_attributes(this_SG,'timestamp')
         timestamp_all = [ts[x] for x in TC_this['objid']]
         TC_this['timestamp'] = np.unique(timestamp_all)
         TC_this['datetime'] = [cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
@@ -1074,24 +1074,39 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
         TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
 
         ## Loop over unique time stamps.
-        for tt in range(len(TC_this['timestamp'])):
+        for tt, timestamp_this in enumerate(TC_this['timestamp']):
             max_area_already_used = -999.0
-            this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == TC_this['timestamp'][tt]]
+            this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == timestamp_this]
+
+            lon_points_collect = []
+            lat_points_collect = []
+            pixels_x_collect = []
+            pixels_y_collect = []
+
             for this_objid in this_objid_list:
 
-                OBJ = read_lp_object_properties(this_objid, options['objdir']
-                        , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
-                        ,'min_lon','max_lon','min_lat','max_lat'
-                        ,'westmost_lat','eastmost_lat'
-                        ,'southmost_lon','northmost_lon'
-                        ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
-                        ,'min_inst_field','min_running_field','min_filtered_running_field'
-                        ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
+                OBJ = read_lp_object_properties(
+                    this_objid, options['objdir'],
+                    ['centroid_lon','centroid_lat','area',
+                        'pixels_x','pixels_y',
+                        'grid_lon', 'grid_lat',
+                        'min_lon','max_lon','min_lat','max_lat',
+                        'westmost_lat','eastmost_lat',
+                        'southmost_lon','northmost_lon',
+                        'amean_inst_field','amean_running_field','max_inst_field','max_running_field',
+                        'min_inst_field','min_running_field','min_filtered_running_field',
+                        'amean_filtered_running_field','max_filtered_running_field',
+                    ], 
+                    fmt=fmt
+                )
 
                 TC_this['nobj'][tt] += 1
                 TC_this['area'][tt] += OBJ['area']
                 TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
                 TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
+                pixels_x_collect += [OBJ['pixels_x']]
+                pixels_y_collect += [OBJ['pixels_y']]
+
                 if OBJ['area'] > max_area_already_used:
                     TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
                     TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
@@ -1170,28 +1185,29 @@ def get_list_of_path_graphs(G):
 
 
 def get_list_of_path_graphs_rejoin_cycles(G):
-
-    #########################################################
-    ## 1. For any path intersecting with a cycle, add all nodes of the cycle.
-    ## 2. Remove duplicate paths.
+    """
+    1. For any path intersecting with a cycle, add all nodes of the cycle.
+    2. Remove duplicate paths.
+    """
 
     cycles = nx.cycle_basis(nx.to_undirected(G))
     if len(cycles) > 1:
-        ## In some cases, there are cycles that touch eathother. Cycles that toush are treated
-        ##   together all at once, and hence need to be combined.
-        for cc in range(len(cycles)):
-            for cccc in range(len(cycles)):
+        # In some cases, there are cycles that touch each other. 
+        # Cycles that touch are treated
+        # together all at once, and hence need to be combined.
+        for cc, this_cycle in enumerate(cycles):
+            for cccc, this_ccccycle in enumerate(cycles):
                 if cccc == cc:
                     continue
-                if len(set(cycles[cc]).intersection(set(cycles[cccc]))) > 0:
-                    cycles[cc] = list(set(cycles[cc]).union(set(cycles[cccc])))
-                    cycles[cccc] = list(set(cycles[cc]).union(set(cycles[cccc])))
+                if len(set(this_cycle).intersection(set(this_ccccycle))) > 0:
+                    cycles[cc] = list(set(this_cycle).union(set(this_ccccycle)))
+                    cycles[cccc] = list(set(this_cycle).union(set(this_ccccycle)))
 
     Plist = get_list_of_path_graphs(G)
 
-    for ii in range(len(Plist)):
+    for ii, this_path in enumerate(Plist):
         for C in cycles:
-            intersection_nodes = set(C).intersection(set(Plist[ii].nodes()))
+            intersection_nodes = set(C).intersection(set(this_path.nodes()))
             intersecton_times = [get_objid_datetime(x) for x in intersection_nodes]
             if len(intersection_nodes) > 0:
                 Cadd = []
@@ -1201,19 +1217,19 @@ def get_list_of_path_graphs_rejoin_cycles(G):
                 Plist[ii].add_nodes_from(Cadd)  #Only nodes are copied, not edges. But that's all I need.
 
     ## This step eliminates duplicates.
-    for ii in range(len(Plist)):
+    for ii, this_path in enumerate(Plist):
         if ii == 0:
-            Plist_new = [Plist[ii]]
+            Plist_new = [this_path]
         else:
             ## Check whether it is already in Plist_new.
             ##  Use XOR on the set of nodes.
             include_it = True
             for P in Plist_new:
-                if len(set(Plist[ii].nodes()) ^ set(P.nodes())) == 0:
+                if len(set(this_path.nodes()) ^ set(P.nodes())) == 0:
                     include_it = False
                     break
             if include_it:
-                Plist_new.append(Plist[ii])
+                Plist_new.append(this_path)
 
     return Plist_new
 
@@ -1227,11 +1243,10 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
     ## Loop over each DAG
-    for kk in range(len(SG)):
+    for kk, this_SG in enumerate(SG):
         print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG)),flush=True)
 
-        #Plist = get_list_of_path_graphs(SG[kk])
-        Plist = get_list_of_path_graphs_rejoin_cycles(SG[kk])
+        Plist = get_list_of_path_graphs_rejoin_cycles(this_SG)
 
         if len(Plist) == 1:
             print('----> Found '+str(len(Plist))+' LPT system.',flush=True)
@@ -1240,10 +1255,9 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
 
 
         ## Get "timeclusters" for each branch.
-        for iiii in range(len(Plist)):
-            path1 = Plist[iiii]
+        for iiii, path1 in enumerate(Plist):
 
-            PG = SG[kk].subgraph(path1).copy()
+            PG = this_SG.subgraph(path1).copy()
 
             TC_this = {}
             TC_this['lpt_group_id'] = kk
@@ -1263,9 +1277,9 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
             TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
 
             ## Loop over unique time stamps.
-            for tt in range(len(TC_this['timestamp'])):
+            for tt, timestamp_this in enumerate(TC_this['timestamp']):
                 max_area_already_used = -999.0
-                this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == TC_this['timestamp'][tt]]
+                this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == timestamp_this]
                 for this_objid in this_objid_list:
 
                     OBJ = read_lp_object_properties(this_objid, options['objdir']
@@ -1413,10 +1427,12 @@ def float_lpt_id(group, branch):
 
 def plot_timeclusters_time_lon(ax, TIMECLUSTERS, linewidth=2.0):
 
-    for ii in range(len(TIMECLUSTERS)):
-        x = TIMECLUSTERS[ii]['centroid_lon']
-        y = TIMECLUSTERS[ii]['datetime']
+    for ii, this_timecluster in enumerate(TIMECLUSTERS):
+        x = this_timecluster['centroid_lon']
+        y = this_timecluster['datetime']
         ax.plot(x, y, 'k', linewidth=linewidth)
 
-        plt.text(x[0], y[0], str(int(ii)), fontweight='bold', color='red', clip_on=True)
-        plt.text(x[-1], y[-1], str(int(ii)), fontweight='bold', color='red', clip_on=True)
+        plt.text(x[0], y[0], str(int(ii)),
+            fontweight='bold', color='red', clip_on=True)
+        plt.text(x[-1], y[-1], str(int(ii)),
+            fontweight='bold', color='red', clip_on=True)
