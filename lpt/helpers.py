@@ -339,7 +339,117 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
             print('Data not yet available up to this point. Skipping.')
 
 
+def calculate_centroid_wrap_x(label_im, nb_labels, x, y, area):
 
+    """
+    calculate_centroid_wrap_x(label_im, nb_labels, x, y, area)
+
+    Given a labeled image, arrays of grid points x and y (2-d),
+    and the grid point areas, calculate the centroids of: (x, y).
+    (x, y) could be, for example, lat/lon or x and y grid points.
+
+    If wrap_around = True, then account for wrapping around,
+    based on the longitude wrap_around_x.
+    """
+
+    # Y is easy, take care of that.
+    centroid_y = (
+        ndimage.sum(y*area, label_im, range(1, nb_labels + 1))
+        / ndimage.sum(area, label_im, range(1, nb_labels + 1))
+    )
+
+    # X needs some work. Figure it out one by one
+    # account for wrap-around in the x direction.
+    centroid_x = []
+
+    for ii in range(1, nb_labels+1):
+
+        this_im = label_im == ii
+        this_total_area = np.sum(this_im*area)
+
+        # Figure out what x values to stitch.
+        # (Assume regular grid here.)
+        dx = x[0,1] - x[0,0]
+        xmax = x[0,-1] + dx  #e.g., for longitude, xmax = 360.0
+
+        # This mask may have two or more separate blobs.
+        # This will usually happen in the tracking step
+        # when LPTs split and merge, there may be two or more
+        # "peices" of it.
+        # And it's entirely possible that one or more peices (blobs)
+        # are on the opposite side of the prime meridian!
+        # So here are the steps:
+
+        # 1. Break "this_im_stitched" into its constituent blobs.
+        this_im_blobs, n_this_im_blobs = ndimage.label(this_im)
+
+        # 2. Start with the first detected blob A. Get its sum of lon * area.
+        this_im_blob = this_im_blobs == 1
+        x_area_sum = np.sum(this_im_blob * x * area)
+
+        # 3. For the next one (B, if any), get its sum of lon * area,
+        #    using lon, lon+360, and lon-360.
+
+        total_area_so_far = np.sum(this_im_blob*area)
+
+        if n_this_im_blobs > 1:
+            for nn in range(2, n_this_im_blobs+1):
+                this_im_blob = this_im_blobs == nn
+
+                this_im_blob_area = np.sum(this_im_blob*area)
+                x_area_sum0 = np.sum(this_im_blob * x * area)
+
+                x_area_sum_p360 = np.sum(this_im_blob * (x+xmax) * area)
+                x_area_sum_m360 = np.sum(this_im_blob * (x-xmax) * area)
+
+                # 4. For B, get the distance from A using lon, lon+360, lon-360.
+                #    Use abs (lonA*areaA - lonB*areaB) to get the min. value.
+                dist_sum0 = np.abs(
+                    x_area_sum0/this_im_blob_area
+                    - x_area_sum/total_area_so_far
+                )
+                dist_sum_p360 = np.abs(
+                    x_area_sum_p360/this_im_blob_area
+                    - x_area_sum/total_area_so_far
+                )
+                dist_sum_m360 = np.abs(
+                    x_area_sum_m360/this_im_blob_area
+                    - x_area_sum/total_area_so_far
+                )
+
+                # 5. Add the value of lonB*areaB
+                #    that gives the minimum "distance" to A.
+                if dist_sum0 < min(dist_sum_p360, dist_sum_m360):
+                    x_area_sum += x_area_sum0
+                elif dist_sum_p360 < min(dist_sum0, dist_sum_m360):
+                    x_area_sum += x_area_sum_p360
+                else:
+                    x_area_sum += x_area_sum_m360
+
+                total_area_so_far += this_im_blob_area
+
+            # 6. Repeat for any remaining blobs.
+
+        # 7. Divide by the total area.
+        centroid_x_this = x_area_sum / this_total_area
+
+        more_to_do = True
+        while more_to_do:
+            more_to_do = False
+            if centroid_x_this > x[0,-1] + 0.001:
+                more_to_do = True
+                centroid_x_this -= xmax
+            if centroid_x_this < x[0,0] - 0.001:
+                more_to_do = True
+                centroid_x_this += xmax
+
+        centroid_x += [centroid_x_this]
+
+    # Make sure output is np array.
+    centroid_x = np.array(centroid_x)
+    centroid_y = np.array(centroid_y)
+
+    return (centroid_x, centroid_y)
 
 
 def calculate_lp_object_properties(lon, lat, field, field_running, field_filtered, label_im
@@ -375,34 +485,18 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     max_running_field = ndimage.maximum(field_running, label_im, range(1, nb_labels + 1))
     max_filtered_running_field = ndimage.maximum(field_filtered, label_im, range(1, nb_labels + 1))
 
-    centroid_lon = ndimage.sum(lon2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
-    centroid_lat = ndimage.sum(lat2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
-    centroid_x = ndimage.sum(X2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
-    centroid_y = ndimage.sum(Y2*area2d, label_im, range(1, nb_labels + 1)) / ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+    centroid_x, centroid_y = calculate_centroid_wrap_x(
+        label_im, nb_labels, X2, Y2, area2d
+    )
+    centroid_lon, centroid_lat = calculate_centroid_wrap_x(
+        label_im, nb_labels, lon2, lat2, area2d
+    )
+
     area = ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
     max_lon = ndimage.maximum(lon2, label_im, range(1, nb_labels + 1))
     min_lon = ndimage.minimum(lon2, label_im, range(1, nb_labels + 1))
     max_lat = ndimage.maximum(lat2, label_im, range(1, nb_labels + 1))
     min_lat = ndimage.minimum(lat2, label_im, range(1, nb_labels + 1))
-
-    # Longitude may wrap around.
-    # HACK: THIS ASSUMES SYSTEMS DO NOT ALSO CROSS THE DATELINE 
-    for id in range(1, nb_labels + 1):
-        this_mask = label_im == id
-        if np.min(X2[this_mask]) == 0 and np.max(X2[this_mask]) == X2.shape[1]-1:
-            print(id, ': Crossed the prime meridian.')
-
-            lon2_180 = 1.0*lon2
-            lon2_180[lon2 < 180] += 360.0
-            centroid_lon[id-1] = np.nansum(lon2_180 * area2d * this_mask) / np.nansum(area2d * this_mask)
-            if centroid_lon[id-1] > 360.0:
-                centroid_lon[id-1] -= 360.0
-
-            X2_180 = 1.0*X2
-            X2_180[lon2 < 180] += X2.shape[1]
-            centroid_x[id-1] = np.nansum(X2_180 * area2d * this_mask) / np.nansum(area2d * this_mask)
-            if centroid_x[id-1] > X2.shape[1]-1:
-                centroid_x[id-1] -= X2.shape[1]
 
     ## Assign LPT IDs. Order is by longitude. Use zero-base indexing.
     id0 = 1e10 * end_of_accumulation_time.year + 1e8 * end_of_accumulation_time.month + 1e6 * end_of_accumulation_time.day + 1e4 * end_of_accumulation_time.hour
@@ -473,7 +567,7 @@ def get_objid_datetime(objid,calendar='standard'):
     return str2cftime(ymdh_str, '%Y%m%d%H', calendar)
 
 
-def read_lp_object_properties(objid, objdir, property_list, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def read_lp_object_properties(objid, objdir, var_list, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
 
     dt1 = get_objid_datetime(objid)
     fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
@@ -481,14 +575,16 @@ def read_lp_object_properties(objid, objdir, property_list, verbose=False, fmt="
     if verbose:
         print(fn1)
 
-    DS1 = Dataset(fn1)
-    id1 = DS1['objid'][:]
-    idx1, = np.where(np.abs(id1 - objid) < 0.1)
+    with Dataset(fn1) as ds1:
+        id1 = ds1['objid'][:]
+        idx1, = np.where(np.abs(id1 - objid) < 0.1)
 
-    out_dict = {}
-    for property in property_list:
-        out_dict[property] = to1d(DS1[property][:][idx1])
-    DS1.close()
+        out_dict = {}
+        for var in var_list:
+            if 'grid_' in var:
+                out_dict[var] = ds1[var][:]
+            else:
+                out_dict[var] = to1d(ds1[var][:][idx1])
 
     return out_dict
 
@@ -1044,8 +1140,17 @@ def initialize_time_cluster_fields(TC, length):
     return TC
 
 
-def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
-    ## The branch nodes of G have the properties of timestamp, lon, lat, and area.
+def calc_lpt_properties_without_branches(G, options,
+    fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+
+    """
+    calc_lpt_properties_without_branches(G, options,
+        fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc")
+
+    G is a networkx DAG object.
+    The nodes of G have the properties of: timestamp, lon, lat, and area.
+    """
+
     TC_all = []
 
     ## First, I get a list of DAG sub groups to loop through.
@@ -1071,15 +1176,14 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
         ##
 
         ## Initialize
-        TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
+        TC_this = initialize_time_cluster_fields(
+            TC_this, len(TC_this['timestamp']))
 
         ## Loop over unique time stamps.
         for tt, timestamp_this in enumerate(TC_this['timestamp']):
             max_area_already_used = -999.0
             this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == timestamp_this]
 
-            lon_points_collect = []
-            lat_points_collect = []
             pixels_x_collect = []
             pixels_y_collect = []
 
@@ -1089,23 +1193,25 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
                     this_objid, options['objdir'],
                     ['centroid_lon','centroid_lat','area',
                         'pixels_x','pixels_y',
-                        'grid_lon', 'grid_lat',
+                        'grid_lon', 'grid_lat','grid_area',
                         'min_lon','max_lon','min_lat','max_lat',
                         'westmost_lat','eastmost_lat',
                         'southmost_lon','northmost_lon',
-                        'amean_inst_field','amean_running_field','max_inst_field','max_running_field',
-                        'min_inst_field','min_running_field','min_filtered_running_field',
-                        'amean_filtered_running_field','max_filtered_running_field',
-                    ], 
+                        'amean_inst_field','amean_running_field',
+                        'max_inst_field','max_running_field',
+                        'min_inst_field','min_running_field',
+                        'min_filtered_running_field',
+                        'amean_filtered_running_field',
+                        'max_filtered_running_field',
+                    ],
                     fmt=fmt
                 )
 
                 TC_this['nobj'][tt] += 1
                 TC_this['area'][tt] += OBJ['area']
-                TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
-                TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
-                pixels_x_collect += [OBJ['pixels_x']]
-                pixels_y_collect += [OBJ['pixels_y']]
+
+                pixels_x_collect += OBJ['pixels_x'].flatten().tolist()
+                pixels_y_collect += OBJ['pixels_y'].flatten().tolist()
 
                 if OBJ['area'] > max_area_already_used:
                     TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
@@ -1136,8 +1242,30 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
                 TC_this['max_running_field'][tt] = max((TC_this['max_running_field'][tt], OBJ['max_running_field']))
                 TC_this['max_filtered_running_field'][tt] = max((TC_this['max_filtered_running_field'][tt], OBJ['max_filtered_running_field']))
 
-            TC_this['centroid_lon'][tt] /= TC_this['area'][tt]
-            TC_this['centroid_lat'][tt] /= TC_this['area'][tt]
+            # Get centroid. I need to account for possibly crossing the
+            # primer meridian as well as the possibility of multiple blobs.
+            # First contruct a labeled image.
+            lon = OBJ['grid_lon']
+            lat = OBJ['grid_lat']
+            ## If lon and lat not in 2d arrays, put them through np.meshgrid.
+            if lon.ndim == 1:
+                lon2, lat2 = np.meshgrid(lon, lat)
+            else:
+                lon2 = lon
+                lat2 = lat
+
+            area2 = OBJ['grid_area']
+
+            mask_this = 0 * lon2
+            mask_this[pixels_y_collect, pixels_x_collect] = 1
+            label_im_this = mask_this > 0.5
+
+            # Then use the labeled image to get the centroid for this LPT system.
+            centroid_lon_this, centroid_lat_this = calculate_centroid_wrap_x(
+                label_im_this, 1, lon2, lat2, area2
+            )
+            TC_this['centroid_lon'][tt] = centroid_lon_this[0]
+            TC_this['centroid_lat'][tt] = centroid_lat_this[0]
 
             TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
             TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
@@ -1274,26 +1402,43 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
             ##
 
             ## Initialize
-            TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
+            TC_this = initialize_time_cluster_fields(
+                TC_this, len(TC_this['timestamp']))
 
             ## Loop over unique time stamps.
             for tt, timestamp_this in enumerate(TC_this['timestamp']):
                 max_area_already_used = -999.0
                 this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == timestamp_this]
+
+                pixels_x_collect = []
+                pixels_y_collect = []
+
                 for this_objid in this_objid_list:
 
-                    OBJ = read_lp_object_properties(this_objid, options['objdir']
-                            , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
-                            ,'min_lon','max_lon','min_lat','max_lat'
-                            ,'westmost_lat', 'eastmost_lat', 'southmost_lon', 'northmost_lon'
-                            ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
-                            ,'min_inst_field','min_running_field','min_filtered_running_field'
-                            ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
+                    OBJ = read_lp_object_properties(
+                        this_objid, options['objdir'],
+                        ['centroid_lon','centroid_lat','area',
+                            'pixels_x','pixels_y',
+                            'grid_lon', 'grid_lat','grid_area',
+                            'min_lon','max_lon','min_lat','max_lat',
+                            'westmost_lat','eastmost_lat',
+                            'southmost_lon','northmost_lon',
+                            'amean_inst_field','amean_running_field',
+                            'max_inst_field','max_running_field',
+                            'min_inst_field','min_running_field',
+                            'min_filtered_running_field',
+                            'amean_filtered_running_field',
+                            'max_filtered_running_field',
+                        ],
+                        fmt=fmt
+                    )
 
                     TC_this['nobj'][tt] += 1
                     TC_this['area'][tt] += OBJ['area']
-                    TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
-                    TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
+
+                    pixels_x_collect += OBJ['pixels_x'].flatten().tolist()
+                    pixels_y_collect += OBJ['pixels_y'].flatten().tolist()
+
                     if OBJ['area'] > max_area_already_used:
                         TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
                         TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
@@ -1324,8 +1469,30 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                     TC_this['max_running_field'][tt] = max((TC_this['max_running_field'][tt], OBJ['max_running_field']))
                     TC_this['max_filtered_running_field'][tt] = max((TC_this['max_filtered_running_field'][tt], OBJ['max_filtered_running_field']))
 
-                TC_this['centroid_lon'][tt] /= TC_this['area'][tt]
-                TC_this['centroid_lat'][tt] /= TC_this['area'][tt]
+                # Get centroid. I need to account for possibly crossing the
+                # primer meridian as well as the possibility of multiple blobs.
+                # First contruct a labeled image.
+                lon = OBJ['grid_lon']
+                lat = OBJ['grid_lat']
+                ## If lon and lat not in 2d arrays, put them through np.meshgrid.
+                if lon.ndim == 1:
+                    lon2, lat2 = np.meshgrid(lon, lat)
+                else:
+                    lon2 = lon
+                    lat2 = lat
+
+                area2 = OBJ['grid_area']
+
+                mask_this = 0 * lon2
+                mask_this[pixels_y_collect, pixels_x_collect] = 1
+                label_im_this = mask_this > 0.5
+
+                # Then use the labeled image to get the centroid for this LPT system.
+                centroid_lon_this, centroid_lat_this = calculate_centroid_wrap_x(
+                    label_im_this, 1, lon2, lat2, area2
+                )
+                TC_this['centroid_lon'][tt] = centroid_lon_this[0]
+                TC_this['centroid_lat'][tt] = centroid_lat_this[0]
 
                 TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
                 TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
