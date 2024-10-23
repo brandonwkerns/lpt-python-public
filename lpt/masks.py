@@ -791,8 +791,21 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             for dt_idx, dt_this in enumerate(mask_times):
 
+                # Just in case the mask hits the north or south pole,
+                # I need it to have a closed contour.
+                # So set the mask values at the north and south poles
+                # to zero for this step.
+                this_mask = mask_arrays['mask'][dt_idx].todense()
+                this_mask[0,:] = 0
+                this_mask[-1,:] = 0
+                # In rare cases, it may wrap all the way around! Then it
+                # would not be a closed contour, and not have an exterior.
+                # Set the first column to zero.
+                if np.nanmin(np.nanmax(this_mask, axis=0)) > 0.5:
+                    this_mask[:,0] = 0
+    
                 cg = contourpy.contour_generator(
-                    mask_lon, mask_lat, mask_arrays['mask'][dt_idx].todense())
+                    mask_lon, mask_lat, this_mask)
 
                 contours = cg.lines(0.5)
                 contours_core = cg.lines(1.5)
@@ -807,6 +820,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 for this_contour in contours:
                     res = mask_lon[1] - mask_lon[0]
                     s = Polygon(LinearRing(this_contour))
+                    print(dt_this)
                     t2 = Polygon(s.buffer(filter_stdev*res).exterior)
                     t2_coords = np.array(
                         [t2.exterior.coords[x] for x in range(len(t2.exterior.coords))])
