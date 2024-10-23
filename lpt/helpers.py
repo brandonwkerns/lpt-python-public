@@ -1234,8 +1234,6 @@ def add_fields_to_a_TC(TC_this0, timestamp_all, options, fmt, tt):
     TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
     TC_this['amean_filtered_running_field'][tt] /= TC_this['area'][tt]
 
-    print('Done: ', tt)
-
     return TC_this
 
 
