@@ -743,6 +743,44 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
     return G
 
 
+
+def disconnect_lpt_graph_at_merge_split(graph_in):
+    """
+    Break up the graph where there is a merger or split.
+
+    When a node is connected to two or more subsequent nodes,
+    severe the ones that are NOT the largest number of points.
+    """
+
+    graph_out = graph_in.copy()
+    
+    # Identify graph edges with multiple connections.
+    # Keep only the connection with the larger area.
+
+    for this_node in graph_out.nodes():
+        lpo_desc = list(graph_out.successors(this_node))
+        if len(lpo_desc) > 1:
+            # Get area of the successors.
+            areas = [nx.get_node_attributes(graph_out,'area').get(x) for x in lpo_desc]
+            max_idx = np.argmax(areas)
+            for ii, this_lpo_desc in enumerate(lpo_desc):
+                if not ii == max_idx:
+                    graph_out.remove_edge(this_node, this_lpo_desc)
+
+    for this_node in graph_out.nodes():
+        lpo_pre = list(graph_out.predecessors(this_node))
+        if len(lpo_pre) > 1:
+            # Get area of the predecessors.
+            areas = [nx.get_node_attributes(graph_out,'area').get(x) for x in lpo_pre]
+            max_idx = np.argmax(areas)
+            for ii, this_lpo_pre in enumerate(lpo_pre):
+                if not ii == max_idx:
+                    graph_out.remove_edge(this_lpo_pre, this_node)
+
+    return graph_out
+
+
+
 def lpt_graph_remove_short_duration_systems(G, min_duration
                         , latest_datetime = dt.datetime(3000,1,1,0,0,0)):
 
@@ -1061,6 +1099,130 @@ def calc_lpt_properties_without_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_
         TC_all.append(TC_this)
 
     return TC_all
+
+
+
+def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    """
+    G0 is used here for figuring out which group/family each LPT system belongs to.
+    """
+    ## The branch nodes of G have the properties of timestamp, lon, lat, and area.
+    TC_all = []
+
+    ## First, I get a list of DAG sub groups to loop through.
+    # For the broken up tracks
+    CC = list(nx.connected_components(nx.to_undirected(G)))
+    SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
+
+    # For the groups/families
+    CC0 = list(nx.connected_components(nx.to_undirected(G0)))
+    SG0 = [G.subgraph(CC0[x]).copy() for x in range(len(CC0))]
+
+    ## Loop over each DAG
+    for kk in range(len(SG0)):
+        print('--> LPT group ' + str(kk+1) + ' of ' + str(len(SG0)),flush=True)
+
+        # Get list of graphs belonging to this group/family.
+        Plist = []
+        for this_sub_graph in SG:
+            intersection_graph = nx.intersection(this_sub_graph, SG0[kk])
+            if intersection_graph.number_of_nodes() > 0:
+                Plist += [this_sub_graph]
+
+        if len(Plist) == 1:
+            print('----> Found '+str(len(Plist))+' LPT system.',flush=True)
+        else:
+            print('----> Found '+str(len(Plist))+' LPT systems.',flush=True)
+
+
+        ## Get "timeclusters" for each branch.
+        for iiii in range(len(Plist)):
+            path1 = Plist[iiii]
+
+            TC_this = {}
+            TC_this['lpt_group_id'] = kk
+            TC_this['lpt_id'] = 1.0*kk + (iiii+1)/max(10.0,np.power(10,np.ceil(np.log10(len(Plist)))))
+                                            ## ^ I should probably account for possible cycles here.
+            TC_this['objid'] = sorted(list(path1.nodes()))
+            ts=nx.get_node_attributes(path1,'timestamp')
+            timestamp_all = [ts[x] for x in TC_this['objid']]
+            TC_this['timestamp'] = np.unique(timestamp_all)
+            TC_this['datetime'] = [cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(x)) for x in TC_this['timestamp']]
+
+            ##
+            ## Sum/average the LPTs to get bulk/mean properties at each time.
+            ##
+
+            ## Initialize
+            TC_this = initialize_time_cluster_fields(TC_this, len(TC_this['timestamp']))
+
+            ## Loop over unique time stamps.
+            for tt in range(len(TC_this['timestamp'])):
+                max_area_already_used = -999.0
+                this_objid_list = [TC_this['objid'][x] for x in range(len(TC_this['objid'])) if timestamp_all[x] == TC_this['timestamp'][tt]]
+                for this_objid in this_objid_list:
+
+                    OBJ = read_lp_object_properties(this_objid, options['objdir']
+                            , ['centroid_lon','centroid_lat','area','pixels_x','pixels_y'
+                            ,'min_lon','max_lon','min_lat','max_lat'
+                            ,'westmost_lat', 'eastmost_lat', 'southmost_lon', 'northmost_lon'
+                            ,'amean_inst_field','amean_running_field','max_inst_field','max_running_field'
+                            ,'min_inst_field','min_running_field','min_filtered_running_field'
+                            ,'amean_filtered_running_field','max_filtered_running_field'], fmt=fmt)
+
+                    TC_this['nobj'][tt] += 1
+                    TC_this['area'][tt] += OBJ['area']
+                    TC_this['centroid_lon'][tt] += OBJ['centroid_lon'] * OBJ['area']
+                    TC_this['centroid_lat'][tt] += OBJ['centroid_lat'] * OBJ['area']
+                    if OBJ['area'] > max_area_already_used:
+                        TC_this['largest_object_centroid_lon'][tt] = 1.0*OBJ['centroid_lon']
+                        TC_this['largest_object_centroid_lat'][tt] = 1.0*OBJ['centroid_lat']
+                        max_area_already_used = 1.0*OBJ['area']
+
+                    if OBJ['min_lon'] < TC_this['min_lon'][tt]:
+                        TC_this['westmost_lat'][tt] = OBJ['westmost_lat']
+                    if OBJ['max_lon'] > TC_this['max_lon'][tt]:
+                        TC_this['eastmost_lat'][tt] = OBJ['eastmost_lat']
+                    if OBJ['min_lat'] < TC_this['min_lat'][tt]:
+                        TC_this['southmost_lon'][tt] = OBJ['southmost_lon']
+                    if OBJ['max_lat'] > TC_this['max_lat'][tt]:
+                        TC_this['northmost_lon'][tt] = OBJ['northmost_lon']
+
+                    TC_this['min_lon'][tt] = min((TC_this['min_lon'][tt], OBJ['min_lon']))
+                    TC_this['min_lat'][tt] = min((TC_this['min_lat'][tt], OBJ['min_lat']))
+                    TC_this['max_lon'][tt] = max((TC_this['max_lon'][tt], OBJ['max_lon']))
+                    TC_this['max_lat'][tt] = max((TC_this['max_lat'][tt], OBJ['max_lat']))
+
+
+                    TC_this['amean_inst_field'][tt] += OBJ['amean_inst_field'] * OBJ['area']
+                    TC_this['amean_running_field'][tt] += OBJ['amean_running_field'] * OBJ['area']
+                    TC_this['amean_filtered_running_field'][tt] += OBJ['amean_filtered_running_field'] * OBJ['area']
+                    TC_this['min_inst_field'][tt] = min((TC_this['min_inst_field'][tt], OBJ['min_inst_field']))
+                    TC_this['min_running_field'][tt] = min((TC_this['min_running_field'][tt], OBJ['min_running_field']))
+                    TC_this['min_filtered_running_field'][tt] = min((TC_this['min_filtered_running_field'][tt], OBJ['min_filtered_running_field']))
+                    TC_this['max_inst_field'][tt] = max((TC_this['max_inst_field'][tt], OBJ['max_inst_field']))
+                    TC_this['max_running_field'][tt] = max((TC_this['max_running_field'][tt], OBJ['max_running_field']))
+                    TC_this['max_filtered_running_field'][tt] = max((TC_this['max_filtered_running_field'][tt], OBJ['max_filtered_running_field']))
+
+                TC_this['centroid_lon'][tt] /= TC_this['area'][tt]
+                TC_this['centroid_lat'][tt] /= TC_this['area'][tt]
+
+                TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
+                TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
+                TC_this['amean_filtered_running_field'][tt] /= TC_this['area'][tt]
+
+            ## Least squares linear fit for propagation speed.
+            Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
+            TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
+
+            Pmeridional = np.polyfit(TC_this['timestamp'],TC_this['centroid_lat'],1)
+            TC_this['meridional_propagation_speed'] = Pmeridional[0] * 111000.0  # deg / s --> m / s
+
+            TC_all.append(TC_this)
+
+    return TC_all
+
+
 
 
 
