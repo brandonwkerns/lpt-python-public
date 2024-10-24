@@ -117,6 +117,7 @@ lpt_options['mask_n_cores'] = 1                           # How many processors 
 ## Merging/Splitting settings
 ##
 merge_split_options={}
+merge_split_options['break_up_merge_split'] = False  # Break up merging/splitting tracks? Overrides allow_merge_split
 merge_split_options['allow_merge_split'] = True
 merge_split_options['split_merger_min_hours'] = 72  # Min duration of a split/merging track to separate it.
 

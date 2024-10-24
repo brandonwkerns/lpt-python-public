@@ -190,6 +190,7 @@ lpt_options['min_lpt_duration_hours'] = 7*24  # Minumum duration to keep it as a
 lpt_options['fall_below_threshold_max_hours'] = 3*24   # How long to allow center jumps (hours)
 
 ## Merging/Splitting settings for the LPT step.
+merge_split_options['break_up_merge_split'] = False # Break up merging/splitting tracks? Overrides allow_merge_split
 merge_split_options['allow_merge_split'] = True
 merge_split_options['split_merger_min_hours'] = 72  # Min duration of a split/merging track to separate it.
 
