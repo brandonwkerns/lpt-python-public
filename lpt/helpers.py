@@ -751,6 +751,55 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%
     OVERLAP['frac2'] = overlapping_frac2
     return OVERLAP
 
+def get_overlapping_lpo_pairs(this_timestamp, prev_timestamp,
+    options, lpo_id_list, timestamp_list,
+    fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", min_points=1):
+    """
+    Get list of graph edges that I need to add for two consecutive times:
+    this_timestamp, and prev_timestamp.
+    """
+    this_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(this_timestamp))
+    prev_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(prev_timestamp))
+    # print(this_dt, flush=True)
+
+    ## Get overlap points.
+    OVERLAP = get_lpo_overlap(this_dt, prev_dt, options['objdir'], fmt=fmt,
+        min_points = min_points)
+    overlapping_npoints = OVERLAP['npoints']
+    overlapping_frac1 = OVERLAP['frac1']
+    overlapping_frac2 = OVERLAP['frac2']
+
+    ## The indices (e.g., LPT and BRANCHES array rows) for these times.
+    this_time_idx, = np.where(timestamp_list == this_timestamp)
+    prev_time_idx, = np.where(timestamp_list == prev_timestamp)
+
+    edges = []
+    for ii in this_time_idx:
+        this_objid = lpo_id_list[ii]
+        idx1 = int(str(this_objid)[-4:])
+
+        ## 1) Figure out which "previous time" LPT indices overlap.
+        matches = []
+        for jj in prev_time_idx:
+            prev_objid = lpo_id_list[jj]
+            idx2 = int(str(prev_objid)[-4:])
+
+            n_overlap = overlapping_npoints[idx1,idx2]
+            frac1 = overlapping_frac1[idx1,idx2]
+            frac2 = overlapping_frac2[idx1,idx2]
+
+            if min(frac1, frac2) > options['bare_min_overlap_frac']:
+                if n_overlap >= options['min_overlap_points']:
+                    matches.append(jj)
+                elif 1.0*frac1 > options['min_overlap_frac']:
+                    matches.append(jj)
+                elif 1.0*frac2 > options['min_overlap_frac']:
+                    matches.append(jj)
+        for match in matches:
+            edges += [[lpo_id_list[match], this_objid]]
+
+    return edges
+
 
 def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
 
@@ -779,7 +828,6 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
 
     # Make copies to avoid immutability weirdness.
     Gnew = G0.copy()
-    objdir = options['objdir']
 
     lpo_id_list = list(G0.nodes())
     datetime_list = [get_objid_datetime(x,options['calendar']) for x in lpo_id_list]
@@ -787,56 +835,22 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
 
     ## Now, loop through the times.
     unique_timestamp_list = np.unique(timestamp_list)
-    for tt in range(1,len(unique_timestamp_list)):
+    this_timestamp_list = unique_timestamp_list[1:]
+    prev_timestamp_list = unique_timestamp_list[0:-1]
 
-        ## Datetimes for this time and previous time.
-        this_timestamp = unique_timestamp_list[tt]
-        prev_timestamp = unique_timestamp_list[tt-1]
-        this_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(this_timestamp))
-        prev_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(prev_timestamp))
-        print(this_dt, flush=True)
+    with Pool(options['lpt_n_cores']) as p:
+        edges_all_times = p.starmap(
+            get_overlapping_lpo_pairs,
+            tqdm.tqdm(
+                [(this_timestamp_list[x], prev_timestamp_list[x],
+                    options, lpo_id_list, timestamp_list) 
+                    for x in range(len(this_timestamp_list))],
+            ),
+            chunksize=1
+            )
 
-        ## Get overlap points.
-        OVERLAP = get_lpo_overlap(this_dt, prev_dt, objdir, fmt=fmt, min_points = min_points)
-        overlapping_npoints = OVERLAP['npoints']
-        overlapping_frac1 = OVERLAP['frac1']
-        overlapping_frac2 = OVERLAP['frac2']
-
-        ## The indices (e.g., LPT and BRANCHES array rows) for these times.
-        this_time_idx, = np.where(timestamp_list == this_timestamp)
-        prev_time_idx, = np.where(timestamp_list == prev_timestamp)
-
-        for ii in this_time_idx:
-            this_objid = lpo_id_list[ii]
-            idx1 = int(str(this_objid)[-4:])
-
-            ## 1) Figure out which "previous time" LPT indices overlap.
-            matches = []
-            for jj in prev_time_idx:
-                prev_objid = lpo_id_list[jj]
-                idx2 = int(str(prev_objid)[-4:])
-
-                n_overlap = overlapping_npoints[idx1,idx2]
-                frac1 = overlapping_frac1[idx1,idx2]
-                frac2 = overlapping_frac2[idx1,idx2]
-
-                if min(frac1, frac2) > options['bare_min_overlap_frac']:
-                    if n_overlap >= options['min_overlap_points']:
-                        matches.append(jj)
-                    elif 1.0*frac1 > options['min_overlap_frac']:
-                        matches.append(jj)
-                    elif 1.0*frac2 > options['min_overlap_frac']:
-                        matches.append(jj)
-            if verbose:
-                print(str(this_objid),flush=True)
-
-            ## 2) Link the previous LPT Indices to the group.
-            ##    If no matches, it will skip this loop.
-            for match in matches:
-                if verbose:
-                    print(' --> with: ' + str(lpo_id_list[match]),flush=True)
-                ## Add it as a graph edge.
-                Gnew.add_edge(lpo_id_list[match],this_objid)
+    for edges_this_time in edges_all_times:
+        Gnew.add_edges_from(edges_this_time)
 
     return Gnew
 
