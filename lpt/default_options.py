@@ -94,6 +94,7 @@ lpt_options['bare_min_overlap_frac'] = 0.1             # BOTH objects must have 
 lpt_options['min_lp_objects_points'] = 400             # Disregard LP objects smaller than this.
 lpt_options['min_lpt_duration_hours'] = 7*24           # Minumum duration to keep it as an LPT (hours)
 lpt_options['fall_below_threshold_max_hours'] = 3*24   # How long to allow center jumps (hours)
+lpt_options['lpt_n_cores'] = 1                         # How many CPUs to use for LPT steps?
 
 ## LPT Mask Settings.
 lpt_options['do_lpt_individual_masks'] = True             # Whether to generate mask files for each LPT system.
