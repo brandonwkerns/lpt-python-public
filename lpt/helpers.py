@@ -1361,8 +1361,7 @@ def calc_lpt_properties_without_branches(G, options,
             TC_this, len(TC_this['timestamp']))
 
         ## Loop over unique time stamps. Assign fields for each time step.
-        nproc = 12
-        with Pool(nproc) as p:
+        with Pool(options['lpt_n_cores']) as p:
             fields = p.starmap(
                 add_fields_to_a_TC,
                 tqdm.tqdm(
@@ -1646,8 +1645,7 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                 TC_this, len(TC_this['timestamp']))
 
             ## Loop over unique time stamps. Assign fields for each time step.
-            nproc = 12
-            with Pool(nproc) as p:
+            with Pool(options['lpt_n_cores']) as p:
                 fields = p.starmap(
                     add_fields_to_a_TC,
                     tqdm.tqdm(
