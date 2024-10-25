@@ -646,40 +646,71 @@ def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%
 
 
 
-def init_lpt_graph(dt_list, objdir, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def get_nodes_this_time(this_dt, objdir, min_points, fmt):
 
-    G = nx.DiGraph() # Empty graph
-    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=dt_list[0].calendar) ## Only used internally.
+    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=this_dt.calendar) ## Only used internally.
+    nodes_this_time = []
 
-    for this_dt in dt_list:
-
-        print(this_dt)
-        fn = (objdir + '/' + this_dt.strftime(fmt)).replace('///','/').replace('//','/')
-        print(fn)
+    # print(this_dt)
+    fn = (objdir + '/' + this_dt.strftime(fmt)).replace('///','/').replace('//','/')
+    # print(fn)
+    try:
+        DS = Dataset(fn)
         try:
-            DS = Dataset(fn)
-            try:
-                id_list = DS['objid'][:]
-                lon = DS['centroid_lon'][:]
-                lat = DS['centroid_lat'][:]
-                area = DS['area'][:]
-                pixels_x = DS['pixels_x'][:]
-            except IndexError:
-                print('WARNING: No LPO at this time: ' + str(this_dt),flush=True)
-                id_list = [] # In case of no LPOs at this time.
-            DS.close()
+            id_list = DS['objid'][:]
+            lon = DS['centroid_lon'][:]
+            lat = DS['centroid_lat'][:]
+            area = DS['area'][:]
+            pixels_x = DS['pixels_x'][:]
+        except IndexError:
+            print('WARNING: No LPO at this time: ' + str(this_dt),flush=True)
+            id_list = [] # In case of no LPOs at this time.
+        DS.close()
 
-            for ii, this_id in enumerate(id_list):
-                npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
-                if npts >= min_points:
-                    G.add_node(int(this_id), timestamp=(this_dt - REFTIME).total_seconds()
-                        , lon = lon[ii], lat=lat[ii], area=area[ii]
-                        , pos = (lon[ii], (this_dt - REFTIME).total_seconds()))
+        for ii, this_id in enumerate(id_list):
+            npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
+            if npts >= min_points:
+                nodes_this_time += [(
+                    int(this_id),
+                    dict(timestamp=(this_dt - REFTIME).total_seconds(),
+                        lon = lon[ii], lat=lat[ii], area=area[ii],
+                        pos = (lon[ii], (this_dt - REFTIME).total_seconds())
+                    )
+                )]
 
-        except FileNotFoundError:
-            print('WARNING: Missing this file!',flush=True)
+    except FileNotFoundError:
+        print(f'WARNING: Missing the file: {fn}',flush=True)
 
-    return G
+    return nodes_this_time
+
+
+def init_lpt_graph(dt_list, objdir, n_cores=1, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+
+    initial_graph = nx.DiGraph() # Empty graph
+
+    # nodes_all_times = []
+    # for this_dt in tqdm.tqdm(dt_list):
+    #     nodes_this_time = get_nodes_this_time(this_dt, objdir, min_points, fmt)
+    #     nodes_all_times += [nodes_this_time]
+
+
+    with Pool(n_cores) as p:
+        nodes_all_times = p.starmap(
+            get_nodes_this_time,
+            tqdm.tqdm(
+                [(dt_list[x], objdir, min_points, fmt) 
+                    for x in range(len(dt_list))],
+            ),
+            chunksize=1
+            )
+
+
+    for nodes_this_time in nodes_all_times:
+        initial_graph.add_nodes_from(nodes_this_time)
+
+
+    return initial_graph
+
 
 def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
 
