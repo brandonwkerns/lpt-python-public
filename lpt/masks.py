@@ -775,6 +775,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Get contours from the grid.
         ##
 
+        """
+
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
         max_len = 1   # 2000
         max_len_core = 1 # 4000
@@ -923,6 +925,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
             os.rename(fn_temp, lpt_systems_file)
 
+        """
+
         ##
         ## Do filter width spreading.
         ##
@@ -1066,8 +1070,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 'mask_contour_core_lat': {'zlib': True},
                 }
 
-            ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
-            os.rename('./temp.nc', lpt_systems_file)
+            fn_temp = f'temp.{os.getpid()}.nc'
+            ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
+            os.rename(fn_temp, lpt_systems_file)
 
         ##########################################################
         ## Include some basic LPT info for user friendliness.  ###
