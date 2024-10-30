@@ -713,5 +713,6 @@ def do_mjo_id(dt_begin, dt_end, interval_hours, opts, prod='trmm'
         'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
         'is_mjo_eprop_stitched': {'dtype': 'bool'}}
 
-    ds2.to_netcdf(path='./temp.nc', mode='w', encoding=encoding)
-    os.rename('./temp.nc', lpt_systems_file)
+    fn_temp = f'temp.{os.getpid()}.nc'
+    ds2.to_netcdf(path=fn_temp, mode='w', encoding=encoding)
+    os.rename(fn_temp, lpt_systems_file)
