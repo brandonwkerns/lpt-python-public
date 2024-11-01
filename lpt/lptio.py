@@ -507,7 +507,6 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         lpo_objid,
         {'units':'1','_FillValue':-999,'description':'Integer LP Object IDs corresponding to each LPT system.'})
 
-    print(lpo_objid)
     ## Create XArray Dataset
     description = 'LPT Systems NetCDF file.'
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict, attrs={'description':description})

@@ -120,6 +120,8 @@ lpo_options['lpo_calc_n_cores'] = 1         # Number of cores to use for LPO ste
 lpo_options['multiply_factor'] = 24.0       # e.g., 24.0 for mm/h to mm/day, 1.0 if you already have mm/day.
 lpo_options['field_units'] = 'mm d-1'       # This is used for plotting and NetCDF output.
 lpo_options['thresh'] = 12.0                # LP Objects threshold (in units above)
+lpo_options['object_is_gt_threshold'] = True # Is LP object > theshold? T = yes, F = no
+lpo_options['thresh_or_equal'] = False       # Should >= or <= be used?
 lpo_options['accumulation_hours'] = 72      # Accumulation period for LP objects (hours).
 lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of grid points.
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?
@@ -182,12 +184,14 @@ lpt_options['do_lpt_calc'] = False
 ## Options for the LPT step.
 lpt_options['min_overlap_points'] = 1600      # LP object connectivity is based on either points
 lpt_options['min_overlap_frac'] = 0.5         # -- OR fraction of either LP object.
-lpt_options['bare_min_overlap_frac'] = 0.1             # BOTH objects must have an overlap of at least this much.
+lpt_options['bare_min_overlap_frac'] = 0.1    # BOTH objects must have an overlap of at least this much.
 lpt_options['min_lp_objects_points'] = 400    # Disregard LP objects smaller than this.
 lpt_options['min_lpt_duration_hours'] = 7*24  # Minumum duration to keep it as an LPT (hours)
 lpt_options['fall_below_threshold_max_hours'] = 3*24   # How long to allow center jumps (hours)
+lpt_options['lpt_n_cores'] = 1                # How many CPUs to use for LPT steps?
 
 ## Merging/Splitting settings for the LPT step.
+merge_split_options['break_up_merge_split'] = False # Break up merging/splitting tracks? Overrides allow_merge_split
 merge_split_options['allow_merge_split'] = True
 merge_split_options['split_merger_min_hours'] = 72  # Min duration of a split/merging track to separate it.
 

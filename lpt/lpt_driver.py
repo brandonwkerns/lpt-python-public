@@ -110,10 +110,12 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         print(('Doing LPT tracking for: ' + YMDHb + ' to ' + YMDH + '.'))
         print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
-
         ## Initialize LPT
-        G = lpt.helpers.init_lpt_graph(time_list, options['objdir']
-            , min_points=options['min_lp_objects_points'], fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc")
+        G = lpt.helpers.init_lpt_graph(time_list, options['objdir'],
+            n_cores = options['lpt_n_cores'],
+            min_points = options['min_lp_objects_points'],
+            fmt = output['sub_directory_format']+"/objects_%Y%m%d%H.nc"
+        )
 
         ## Connect objects
         ## This is the "meat" of the LPT method: The connection in time step.
@@ -136,23 +138,37 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                                     , latest_datetime = latest_lp_object_time)
             print((str(nx.number_connected_components(nx.to_undirected(G)))+ ' LPT groups left.'), flush=True)
 
+        ## Break up the graph where there is a merger or split.
+        if merge_split_options['break_up_merge_split']:
+            G0 = G.copy() # Retain a copy so I cen figure out which LPTs are groups.
+            G = lpt.helpers.disconnect_lpt_graph_at_merge_split(G0)
+            G = lpt.helpers.lpt_graph_remove_short_duration_systems(G, options['min_lpt_duration_hours']
+                                    , latest_datetime = latest_lp_object_time)
 
-        if merge_split_options['allow_merge_split']:
-            print('Will split groups in to separate overlapping LPTs.',flush=True)
-            if merge_split_options['split_merger_min_hours'] > 0:
-                print('Remove splits and mergers < '+str(merge_split_options['split_merger_min_hours'])+' h.', flush=True)
-                G = lpt.helpers.lpt_graph_remove_short_ends(G
-                    , merge_split_options['split_merger_min_hours']
-                      - dataset['data_time_interval'])
-
-            print('--- Calculating LPT System Properties. ---', flush=True)
-            print('    !!! This step may take a while !!!', flush=True)
-            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options, fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc")
+        if merge_split_options['break_up_merge_split']:
+            print('Will split groups in to separate, broken up LPTs.',flush=True)
+            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_break_up_merge_split(
+                G, G0, options,
+                fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc"
+            )
 
         else:
-            print('Splits and mergers retained as the same LPT system.', flush=True)
-            print('--- Calculating LPT System Properties. ---', flush=True)
-            TIMECLUSTERS = lpt.helpers.calc_lpt_properties_without_branches(G, options)
+            if merge_split_options['allow_merge_split']:
+                print('Will split groups in to separate overlapping LPTs.',flush=True)
+                if merge_split_options['split_merger_min_hours'] > 0:
+                    print('Remove splits and mergers < '+str(merge_split_options['split_merger_min_hours'])+' h.', flush=True)
+                    G = lpt.helpers.lpt_graph_remove_short_ends(G
+                        , merge_split_options['split_merger_min_hours']
+                        - dataset['data_time_interval'])
+
+                print('--- Calculating LPT System Properties. ---', flush=True)
+                print('    !!! This step may take a while !!!', flush=True)
+                TIMECLUSTERS = lpt.helpers.calc_lpt_properties_with_branches(G, options, fmt=output['sub_directory_format']+"/objects_%Y%m%d%H.nc")
+
+            else:
+                print('Splits and mergers retained as the same LPT system.', flush=True)
+                print('--- Calculating LPT System Properties. ---', flush=True)
+                TIMECLUSTERS = lpt.helpers.calc_lpt_properties_without_branches(G, options)
 
         ## Output
         print('--- Writing output. ---',flush=True)
