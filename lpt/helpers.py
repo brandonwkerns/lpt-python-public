@@ -1202,22 +1202,27 @@ def lpt_graph_remove_short_ends(G, min_duration_to_keep):
 def initialize_time_cluster_fields(TC, length):
 
     ## Fields initialized to zero.
-    for field in ['nobj','area','centroid_lon','centroid_lat'
-                ,'largest_object_centroid_lon','largest_object_centroid_lat'
-                ,'amean_inst_field','amean_running_field','amean_filtered_running_field']:
+    for field in ['nobj', 'area', 'centroid_lon', 'centroid_lat',
+                  'largest_object_centroid_lon', 'largest_object_centroid_lat',
+                  'amean_inst_field', 'amean_running_field',
+                  'amean_filtered_running_field', 'n_points']:
         TC[field] = np.zeros(length)
 
     ## Fields initialized to 999.0.
-    for field in ['min_lon','min_lat','westmost_lat', 'southmost_lon'
-                ,'min_inst_field','min_running_field'
-                ,'min_filtered_running_field']:
+    for field in ['min_lon', 'min_lat', 'westmost_lat', 'southmost_lon',
+                  'min_inst_field', 'min_running_field',
+                  'min_filtered_running_field']:
         TC[field] =  999.0 * np.ones(length)
 
     ## Fields initialized to -999.0.
-    for field in ['max_lon','max_lat','eastmost_lat', 'northmost_lon'
-                ,'max_inst_field','max_running_field'
-                ,'max_filtered_running_field']:
+    for field in ['max_lon', 'max_lat', 'eastmost_lat', 'northmost_lon',
+                  'max_inst_field', 'max_running_field',
+                  'max_filtered_running_field']:
         TC[field] = -999.0 * np.ones(length)
+
+    ## Fields initialized to "length" empty lists.
+    for field in ['pixels_x', 'pixels_y']:
+        TC[field] = [[]] * length
 
     return TC
 
@@ -1287,6 +1292,11 @@ def add_fields_to_a_TC(TC_this0, timestamp_all, options, fmt, tt):
         TC_this['max_inst_field'][tt] = max((TC_this['max_inst_field'][tt], OBJ['max_inst_field']))
         TC_this['max_running_field'][tt] = max((TC_this['max_running_field'][tt], OBJ['max_running_field']))
         TC_this['max_filtered_running_field'][tt] = max((TC_this['max_filtered_running_field'][tt], OBJ['max_filtered_running_field']))
+
+    # Return the pixels.
+    TC_this['pixels_x'][tt] = pixels_x_collect
+    TC_this['pixels_y'][tt] = pixels_y_collect
+    TC_this['n_points'][tt] = len(pixels_x_collect)
 
     # Get centroid. I need to account for possibly crossing the
     # primer meridian as well as the possibility of multiple blobs.
@@ -1370,15 +1380,16 @@ def calc_lpt_properties_without_branches(G, options,
                 chunksize=1
                 )
         
-        varlist = ['nobj','area','centroid_lon','centroid_lat',
-            'largest_object_centroid_lon','largest_object_centroid_lat',
-            'amean_inst_field','amean_running_field',
+        varlist = ['nobj', 'n_points', 'pixels_x', 'pixels_y',
+            'area', 'centroid_lon', 'centroid_lat',
+            'largest_object_centroid_lon',' largest_object_centroid_lat',
+            'amean_inst_field', 'amean_running_field',
             'amean_filtered_running_field',
-            'min_lon','min_lat','westmost_lat', 'southmost_lon',
-            'min_inst_field','min_running_field',
+            'min_lon', 'min_lat', 'westmost_lat', 'southmost_lon',
+            'min_inst_field', 'min_running_field',
             'min_filtered_running_field',
-            'max_lon','max_lat','eastmost_lat', 'northmost_lon',
-            'max_inst_field','max_running_field',
+            'max_lon', 'max_lat', 'eastmost_lat', 'northmost_lon',
+            'max_inst_field', 'max_running_field',
             'max_filtered_running_field']
 
         for tt in range(len(TC_this['timestamp'])):
@@ -1462,15 +1473,16 @@ def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/
                     ),
                     chunksize=1
                     )
-            varlist = ['nobj','area','centroid_lon','centroid_lat',
-                'largest_object_centroid_lon','largest_object_centroid_lat',
-                'amean_inst_field','amean_running_field',
+            varlist = ['nobj', 'n_points', 'pixels_x', 'pixels_y',
+                'area', 'centroid_lon', 'centroid_lat',
+                'largest_object_centroid_lon', 'largest_object_centroid_lat',
+                'amean_inst_field', 'amean_running_field',
                 'amean_filtered_running_field',
-                'min_lon','min_lat','westmost_lat', 'southmost_lon',
-                'min_inst_field','min_running_field',
+                'min_lon', 'min_lat', 'westmost_lat', 'southmost_lon',
+                'min_inst_field', 'min_running_field',
                 'min_filtered_running_field',
-                'max_lon','max_lat','eastmost_lat', 'northmost_lon',
-                'max_inst_field','max_running_field',
+                'max_lon', 'max_lat', 'eastmost_lat', 'northmost_lon',
+                'max_inst_field', 'max_running_field',
                 'max_filtered_running_field']
 
             for tt in range(len(TC_this['timestamp'])):
@@ -1623,15 +1635,16 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                     chunksize=1
                     )
             
-            varlist = ['nobj','area','centroid_lon','centroid_lat',
-                'largest_object_centroid_lon','largest_object_centroid_lat',
-                'amean_inst_field','amean_running_field',
+            varlist = ['nobj', 'n_points', 'pixels_x', 'pixels_y',
+                'area', 'centroid_lon', 'centroid_lat',
+                'largest_object_centroid_lon', 'largest_object_centroid_lat',
+                'amean_inst_field', 'amean_running_field',
                 'amean_filtered_running_field',
-                'min_lon','min_lat','westmost_lat', 'southmost_lon',
-                'min_inst_field','min_running_field',
+                'min_lon', 'min_lat', 'westmost_lat', 'southmost_lon',
+                'min_inst_field', 'min_running_field',
                 'min_filtered_running_field',
-                'max_lon','max_lat','eastmost_lat', 'northmost_lon',
-                'max_inst_field','max_running_field',
+                'max_lon', 'max_lat', 'eastmost_lat', 'northmost_lon',
+                'max_inst_field', 'max_running_field',
                 'max_filtered_running_field']
 
             for tt in range(len(TC_this['timestamp'])):

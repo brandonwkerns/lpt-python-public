@@ -301,6 +301,11 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
 
     MISSING = np.nan
     FILL_VALUE = -999999999.0
+    FILL_VALUE_INT = -999
+    max_n_points = 0
+    for ii in range(len(TIMECLUSTERS)):
+        max_n_points = max(max_n_points, int(np.nanmax(TIMECLUSTERS[ii]['n_points'])))
+
 
     ##
     ## Initialize stitched variables.
@@ -309,6 +314,11 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     timestamp_collect = np.double([MISSING])
     datetime_collect = [TIMECLUSTERS[0]['datetime'][0]]
     nobj_collect = np.double([MISSING])
+    n_points_collect = np.double([MISSING])
+
+    pixels_x_collect = np.full([1, max_n_points], FILL_VALUE_INT)
+    pixels_y_collect = np.full([1, max_n_points], FILL_VALUE_INT)
+
     centroid_lon_collect = np.array([MISSING])
     centroid_lat_collect = np.array([MISSING])
     largest_object_centroid_lon_collect = np.array([MISSING])
@@ -360,8 +370,26 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
         this_datetime = [TIMECLUSTERS[ii]['datetime'][x] for x in range(len(TIMECLUSTERS[ii]['datetime']))]
         datetime_collect = datetime_collect + this_datetime + [this_datetime[-1]]
-        
+
+        # Objects and Points
         nobj_collect = np.append(np.append(nobj_collect, TIMECLUSTERS[ii]['nobj']),MISSING)
+        n_points_collect =  np.append(np.append(n_points_collect, TIMECLUSTERS[ii]['n_points']), MISSING)
+
+        this_pixels_x_collect = np.full([len(this_datetime), max_n_points], FILL_VALUE_INT)
+        this_pixels_y_collect = np.full([len(this_datetime), max_n_points], FILL_VALUE_INT)
+
+        for tt in range(len(this_datetime)):
+            # print(max_n_points, int(TIMECLUSTERS[ii]['n_points'][tt]), len(TIMECLUSTERS[ii]['pixels_x'][tt]))
+            this_pixels_x_collect[tt, 0:int(TIMECLUSTERS[ii]['n_points'][tt])] = TIMECLUSTERS[ii]['pixels_x'][tt]
+            this_pixels_y_collect[tt, 0:int(TIMECLUSTERS[ii]['n_points'][tt])] = TIMECLUSTERS[ii]['pixels_y'][tt]
+
+        pixels_x_collect = np.append(pixels_x_collect, this_pixels_x_collect, axis=0)
+        pixels_y_collect = np.append(pixels_y_collect, this_pixels_y_collect, axis=0)
+
+        pixels_x_collect = np.append(pixels_x_collect, np.full([1, max_n_points], FILL_VALUE_INT), axis=0)
+        pixels_y_collect = np.append(pixels_y_collect, np.full([1, max_n_points], FILL_VALUE_INT), axis=0)
+
+        # Bulk properties
         centroid_lon_collect = np.append(np.append(centroid_lon_collect, TIMECLUSTERS[ii]['centroid_lon']),MISSING)
         centroid_lat_collect = np.append(np.append(centroid_lat_collect, TIMECLUSTERS[ii]['centroid_lat']),MISSING)
         largest_object_centroid_lon_collect = np.append(np.append(largest_object_centroid_lon_collect, TIMECLUSTERS[ii]['largest_object_centroid_lon']),MISSING)
@@ -412,6 +440,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     coords_dict['nlpt'] = (['nlpt',], range(len(TIMECLUSTERS)), {'units' : '1'})
     coords_dict['nstitch'] = (['nstitch',], range(len(timestamp_collect)), {'units' : '1'})
     coords_dict['nobj'] = (['nobj',], range(max_lpo), {'units' : '1'})
+    coords_dict['npoints'] = (['npoints',], range(max_n_points), {'units' : '1'})
 
     data_dict = {}
     ## Variables for LPT systems as a whole.
@@ -453,6 +482,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     data_dict['timestamp_stitched'] = (['nstitch',], datetime_collect, {'long_name':'LPT System time stamp -- stitched'})
     data_dict['lptid_stitched'] = (['nstitch'], lptid_collect, {'units':'1.0','long_name':'LPT System id -- stitched'})
     data_dict['nobj_stitched'] = (['nstitch'], nobj_collect, )
+    data_dict['n_points_stitched'] = (['nstitch'], n_points_collect, )
     data_dict['centroid_lon_stitched'] = (['nstitch'], centroid_lon_collect,
         {'units':'degrees_east','long_name':'centroid longitude, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
     data_dict['centroid_lat_stitched'] = (['nstitch'], centroid_lat_collect,
@@ -507,11 +537,20 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         lpo_objid,
         {'units':'1','_FillValue':-999,'description':'Integer LP Object IDs corresponding to each LPT system.'})
 
+    # Pixels stuff
+    data_dict['pixels_x_stitched'] = (['nstitch','npoints'], pixels_x_collect, )
+    data_dict['pixels_y_stitched'] = (['nstitch','npoints'], pixels_y_collect, )
+
     ## Create XArray Dataset
     description = 'LPT Systems NetCDF file.'
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict, attrs={'description':description})
-    encoding = {'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'}, 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-        'num_objects': {'dtype': 'i'}} #, 'objid': {'dtype': 'i8'}}
+    encoding = {
+        'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+        'npoints': {'dtype': 'i'},
+        'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+        'num_objects': {'dtype': 'i'},
+        'pixels_x_stitched': {'zlib': True},
+        'pixels_y_stitched': {'zlib': True}}
     DS.to_netcdf(path=fn, mode='w', encoding=encoding)
 
 
