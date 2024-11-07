@@ -576,6 +576,11 @@ def read_lpt_systems_netcdf(lpt_systems_file):
                     ,'duration','maxarea','zonal_propagation_speed','meridional_propagation_speed']:
             TC[var] = DS[var].data
 
+        # Read in pixels information
+        TC['n_points_stitched'] = DS['n_points_stitched'].data
+        TC['pixels_x_stitched'] = DS['pixels_x_stitched'].data
+        TC['pixels_y_stitched'] = DS['pixels_y_stitched'].data
+
     ## Read in duration using NetCDF4 Dataset to avoid xarray auto conversion to np.datetime64.
     with Dataset(lpt_systems_file, 'r') as DS:
         TC['duration'] = DS['duration'][:]
