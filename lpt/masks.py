@@ -718,12 +718,27 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             calc_with_filter_radius
         )
 
-        with Pool(nproc) as p:
-            points_collect = p.starmap(
-                get_lpo_grid_points,
-                [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
-                chunksize=1
-            )
+        points_collect = []
+        for tt, this_dt in enumerate(mask_times):
+            timestamp_stitched_idx = np.argwhere(
+                np.logical_and(
+                    TC['lptid_stitched'] == this_lpt_id, 
+                    TC['timestamp_stitched'] == this_dt))
+
+            if len(timestamp_stitched_idx) == 0:
+                continue
+
+            timestamp_stitched_idx = timestamp_stitched_idx.flatten()[0]
+            this_n_points = int(TC['n_points_stitched'][timestamp_stitched_idx])
+            dt_idx = [tt for tt in range(len(mask_times)) if this_dt == mask_times[tt]][0]
+
+            this_points_collect = (
+                dt_idx,
+                TC['pixels_x_stitched'][timestamp_stitched_idx, 0:this_n_points],
+                TC['pixels_y_stitched'][timestamp_stitched_idx, 0:this_n_points],
+                )
+
+            points_collect += [this_points_collect]
 
         for points in points_collect:
             dt_idx = points[0]
@@ -760,161 +775,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     mask_arrays['mask'][dt_idx][jjj, iii] = 1
                 else:
                     mask_arrays['mask'][dt_idx][jjj, iii] = 2
-
-
-        ##
-        ## Get contours from the grid.
-        ##
-
-        """
-
-        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
-        max_len = 1   # 2000
-        max_len_core = 1 # 4000
-
-        with xr.open_dataset(lpt_systems_file) as ds:
-            if 'mask_contour_lon' in ds:
-
-                F_lon = ds['mask_contour_lon'].data
-                F_lat = ds['mask_contour_lat'].data
-                F_lon_core = ds['mask_contour_core_lon'].data
-                F_lat_core = ds['mask_contour_core_lat'].data
-                max_len = F_lat.shape[1]
-                max_len_core = F_lat_core.shape[1]
-
-            else:
-
-                F_lon = np.full([ntimes, max_len], np.nan)
-                F_lat = np.full([ntimes, max_len], np.nan)
-                F_lon_core = np.full([ntimes, max_len_core], np.nan)
-                F_lat_core = np.full([ntimes, max_len_core], np.nan)
-
-            mask_contour_lon = [[] for x in range(len(mask_times))]
-            mask_contour_lat = [[] for x in range(len(mask_times))]
-            mask_contour_lon_core = [[] for x in range(len(mask_times))]
-            mask_contour_lat_core = [[] for x in range(len(mask_times))]
-
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            # NOTE: 
-            # I need to add the "spin-up" time (e.g., 3 days) to the stitched variables.
-            # Right now, the consecutive LPT systems are running in to eachother.
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            for dt_idx, dt_this in enumerate(mask_times):
-
-                # Just in case the mask hits the north or south pole,
-                # I need it to have a closed contour.
-                # So set the mask values at the north and south poles
-                # to zero for this step.
-                this_mask = mask_arrays['mask'][dt_idx].todense()
-                this_mask[0,:] = 0
-                this_mask[-1,:] = 0
-                # In rare cases, it may wrap all the way around! Then it
-                # would not be a closed contour, and not have an exterior.
-                # Set the first column to zero.
-                if np.nanmin(np.nanmax(this_mask, axis=0)) > 0.5:
-                    this_mask[:,0] = 0
-    
-                cg = contourpy.contour_generator(
-                    mask_lon, mask_lat, this_mask)
-
-                contours = cg.lines(0.5)
-                contours_core = cg.lines(1.5)
-
-                for this_contour in contours_core:
-                    mask_contour_lon_core[dt_idx] += [np.nan,]
-                    mask_contour_lat_core[dt_idx] += [np.nan,]
-                    mask_contour_lon_core[dt_idx] += this_contour[:,0].flatten().tolist()
-                    mask_contour_lat_core[dt_idx] += this_contour[:,1].flatten().tolist()
-
-                # Filter width spreading. (Only for the outer contour)
-                for this_contour in contours:
-                    res = mask_lon[1] - mask_lon[0]
-                    s = Polygon(LinearRing(this_contour))
-                    print(dt_this)
-                    t2 = Polygon(s.buffer(filter_stdev*res).exterior)
-                    t2_coords = np.array(
-                        [t2.exterior.coords[x] for x in range(len(t2.exterior.coords))])
-
-                    mask_contour_lon[dt_idx] += [np.nan,]
-                    mask_contour_lat[dt_idx] += [np.nan,]
-                    mask_contour_lon[dt_idx] += t2_coords[:,0].flatten().tolist()
-                    mask_contour_lat[dt_idx] += t2_coords[:,1].flatten().tolist()
-
-            for dt_idx, dt_this in enumerate(mask_times):
-
-                if dt_idx < 24:
-                    continue
-
-                timestamp_stitched_idx = np.argwhere(
-                    np.logical_and(
-                        TC['lptid_stitched'] == this_lpt_id, 
-                        TC['timestamp_stitched'] == dt_this)) 
-                # Check if I need to expand the arrays.
-                if len(mask_contour_lon[dt_idx]) > max_len:
-                    print('Expand max_lon to: ', len(mask_contour_lon[dt_idx]))
-                    array_to_stack = np.full([ntimes, len(mask_contour_lon[dt_idx]) - max_len], np.nan)
-                    F_lon = np.column_stack((F_lon, array_to_stack))
-                    F_lat = np.column_stack((F_lat, array_to_stack))
-                    max_len = len(mask_contour_lon[dt_idx])
-                if len(mask_contour_lon_core[dt_idx]) > max_len_core:
-                    print('Expand max_lon to: ', len(mask_contour_lon_core[dt_idx]))
-                    array_to_stack = np.full([ntimes, len(mask_contour_lon_core[dt_idx]) - max_len_core], np.nan)
-                    F_lon_core = np.column_stack((F_lon_core, array_to_stack))
-                    F_lat_core = np.column_stack((F_lat_core, array_to_stack))
-                    max_len_core = len(mask_contour_lon_core[dt_idx])
-
-                F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
-                F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
-                F_lon_core[timestamp_stitched_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
-                F_lat_core[timestamp_stitched_idx, 0:len(mask_contour_lat_core[dt_idx])] = mask_contour_lat_core[dt_idx]
-
-
-            ## Write mask contour coordinates to LPT systems file.
-            ## First, start a new set of variables if it does not yet exist.
-            ## Otherwise modify the existing variables.
-
-            with xr.open_dataset(lpt_systems_file) as ds:
-
-                new_coords = {'mask_contour_npts': (['mask_contour_npts',], range(max_len)),
-                                'mask_contour_core_npts': (['mask_contour_core_npts',], range(max_len_core))}
-
-                desc = ('The mask_contour_core is the contour of the LPOs which make up the LPT system.'
-                    + ' The mask_contour includes the entire LPO area swept out during the accumulation period'
-                    + ' as well as a buffer of one standard deviation.'
-                    + ' The mask_contour contains the full extent of rainfall contributing to the LPT system,'
-                    + ' whereas the mask_contour_core is regarded as the core region of the LPT system.')
-
-                new_data_vars = {
-                    'mask_contour_lon': (['nstitch','mask_contour_npts'], F_lon, {'units':'degrees_east','description':desc}),
-                    'mask_contour_lat': (['nstitch','mask_contour_npts'], F_lat, {'units':'degrees_north','description':desc}),
-                    'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core, {'units':'degrees_east','description':desc}),
-                    'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core, {'units':'degrees_north','description':desc})}
-
-                ds2 = ds.copy()
-                if 'mask_contour_lon' in ds2.variables:
-                    ds2 = ds2.drop_vars(['mask_contour_lon','mask_contour_lat','mask_contour_core_lon','mask_contour_core_lat'])
-                ds2 = ds2.assign_coords(new_coords)
-                ds2 = ds2.assign(new_data_vars)
-
-            encoding = {
-                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
-                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-                'num_objects': {'dtype': 'i'},
-                'mask_contour_npts': {'dtype': 'i'},
-                'mask_contour_core_npts': {'dtype': 'i'},
-                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
-                'is_mjo_eprop_stitched': {'dtype': 'bool'},
-                'mask_contour_lon': {'zlib': True},
-                'mask_contour_lat': {'zlib': True},
-                'mask_contour_core_lon': {'zlib': True},
-                'mask_contour_core_lat': {'zlib': True},
-                }
-
-            print(f'Update mask contour coordinates in {lpt_systems_file}')
-            lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
-
-        """
 
         ##
         ## Do filter width spreading.
