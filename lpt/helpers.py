@@ -874,7 +874,7 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
             get_overlapping_lpo_pairs,
             tqdm.tqdm(
                 [(this_timestamp_list[x], prev_timestamp_list[x],
-                    options, lpo_id_list, timestamp_list) 
+                    options, lpo_id_list, timestamp_list, fmt) 
                     for x in range(len(this_timestamp_list))],
             ),
             chunksize=1
