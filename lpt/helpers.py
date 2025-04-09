@@ -369,7 +369,7 @@ def calculate_centroid_wrap_x(label_im, nb_labels, x, y, area):
         # Figure out what x values to stitch.
         # (Assume regular grid here.)
         dx = x[0,1] - x[0,0]
-        xmax = x[0,-1] + dx  #e.g., for longitude, xmax = 360.0
+        xmax = x[0,-1] + dx #e.g., for longitude, xmax = 360.0
 
         # This mask may have two or more separate blobs.
         # This will usually happen in the tracking step
@@ -433,14 +433,19 @@ def calculate_centroid_wrap_x(label_im, nb_labels, x, y, area):
         centroid_x_this = x_area_sum / this_total_area
 
         more_to_do = True
+        niter = 0
+        maxiter = 2
         while more_to_do:
             more_to_do = False
-            if centroid_x_this >= x[0,-1] + dx + 0.00001:
+            if centroid_x_this >= x[0,-1] + dx:
                 more_to_do = True
                 centroid_x_this -= xmax
-            if centroid_x_this < x[0,0] - 0.00001:
+            if centroid_x_this < x[0,0]:
                 more_to_do = True
                 centroid_x_this += xmax
+            niter += 1
+            if niter > maxiter:
+                more_to_do = False
 
         centroid_x += [centroid_x_this]
 
