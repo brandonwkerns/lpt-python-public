@@ -5,6 +5,7 @@ import cftime
 import scipy.ndimage
 from scipy.signal import convolve2d
 from scipy import ndimage
+from scipy.interpolate import make_smoothing_spline, interp1d
 import matplotlib.pylab as plt
 from netCDF4 import Dataset
 import glob
@@ -1325,6 +1326,112 @@ def add_fields_to_a_TC(TC_this0, timestamp_all, options, fmt, tt):
     return TC_this
 
 
+def smooth_centroid_track(xtime, lon, lat, time_interval_hours):
+    """
+    Apply spline smoothing to centroid_lon and centroid_lat separately.
+    is uses scipy.interpolate.make_smoothing_spline.
+    The factor "lambda" is set to the maximum of either 10 or
+    0.1 * the number of time stamps.
+
+    xtime is input in seconds, but converted to hours
+    for the spline calculation. Using seconds results in
+    very little smoothing.
+
+    Inputs:
+    - xtime: timestamps, seconds since 1970-1-1
+    - lon: centroid longitude. Same length as xtime.
+    - lat: centroid latitude. Same length as xtime.
+
+    Outputs:
+    - xtime_fill: timestamps with any "center jump" gaps filled in.
+    - lon_smooth: smoothed longitude
+    - lat_smooth: smoothed latitude
+    """
+    xtime0 = [x/3600 for x in xtime] # Do calculation in hours.
+    xtime_fill = np.arange(xtime0[0], xtime0[-1] + time_interval_hours,
+                           time_interval_hours)
+
+    lam = max(10.0, 0.1*len(xtime))
+    spl = make_smoothing_spline(xtime0, lon, lam=lam)
+    lon_smooth = spl(xtime_fill)
+    spl = make_smoothing_spline(xtime0, lat, lam=lam)
+    lat_smooth = spl(xtime_fill)
+
+    return (xtime_fill*3600, lon_smooth, lat_smooth)
+
+
+def fill_data_linear(xtime, y, time_interval_hours):
+    """
+    Apply linear interpolation to fill in any gaps in the data "y"
+    using linear interpolation. For eample, centroid_lon
+    and centroid_lat. This occurred when there were center jumps.
+    is uses scipy.interpolate.make_smoothing_spline.
+    The factor "lambda" is set to the maximum of either 10 or
+    0.1 * the number of time stamps.
+
+    The interp calculation here is done in seconds, which is fine
+    because it is just linear interpolation.
+
+    Inputs:
+    - xtime: timestamps, seconds since 1970-1-1
+    - y: data to interpolate. Same length as xtime.
+
+    Outputs:
+    - xtime_fill: timestamps with any "center jump" gaps filled in.
+    - y_fill: filled in data
+    """
+    xtime_fill = np.arange(xtime[0], xtime[-1]+3600*time_interval_hours,
+                           3600*time_interval_hours)
+
+    f = interp1d(xtime, y)
+    y_fill = f(xtime_fill)
+
+    return (xtime_fill, y_fill)
+
+
+def smooth_and_fill_tc(TC_this, time_interval_hours):
+
+    ## Calculate smoothed centroid track
+    xtime_fill, lon_smooth, lat_smooth = smooth_centroid_track(
+        TC_this['timestamp'],
+        TC_this['centroid_lon'],
+        TC_this['centroid_lat'],
+        time_interval_hours
+    )
+
+    ## Fill in any missing centroid values (center jumps) with linear interp
+    varlist = ['nobj','area','centroid_lon','centroid_lat',
+        'largest_object_centroid_lon','largest_object_centroid_lat',
+        'amean_inst_field','amean_running_field',
+        'amean_filtered_running_field',
+        'min_lon','min_lat','westmost_lat', 'southmost_lon',
+        'min_inst_field','min_running_field',
+        'min_filtered_running_field',
+        'max_lon','max_lat','eastmost_lat', 'northmost_lon',
+        'max_inst_field','max_running_field',
+        'max_filtered_running_field']
+
+    TC_this_filled = TC_this.copy()
+    for var in varlist:
+        xtime_fill2, TC_this_filled[var] = fill_data_linear(
+            TC_this['timestamp'],
+            TC_this[var],
+            time_interval_hours
+        )
+
+    if not len(xtime_fill) == len(xtime_fill2):
+        print('WARNING: Smoothed and filled times mismatch!')
+
+    ## Replace the TC information.
+    TC_this_filled['timestamp'] = xtime_fill
+
+    ## Add in the smoothed centroids.
+    TC_this_filled['centroid_lon_smoothed'] = lon_smooth
+    TC_this_filled['centroid_lat_smoothed'] = lat_smooth
+
+    return TC_this_filled
+
+
 def calc_lpt_properties_without_branches(G, options,
     fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
 
@@ -1390,6 +1497,9 @@ def calc_lpt_properties_without_branches(G, options,
             for var in varlist:
                 TC_this[var][tt] = fields[tt][var][tt]
 
+        ## Smooth the tracks, and insert data for any center jump gaps.
+        TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
+
         ## Least squares linear fit for propagation speed.
         Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
         TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
@@ -1401,7 +1511,6 @@ def calc_lpt_properties_without_branches(G, options,
 
 
     return TC_all
-
 
 
 def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
@@ -1482,6 +1591,9 @@ def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/
                 for var in varlist:
                     TC_this[var][tt] = fields[tt][var][tt]
 
+            ## Smooth the tracks, and insert data for any center jump gaps.
+            TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
+
             ## Least squares linear fit for propagation speed.
             Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
             TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
@@ -1492,9 +1604,6 @@ def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/
             TC_all.append(TC_this)
 
     return TC_all
-
-
-
 
 
 def get_list_of_path_graphs(G):
@@ -1642,6 +1751,9 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
             for tt in range(len(TC_this['timestamp'])):
                 for var in varlist:
                     TC_this[var][tt] = fields[tt][var][tt]
+
+            ## Smooth the tracks, and insert data for any center jump gaps.
+            TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
 
             ## Least squares linear fit for propagation speed.
             Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)

@@ -93,6 +93,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                     + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
                     + '/thresh' + str(int(lpo_options['thresh'])) + '/systems')
     options['calendar'] = dataset['calendar']
+    options['data_time_interval'] = dataset['data_time_interval']
 
     if options['do_lpt_calc']:
 
@@ -169,6 +170,10 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
                 print('Splits and mergers retained as the same LPT system.', flush=True)
                 print('--- Calculating LPT System Properties. ---', flush=True)
                 TIMECLUSTERS = lpt.helpers.calc_lpt_properties_without_branches(G, options)
+
+
+            
+
 
         ## Output
         print('--- Writing output. ---',flush=True)
