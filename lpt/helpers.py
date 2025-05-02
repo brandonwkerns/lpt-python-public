@@ -1390,6 +1390,10 @@ def fill_data_linear(xtime, y, time_interval_hours):
 
 
 def smooth_and_fill_tc(TC_this, time_interval_hours):
+    """
+    Run the centroid smoothing functions. Fill in data for the gaps when
+    the system fell below the threshold and recovered within the allowed time.
+    """
 
     REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=TC_this['datetime'][0].calendar) ## Only used internally.
 
@@ -1427,6 +1431,12 @@ def smooth_and_fill_tc(TC_this, time_interval_hours):
     ## Replace the TC information.
     TC_this_filled['timestamp'] = xtime_fill
     TC_this_filled['datetime'] = [REFTIME + dt.timedelta(seconds=x) for x in xtime_fill]
+
+    ## Set nobj to zero for the filled in periods, since there is no LPO.
+    ## This is the only indication I will have that the data was filled in.
+    for tt, this_xtime_fill in enumerate(xtime_fill):
+        if not this_xtime_fill in TC_this['timestamp']:
+            TC_this_filled['nobj'][tt] = 0
 
     ## Add in the smoothed centroids.
     TC_this_filled['centroid_lon_smoothed'] = lon_smooth
