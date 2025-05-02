@@ -1391,6 +1391,8 @@ def fill_data_linear(xtime, y, time_interval_hours):
 
 def smooth_and_fill_tc(TC_this, time_interval_hours):
 
+    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=TC_this['datetime'][0].calendar) ## Only used internally.
+
     ## Calculate smoothed centroid track
     xtime_fill, lon_smooth, lat_smooth = smooth_centroid_track(
         TC_this['timestamp'],
@@ -1424,6 +1426,7 @@ def smooth_and_fill_tc(TC_this, time_interval_hours):
 
     ## Replace the TC information.
     TC_this_filled['timestamp'] = xtime_fill
+    TC_this_filled['datetime'] = [REFTIME + dt.timedelta(seconds=x) for x in xtime_fill]
 
     ## Add in the smoothed centroids.
     TC_this_filled['centroid_lon_smoothed'] = lon_smooth
