@@ -536,6 +536,8 @@ def read_lpt_systems_netcdf(lpt_systems_file):
         TC['datetime'] = DS['timestamp_stitched'].data #[REFTIME + dt.timedelta(hours=int(x)) if x > -900000000 else None for x in TC['timestamp_stitched']]
         TC['centroid_lon'] = DS['centroid_lon_stitched'].data
         TC['centroid_lat'] = DS['centroid_lat_stitched'].data
+        TC['centroid_lon_smoothed'] = DS['centroid_lon_smoothed_stitched'].data
+        TC['centroid_lat_smoothed'] = DS['centroid_lat_smoothed_stitched'].data
         TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'].data
         TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'].data
         TC['area'] = DS['area_stitched'].data

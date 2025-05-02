@@ -666,7 +666,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc').replace('///','/').replace('//','/')
     # lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt').replace('///','/').replace('//','/')
 
-    MISSING = -999.0
+    MISSING = np.nan
     FILL_VALUE = MISSING
 
     ## Read Stitched data.
@@ -1066,15 +1066,19 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ##########################################################
         lptidx = [ii for ii in range(len(TC['lptid'])) if this_lpt_id == TC['lptid'][ii]][0]
 
-        basic_lpt_info_field_list = ['centroid_lon','centroid_lat','area'
-                    ,'largest_object_centroid_lon','largest_object_centroid_lat'
-                    ,'max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']
+        basic_lpt_info_field_list = [
+            'centroid_lon','centroid_lat','area',
+            'centroid_lon_smoothed','centroid_lat_smoothed',
+            'largest_object_centroid_lon','largest_object_centroid_lat',
+            'max_filtered_running_field','max_running_field','max_inst_field',
+            'min_filtered_running_field','min_running_field','min_inst_field',
+            'amean_filtered_running_field','amean_running_field',
+            'amean_inst_field'
+        ]
 
         # Time varying properties
         for var in basic_lpt_info_field_list:
-            mask_arrays[var] = MISSING * np.ones(len(mask_times))
+            mask_arrays[var] = np.full(len(mask_times), MISSING)
 
         for ttt in range(TC['i1'][lptidx],TC['i2'][lptidx]+1):
             this_time_indx = [ii for ii in range(len(mask_times)) if TC['datetime'][ttt] == mask_times[ii]]
@@ -1126,6 +1130,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
         DS.centroid_lon.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'}
         DS.centroid_lat.attrs = {'units':'degrees_north','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'}
+        DS.centroid_lon_smoothed.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360), with spline smoothing','standard_name':'longitude','note':'Time is end of running mean time.'}
+        DS.centroid_lat_smoothed.attrs = {'units':'degrees_north','long_name':'centroid latitude (-90-00), with spline smoothing','standard_name':'latitude','note':'Time is end of running mean time.'}
         DS.largest_object_centroid_lon.attrs = {'units':'degrees_east','long_name':'centroid longitude (0-360)','standard_name':'longitude','note':'Time is end of running mean time.'}
         DS.largest_object_centroid_lat.attrs = {'units':'degrees_east','long_name':'centroid latitude (-90-00)','standard_name':'latitude','note':'Time is end of running mean time.'}
         DS.area.attrs = {'units':'km2','long_name':'LPT System enclosed area','note':'Time is end of running mean time.'}
@@ -1260,7 +1266,7 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc').replace('///','/').replace('//','/')
     lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt').replace('///','/').replace('//','/')
 
-    MISSING = -999.0
+    MISSING = np.nan
     FILL_VALUE = MISSING
 
     ## Read Stitched data.
@@ -1504,15 +1510,19 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         ##########################################################
         lptidx = [ii for ii in range(len(TC['lptid'])) if this_lpt_id == TC['lptid'][ii]][0]
 
-        basic_lpt_info_field_list = ['centroid_lon','centroid_lat','area'
-                    ,'largest_object_centroid_lon','largest_object_centroid_lat'
-                    ,'max_filtered_running_field','max_running_field','max_inst_field'
-                    ,'min_filtered_running_field','min_running_field','min_inst_field'
-                    ,'amean_filtered_running_field','amean_running_field','amean_inst_field']
+        basic_lpt_info_field_list = [
+            'centroid_lon','centroid_lat','area',
+            'centroid_lon_smoothed','centroid_lat_smoothed',
+            'largest_object_centroid_lon','largest_object_centroid_lat',
+            'max_filtered_running_field','max_running_field','max_inst_field',
+            'min_filtered_running_field','min_running_field','min_inst_field',
+            'amean_filtered_running_field','amean_running_field',
+            'amean_inst_field'
+        ]
 
         # Time varying properties
         for var in basic_lpt_info_field_list:
-            mask_arrays[var] = MISSING * np.ones(len(mask_times))
+            mask_arrays[var] = np.full(len(mask_times), MISSING)
 
         for ttt in range(TC['i1'][lptidx],TC['i2'][lptidx]+1):
             this_time_indx = [ii for ii in range(len(mask_times)) if TC['datetime'][ttt] == mask_times[ii]]
