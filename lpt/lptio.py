@@ -311,6 +311,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     nobj_collect = np.double([MISSING])
     centroid_lon_collect = np.array([MISSING])
     centroid_lat_collect = np.array([MISSING])
+    centroid_lon_smoothed_collect = np.array([MISSING])
+    centroid_lat_smoothed_collect = np.array([MISSING])
     largest_object_centroid_lon_collect = np.array([MISSING])
     largest_object_centroid_lat_collect = np.array([MISSING])
     max_lon_collect = np.array([MISSING])
@@ -364,6 +366,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         nobj_collect = np.append(np.append(nobj_collect, TIMECLUSTERS[ii]['nobj']),MISSING)
         centroid_lon_collect = np.append(np.append(centroid_lon_collect, TIMECLUSTERS[ii]['centroid_lon']),MISSING)
         centroid_lat_collect = np.append(np.append(centroid_lat_collect, TIMECLUSTERS[ii]['centroid_lat']),MISSING)
+        centroid_lon_smoothed_collect = np.append(np.append(centroid_lon_smoothed_collect, TIMECLUSTERS[ii]['centroid_lon_smoothed']),MISSING)
+        centroid_lat_smoothed_collect = np.append(np.append(centroid_lat_smoothed_collect, TIMECLUSTERS[ii]['centroid_lat_smoothed']),MISSING)
         largest_object_centroid_lon_collect = np.append(np.append(largest_object_centroid_lon_collect, TIMECLUSTERS[ii]['largest_object_centroid_lon']),MISSING)
         largest_object_centroid_lat_collect = np.append(np.append(largest_object_centroid_lat_collect, TIMECLUSTERS[ii]['largest_object_centroid_lat']),MISSING)
         area_collect = np.append(np.append(area_collect, TIMECLUSTERS[ii]['area']),MISSING)
@@ -457,6 +461,10 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
         {'units':'degrees_east','long_name':'centroid longitude, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
     data_dict['centroid_lat_stitched'] = (['nstitch'], centroid_lat_collect,
         {'units':'degrees_north','long_name':'centroid latitude, may be inbetween objects (-90-90) -- stitched','standard_name':'latitude'})
+    data_dict['centroid_lon_smoothed_stitched'] = (['nstitch'], centroid_lon_smoothed_collect,
+        {'units':'degrees_east','long_name':'centroid longitude, spline smoothed, may be inbetween objects (0-360) -- stitched','standard_name':'longitude'})
+    data_dict['centroid_lat_smoothed_stitched'] = (['nstitch'], centroid_lat_smoothed_collect,
+        {'units':'degrees_north','long_name':'centroid latitude, spline smoothed, may be inbetween objects (-90-90) -- stitched','standard_name':'latitude'})
     data_dict['largest_object_centroid_lon_stitched'] = (['nstitch'], largest_object_centroid_lon_collect,
         {'units':'degrees_east','long_name':'centroid longitude of the largest contiguous object (0-360) -- stitched','standard_name':'longitude'})
     data_dict['largest_object_centroid_lat_stitched'] = (['nstitch'], largest_object_centroid_lat_collect,
@@ -528,6 +536,8 @@ def read_lpt_systems_netcdf(lpt_systems_file):
         TC['datetime'] = DS['timestamp_stitched'].data #[REFTIME + dt.timedelta(hours=int(x)) if x > -900000000 else None for x in TC['timestamp_stitched']]
         TC['centroid_lon'] = DS['centroid_lon_stitched'].data
         TC['centroid_lat'] = DS['centroid_lat_stitched'].data
+        TC['centroid_lon_smoothed'] = DS['centroid_lon_smoothed_stitched'].data
+        TC['centroid_lat_smoothed'] = DS['centroid_lat_smoothed_stitched'].data
         TC['largest_object_centroid_lon'] = DS['largest_object_centroid_lon_stitched'].data
         TC['largest_object_centroid_lat'] = DS['largest_object_centroid_lat_stitched'].data
         TC['area'] = DS['area_stitched'].data
