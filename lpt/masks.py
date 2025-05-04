@@ -766,6 +766,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Get contours from the grid.
         ##
 
+        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
+
         """
 
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
@@ -1049,14 +1051,14 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
                 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
                 'num_objects': {'dtype': 'i'},
-                'mask_contour_npts': {'dtype': 'i'},
-                'mask_contour_core_npts': {'dtype': 'i'},
+                # 'mask_contour_npts': {'dtype': 'i'},
+                # 'mask_contour_core_npts': {'dtype': 'i'},
                 'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
                 'is_mjo_eprop_stitched': {'dtype': 'bool'},
-                'mask_contour_lon': {'zlib': True},
-                'mask_contour_lat': {'zlib': True},
-                'mask_contour_core_lon': {'zlib': True},
-                'mask_contour_core_lat': {'zlib': True},
+                # 'mask_contour_lon': {'zlib': True},
+                # 'mask_contour_lat': {'zlib': True},
+                # 'mask_contour_core_lon': {'zlib': True},
+                # 'mask_contour_core_lat': {'zlib': True},
                 }
 
             lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
