@@ -1879,7 +1879,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
     print('Writing to: ' + fn_out, flush=True)
-    DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
+    encoding = {'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}}
+    if do_volrain:
+        fields = [*VOLRAIN]
+        for field in fields:
+            encoding[field] = {'dtype': 'double'}
+    DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding=encoding)
     
 
     ## Define the mask variables here.
