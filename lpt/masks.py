@@ -766,6 +766,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Get contours from the grid.
         ##
 
+        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
+
         """
 
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
@@ -1049,14 +1051,14 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
                 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
                 'num_objects': {'dtype': 'i'},
-                'mask_contour_npts': {'dtype': 'i'},
-                'mask_contour_core_npts': {'dtype': 'i'},
+                # 'mask_contour_npts': {'dtype': 'i'},
+                # 'mask_contour_core_npts': {'dtype': 'i'},
                 'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
                 'is_mjo_eprop_stitched': {'dtype': 'bool'},
-                'mask_contour_lon': {'zlib': True},
-                'mask_contour_lat': {'zlib': True},
-                'mask_contour_core_lon': {'zlib': True},
-                'mask_contour_core_lat': {'zlib': True},
+                # 'mask_contour_lon': {'zlib': True},
+                # 'mask_contour_lat': {'zlib': True},
+                # 'mask_contour_core_lon': {'zlib': True},
+                # 'mask_contour_core_lat': {'zlib': True},
                 }
 
             lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
@@ -1156,7 +1158,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
         print('Writing to: ' + fn_out, flush=True)
-        DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
+        encoding = {'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}}
+        if do_volrain:
+            fields = [*VOLRAIN]
+            for field in fields:
+                encoding[field] = {'dtype': 'double'}
+        DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding=encoding)
         
 
         ## Define the mask variables here.
@@ -1197,47 +1204,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                                     , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
 
             print('Done adding masked rainfall.')
-
-        # Add the volrain variables to the output NetCDF file.
-        if do_volrain:
-            print(f'Adding volrain to: {lpt_systems_file}')
-
-            fields = [*VOLRAIN]
-            for field in fields:
-                if not 'tser' in field:
-                    with xr.open_dataset(lpt_systems_file) as ds:
-
-                        # Which indices do I use for this LPT system?
-                        this_lpt = (np.abs(ds['lptid'].data - this_lpt_id) < 0.0001)
-                        this_lpt_stitched = (np.abs(ds['lptid_stitched'].data - this_lpt_id) < 0.0001)
-                        print((np.abs(ds['lptid'].data - this_lpt_id), this_lpt))
-
-                        if not field in ds:
-                            volrain_all = np.nan * ds['lptid'].data
-                            volrain_all_stitched = np.nan * ds['lptid_stitched'].data
-                        else:
-                            volrain_all = ds[field].data
-                            volrain_all_stitched = ds[field+'_stitched'].data
-
-                        volrain_all[this_lpt] = VOLRAIN[field]
-                        # volrain_all_stitched[this_lpt_stitched] = VOLRAIN[field+'_tser'][72:] # Skip accum. period.
-                        volrain_all_stitched[this_lpt_stitched] = VOLRAIN[field+'_tser'][-1*len(volrain_all_stitched[this_lpt_stitched]):] # Skip accum. period.
-
-                        data_vars = {
-                            field: (['nlpt',], volrain_all),
-                            field+'_stitched': (['nstitch',], volrain_all_stitched),
-                        }
-
-                        encoding = {
-                            'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
-                            'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-                            'num_objects': {'dtype': 'i'},
-                            'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
-                            'is_mjo_eprop_stitched': {'dtype': 'bool'}}
-
-                        ds2 = ds.copy().assign(data_vars)
-
-                    lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
 
 
 def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm'
@@ -1601,7 +1567,12 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
         print('Writing to: ' + fn_out, flush=True)
-        DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
+        encoding = {'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}}
+        if do_volrain:
+            fields = [*VOLRAIN]
+            for field in fields:
+                encoding[field] = {'dtype': 'double'}
+        DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding=encoding)
         
 
         ## Define the mask variables here.
@@ -1908,7 +1879,12 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
 
     print('Writing to: ' + fn_out, flush=True)
-    DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding={'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}})
+    encoding = {'time': {'dtype': 'i'}, 'n': {'dtype': 'i'}}
+    if do_volrain:
+        fields = [*VOLRAIN]
+        for field in fields:
+            encoding[field] = {'dtype': 'double'}
+    DS.to_netcdf(path=fn_out, mode='w', unlimited_dims=['time',], encoding=encoding)
     
 
     ## Define the mask variables here.
