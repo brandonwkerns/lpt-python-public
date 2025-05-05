@@ -1,5 +1,5 @@
 # lpt-python-public
-Updated: May 2024
+Updated: May 2025
 
 Python version of Large-Scale Precipitation Tracking (LPT): Public Release.
 This version of LPT is to be released with Kerns and Chen (2019), submitted to the Journal of Climate.
