@@ -209,8 +209,11 @@ def filter_str(stdev):
 
 
 
-def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, output, plotting):
-
+def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
+    output, plotting):
+    """
+    Function for calculating large scale precipitation objects (LPOs)
+    """
 
     YMDH = end_of_accumulation_time0.strftime('%Y%m%d%H')
     YMDH_fancy = end_of_accumulation_time0.strftime('%Y-%m-%d %H:00 UTC')
@@ -220,67 +223,127 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
     If it does and lpo_options['overwrite_existing_files'] is set to False,
     Skip processing this time.
     """
-    objects_dir = (output['data_dir'] + '/' + dataset['label']
-                    + '/' + filter_str(lpo_options['filter_stdev'])
-                    + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
-                    + '/thresh' + str(int(lpo_options['thresh']))
-                    + '/objects/'
-                    + end_of_accumulation_time0.strftime(output['sub_directory_format']))
+    objects_dir = (
+        output['data_dir'] + '/' + dataset['label']
+        + '/' + filter_str(lpo_options['filter_stdev'])
+        + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+        + '/thresh' + str(int(lpo_options['thresh']))
+        + '/objects/' + end_of_accumulation_time0.strftime(
+                            output['sub_directory_format'])
+    )
+
     objects_fn = (objects_dir + '/objects_' + YMDH)
-    if not lpo_options['overwrite_existing_files'] and os.path.exists(objects_fn):
+    if not lpo_options['overwrite_existing_files'] and os.path.exists(
+                                                        objects_fn):
+        
         print(f'{YMDH}: This time already has LPO step done. Skipping.')
 
     else:
-        ## NOTE: In cold start mode, the begin_time is assumed to be the model initiation time!
-        hours_since_init = (end_of_accumulation_time0 - begin_time).total_seconds()/3600
-        if (hours_since_init < lpo_options['cold_start_const_period'] and lpo_options['cold_start_mode']):
+        ##NOTE: In cold start mode, the begin_time is assumed
+        # to be the model initiation time!
+        hours_since_init = (end_of_accumulation_time0
+                            - begin_time).total_seconds()/3600
+
+        if (hours_since_init < lpo_options['cold_start_const_period']
+            and lpo_options['cold_start_mode']):
+            
             beginning_of_accumulation_time = begin_time
-            end_of_accumulation_time = beginning_of_accumulation_time + dt.timedelta(hours=24)
+            end_of_accumulation_time = (beginning_of_accumulation_time
+                                        + dt.timedelta(hours=24))
+
         elif (hours_since_init >= lpo_options['cold_start_const_period']
-                and hours_since_init <= lpo_options['accumulation_hours'] and lpo_options['cold_start_mode']):
+                and hours_since_init <= lpo_options['accumulation_hours']
+                and lpo_options['cold_start_mode']):
+
             beginning_of_accumulation_time = begin_time
             end_of_accumulation_time = end_of_accumulation_time0
+
         else:
             end_of_accumulation_time = end_of_accumulation_time0
-            beginning_of_accumulation_time = end_of_accumulation_time0 - dt.timedelta(hours=lpo_options['accumulation_hours'])
+            beginning_of_accumulation_time = (end_of_accumulation_time0
+                - dt.timedelta(hours=lpo_options['accumulation_hours']))
 
-        hours_to_divide = (end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0
+        hours_to_divide = (
+            end_of_accumulation_time
+            - beginning_of_accumulation_time
+            ).total_seconds()/3600.0
 
-
-        #beginning_of_accumulation_time = end_of_accumulation_time - dt.timedelta(hours=lpo_options['accumulation_hours'])
         if dataset['verbose']:
-            print(('LPO time period: ' + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + ' to '
-                    + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC') + '.'), flush=True)
+            print(
+                ('LPO time period: '
+                + beginning_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC')
+                + ' to '
+                + end_of_accumulation_time.strftime('%Y-%m-%d %H:00 UTC')
+                + '.'
+                ), flush=True
+            )
 
         try:
 
-            accumulation_hours = int((end_of_accumulation_time - beginning_of_accumulation_time).total_seconds()/3600.0)
-            dt_list = [beginning_of_accumulation_time
-                + dt.timedelta(hours=x) for x in np.arange(0,accumulation_hours
-                                                    + dataset['data_time_interval'],dataset['data_time_interval']).astype('double')]
+            accumulation_hours = int(
+                (end_of_accumulation_time
+                    - beginning_of_accumulation_time
+                ).total_seconds()/3600.0
+            )
 
-            ## Get accumulated rain. # So far used only for model run, e.g., CFS.
+            if dataset['field_is_accumulated']:
+
+                # Must be reversed, because the times are processed
+                # in reversed order in the loop below.
+                dt_list = [end_of_accumulation_time,
+                           beginning_of_accumulation_time]
+
+            else:
+                
+                hours_array = np.arange(
+                    0, accumulation_hours + dataset['data_time_interval'],
+                    dataset['data_time_interval']
+                ).astype('double')
+
+                dt_list = [beginning_of_accumulation_time
+                    + dt.timedelta(hours=x) for x in hours_array]
+
+            ## Get accumulated rain.
             data_collect = []
             count = 0
 
             dataset['datetime_init'] = begin_time
             for this_dt in reversed(dt_list):
                 DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
-                DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(fill_value=0.0))
+                DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(
+                    fill_value=0.0))
                 DATA_RAW['data'][~np.isfinite(DATA_RAW['data'])] = 0.0
                 if count < 1:
                     data_collect = DATA_RAW['data'].copy()
                 else:
-                    data_collect += DATA_RAW['data']
+                    if dataset['field_is_accumulated']:
+                        data_collect = DATA_RAW['data'] - data_collect
+                    else:
+                        data_collect += DATA_RAW['data']
                 count += 1
 
-            DATA_RUNNING = (data_collect/count) * lpo_options['multiply_factor'] # Get to the units you want for objects.
+            if dataset['field_is_accumulated']:
+
+                # Get to the units you want for objects.
+                hours_diff = (end_of_accumulation_time 
+                    - beginning_of_accumulation_time).total_seconds()/3600.0
+                DATA_RUNNING = ((data_collect/hours_diff)
+                    * lpo_options['multiply_factor'])
+
+            else:
+
+                # Get to the units you want for objects.
+                DATA_RUNNING = ((data_collect/count)
+                    * lpo_options['multiply_factor']) 
+
             if dataset['verbose']:
                 print('Running mean done.',flush=True)
 
             ## Filter the data
-            DATA_FILTERED = scipy.ndimage.gaussian_filter(DATA_RUNNING, lpo_options['filter_stdev']
-                , order=0, output=None, mode='reflect', cval=0.0, truncate=lpo_options['filter_n_stdev_width'])
+            DATA_FILTERED = scipy.ndimage.gaussian_filter(
+                DATA_RUNNING, lpo_options['filter_stdev'],
+                order=0, output=None, mode='reflect', cval=0.0,
+                truncate=lpo_options['filter_n_stdev_width'])
             if dataset['verbose']:
                 print('filter done.',flush=True)
 
@@ -291,9 +354,10 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
                 object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
                 thresh_or_equal=lpo_options['thresh_or_equal'],
                 verbose=dataset['verbose'])
-            OBJ = calculate_lp_object_properties(DATA_RAW['lon'], DATA_RAW['lat']
-                        , DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0
-                        , end_of_accumulation_time0, verbose=dataset['verbose'])
+            OBJ = calculate_lp_object_properties(
+                DATA_RAW['lon'], DATA_RAW['lat'],
+                DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0,
+                end_of_accumulation_time0, verbose=dataset['verbose'])
             OBJ['units_inst'] = dataset['field_units']
             OBJ['units_running'] = lpo_options['field_units']
             OBJ['units_filtered'] = lpo_options['field_units']
@@ -327,14 +391,17 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options, out
                     ), fontsize=11)
 
                 img_dir1 = (output['img_dir'] + '/' + dataset['label']
-                                + '/' + filter_str(lpo_options['filter_stdev'])
-                                + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
-                                + '/thresh' + str(int(lpo_options['thresh']))
-                                + '/objects/'
-                                + end_of_accumulation_time0.strftime(output['sub_directory_format']))
+                    + '/' + filter_str(lpo_options['filter_stdev'])
+                    + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                    + '/thresh' + str(int(lpo_options['thresh']))
+                    + '/objects/'
+                    + end_of_accumulation_time0.strftime(
+                        output['sub_directory_format'])
+                )
 
                 os.makedirs(img_dir1, exist_ok = True)
-                file_out_base = (img_dir1 + '/lp_objects_' + dataset['label'] + '_' + YMDH)
+                file_out_base = (
+                    img_dir1 + '/lp_objects_' + dataset['label'] + '_' + YMDH)
                 lpt.plotting.print_and_save(file_out_base)
                 plt.close(fig1)
 
