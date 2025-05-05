@@ -178,10 +178,20 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         ## Output
         print('--- Writing output. ---',flush=True)
 
-        fn_tc_base = (options['outdir']
-                         + '/lpt_systems_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
-        lpt.lptio.lpt_system_tracks_output_ascii(fn_tc_base + '.txt', TIMECLUSTERS)
-        lpt.lptio.lpt_system_tracks_output_netcdf(fn_tc_base + '.nc', TIMECLUSTERS)
+        fn_tc_base = (
+            options['outdir']
+            + '/lpt_systems_'
+            + dataset['label']
+            + '_' + YMDHb + '_' + YMDH
+        )
+        lpt.lptio.lpt_system_tracks_output_ascii(
+            fn_tc_base + '.txt',
+            TIMECLUSTERS
+        )
+        lpt.lptio.lpt_system_tracks_output_netcdf(
+            fn_tc_base + '.nc',
+            TIMECLUSTERS
+        )
 
         """
         LPT Plotting
@@ -191,42 +201,85 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             fig2 = plt.figure(2)
             ax2 = fig2.add_subplot(111)
 
-            ## matplotlib needs datetime.datetime to plot. Can't use cftime.datetime.
-            dt_list = [dt.datetime(x.year,x.month,x.day,x.hour,x.minute,x.second) for x in time_list]
+            # matplotlib needs datetime.datetime to plot.
+            # Can't use cftime.datetime.
+            dt_list = [dt.datetime(x.year,x.month,x.day,
+                                x.hour,x.minute,x.second) for x in time_list]
 
             timelon_rain = []
-            for this_dt in time_list:
+            for tt, this_dt in enumerate(time_list):
                 try:
-                    DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
-                    lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0, DATA_RAW['lat'] < 15.0))
-                    timelon_rain.append(np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0))
+                    if (dataset['field_is_accumulated']
+                        and (tt > 0 or not lpo_options['cold_start_mode'])
+                    ):
+                        # If accumulated, I need to subtract the previous time.
+                        # But if it's cold start, I don't need to do this
+                        # for the first time. The first time should be zero.
+                        prev_dt = (
+                            this_dt
+                            - dt.timedelta(hours=dataset['data_time_interval'])
+                        )
+                        DATA_RAW1 = lpt.readdata.readdata(prev_dt, dataset)
+                        DATA_RAW2 = lpt.readdata.readdata(this_dt, dataset)
+                        DATA_RAW = DATA_RAW2.copy()
+                        DATA_RAW['data'] = (
+                            (DATA_RAW2['data'] - DATA_RAW1['data'])
+                             / dataset['data_time_interval']
+                        )
+                    else:
+                        DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
+                    lat_idx, = np.where(np.logical_and(DATA_RAW['lat'] > -15.0,
+                                                        DATA_RAW['lat'] < 15.0))
+                    timelon_rain.append(
+                        np.mean(np.array(DATA_RAW['data'][lat_idx,:]), axis=0)
+                        )
                 except:
-                    print('WARNING: Had issue with data file for {}. Using NaN for this time.'.format(str(this_dt)))
-                    timelon_rain.append([]) # Append empty for now. Fill in with NaN below.
+                    print((
+                        'WARNING: Had issue with data file for {}. '
+                        + 'Using NaN for this time.'.format(str(this_dt))
+                    ))
+                    # Append empty for now. Fill in with NaN below.
+                    timelon_rain.append([])
 
             lon_length = np.max([len(x) for x in timelon_rain])
             ## Replace short rows with all NaN values.
-            timelon_rain = [np.full(lon_length, np.nan) if len(x) < lon_length else x for x in timelon_rain]
+            timelon_rain = [np.full(lon_length, np.nan)
+                if len(x) < lon_length
+                else x
+                for x in timelon_rain]
             
             timelon_rain = np.array(timelon_rain)
             timelon_rain *= lpo_options['multiply_factor'] / 24.0
 
-            lpt.plotting.plot_timelon_with_lpt(ax2, dt_list, DATA_RAW['lon']
-                    , timelon_rain, TIMECLUSTERS, plotting['time_lon_range']
-                    , accum_time_hours = lpo_options['accumulation_hours'])
+            lpt.plotting.plot_timelon_with_lpt(
+                ax2, dt_list, DATA_RAW['lon'],
+                timelon_rain, TIMECLUSTERS, plotting['time_lon_range'],
+                accum_time_hours = lpo_options['accumulation_hours']
+            )
 
-            ax2.set_title((dataset['label'].upper()
-                            + ' Rain Rate (15$\degree$S-15$\degree$N) and LPTs\n' + YMDHb_fancy + ' to ' + YMDH_fancy))
+            ax2.set_title((
+                dataset['label'].upper()
+                + ' Rain Rate (15$\degree$S-15$\degree$N) and LPTs\n'
+                + YMDHb_fancy + ' to ' + YMDH_fancy
+            ))
 
-            ax2.text(0.87,1.02,'(<15$\degree$S, >15$\degree$N Dashed)', transform=ax2.transAxes)
+            ax2.text(0.87,1.02,'(<15$\degree$S, >15$\degree$N Dashed)',
+                transform=ax2.transAxes)
 
-            img_dir2 = (output['img_dir'] + '/' + dataset['label']
-                        + '/' + filter_str(lpo_options['filter_stdev'])
-                        + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
-                        + '/thresh' + str(int(lpo_options['thresh'])) + '/systems')
+            img_dir2 = (
+                output['img_dir'] + '/' + dataset['label']
+                + '/' + filter_str(lpo_options['filter_stdev'])
+                + '_' + str(int(lpo_options['accumulation_hours'])) + 'h'
+                + '/thresh' + str(int(lpo_options['thresh'])) + '/systems'
+            )
 
             os.makedirs(img_dir2, exist_ok = True)
-            file_out_base = (img_dir2 + '/lpt_time_lon_' + dataset['label'] + '_' + YMDHb + '_' + YMDH)
+            file_out_base = (
+                img_dir2
+                + '/lpt_time_lon_'
+                + dataset['label']
+                + '_' + YMDHb + '_' + YMDH
+            )
             lpt.plotting.print_and_save(file_out_base)
             fig2.clf()
 
