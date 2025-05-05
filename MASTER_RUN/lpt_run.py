@@ -72,6 +72,7 @@ dataset['longitude_variable_name'] = 'lon'
 dataset['latitude_variable_name'] = 'lat'
 dataset['time_variable_name'] = 'time'
 dataset['field_variable_name'] = 'rain'
+dataset['field_is_accumulated'] = False
 dataset['field_units'] = 'mm h-1' ## This is used only for plotting and NetCDF attributes.
 """
 Set calendar below. Use a valid cftime calendar.
@@ -246,7 +247,7 @@ lpt_options['do_non_mjo_lpt_composite_mask'] = False    # Whether to generate ma
 
 ## Options for the LPT systems mask output. Only used if one or more of the above "do" masks options are True
 lpt_options['individual_masks_begin_lptid'] = 0           # LPT ID to start with
-lpt_options['individual_masks_end_lptid'] = 1             # LPT ID to end with
+lpt_options['individual_masks_end_lptid'] = 9999          # LPT ID to end with
 lpt_options['mask_include_rain_rates'] = True             # Whether to include masked rain rates in mask output files.
 lpt_options['mask_calc_volrain'] = True                   # Whether to calculate a volumetric rain and include with mask files.
 lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
