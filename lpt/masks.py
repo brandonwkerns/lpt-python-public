@@ -194,28 +194,65 @@ def get_mask_type_list(mask_arrays):
     return mask_type_list
 
 
-def get_masked_rain_at_time(this_dt, this_mask_array, multiply_factor, dataset_dict):
+def get_masked_rain_at_time(
+    this_dt, this_mask_array, multiply_factor, dataset_dict
+):
+    """
+    Fill in values by time. Multiply rain field
+    by applicable mask (0 and 1 values).
 
-    #### Fill in values by time. Multiply rain field by applicable mask (0 and 1 values).
-    precip = np.nan_to_num(
-        lpt.readdata.readdata(this_dt,
-                              dataset_dict,
-                              verbose=False)['data'][:],   # Override verbose
-                              nan=0.0) * multiply_factor
+    HACK: For the initial time in a cold start mode run,
+    this works because the readdata searches for time based
+    on the nearest time. So it just picks up the first time
+    and then subtracts them --> zero. This works even though the 
+    it does not "know" it is the first time step in a cold_start_mode run.
+    It may fail for separated, accumulated, files in a cold-start run.
+    Although you could get around this by adding a "ghost" file that is
+    one time stamp prior to the initiation of the run.
+    """
+
+    if (dataset_dict['field_is_accumulated']
+        # and (tt > 0 or not lpo_options['cold_start_mode'])
+    ):
+
+        # If accumulated, I need to subtract the previous time.
+        prev_dt = (
+            this_dt
+            - dt.timedelta(hours=dataset_dict['data_time_interval'])
+        )
+        DATA_RAW1 = lpt.readdata.readdata(prev_dt, dataset_dict,
+                                            verbose=False)['data'][:]
+        DATA_RAW2 = lpt.readdata.readdata(this_dt, dataset_dict,
+                                            verbose=False)['data'][:]
+        DATA_RAW = (DATA_RAW2 - DATA_RAW1) / dataset_dict['data_time_interval']
+
+    else:
+
+        DATA_RAW = lpt.readdata.readdata(this_dt, dataset_dict,
+                                            verbose=False)['data'][:]
+
+    precip = np.nan_to_num(DATA_RAW, nan=0.0) * multiply_factor
+
     precip[precip < -0.01] = 0.0
     precip[this_mask_array.toarray() < 0.5] = 0.0
 
     return csr_matrix(precip)
 
 
-def add_masked_rain_rates(mask_array, mask_times, multiply_factor, dataset_dict, nproc=1):
+def add_masked_rain_rates(mask_array, mask_times, multiply_factor,
+    dataset_dict, nproc=1
+):
 
     ## Parallelize in time.
     with Pool(nproc) as p:
-        mask_array_new = p.starmap(get_masked_rain_at_time, tqdm([(mask_times[tt],
-                                    mask_array[tt],
-                                    multiply_factor,
-                                    dataset_dict) for tt in range(len(mask_times))]))
+        mask_array_new = p.starmap(
+            get_masked_rain_at_time,
+            tqdm([(mask_times[tt],
+                mask_array[tt],
+                multiply_factor,
+                dataset_dict) for tt in range(len(mask_times))]
+            )
+        )
 
     return mask_array_new
 
