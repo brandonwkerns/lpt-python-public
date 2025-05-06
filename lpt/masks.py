@@ -762,10 +762,11 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Get list of LP Objects for this LPT system.
         lp_object_id_list = TC['objid'][this_lpt_idx,0:int(TC['num_objects'][this_lpt_idx])]
 
-        if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
-            dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
-        else:
-            dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
+        dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
+        # Cold start mode doesn't have data before init time.
+        if cold_start_mode and dt00 < dt_begin:
+            dt00 = dt_begin 
+
         dt0 = cftime.datetime(dt00.year,dt00.month,dt00.day,dt00.hour,calendar=TC['datetime'][0].calendar)
         dt11 = dt.datetime.strptime(str(int(np.max(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
         dt1 = cftime.datetime(dt11.year,dt11.month,dt11.day,dt11.hour,calendar=TC['datetime'][0].calendar)
@@ -1343,10 +1344,11 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
 
         lp_object_id_list = np.unique(lp_object_id_list)
 
-        if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
-            dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
-        else:
-            dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
+        dt00 = dt.datetime.strptime(str(int(np.min(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H') - dt.timedelta(hours=accumulation_hours)
+        # Cold start mode doesn't have data before init time.
+        if cold_start_mode and dt00 < dt_begin:
+            dt00 = dt_begin 
+
         dt0 = cftime.datetime(dt00.year,dt00.month,dt00.day,dt00.hour,calendar=TC['datetime'][0].calendar)
         dt11 = dt.datetime.strptime(str(int(np.max(lp_object_id_list))).zfill(14)[0:10],'%Y%m%d%H')
         dt1 = cftime.datetime(dt11.year,dt11.month,dt11.day,dt11.hour,calendar=TC['datetime'][0].calendar)
@@ -1729,11 +1731,14 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
 
     dt_hours = interval_hours
-    if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode: #Cold start mode doesn't have data before init time.
-        dt00 = dt_begin - dt.timedelta(hours=accumulation_hours) #(dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0 - accumulation_hours
+
+    # Cold start mode doesn't have data before init time.
+    if accumulation_hours > 0 and calc_with_accumulation_period and not cold_start_mode:
+        dt00 = dt_begin - dt.timedelta(hours=accumulation_hours)
     else:
-        dt00 = dt_begin #(dt_begin - dt.datetime(1970,1,1,0,0,0)).total_seconds()/3600.0
-    grand_mask_times = lpt.helpers.dtrange(dt00, dt_end + dt.timedelta(hours=int(dt_hours)), dt_hours)   # [dt.datetime(1970,1,1,0,0,0) + dt.timedelta(hours=x) for x in grand_mask_timestamps]
+        dt00 = dt_begin
+
+    grand_mask_times = lpt.helpers.dtrange(dt00, dt_end + dt.timedelta(hours=int(dt_hours)), dt_hours)
 
 
     ## Initialize the mask arrays dictionary if this is the first LP object.
