@@ -257,7 +257,15 @@ def add_masked_rain_rates(mask_array, mask_times, multiply_factor,
     return mask_array_new
 
 
-def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset_dict):
+def get_volrain_at_time(this_dt, this_mask_array, multiply_factor,
+    AREA, dataset_dict
+):
+
+    """
+    Get volumetric rain at a specified time (this_dt)
+
+    HACK: the hack in get_masked_rain_at_time applies here too.
+    """
 
     ## Initialize
     this_volrain = {}
@@ -266,13 +274,32 @@ def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset
 
     ## Get rain
     try:
-        RAIN = lpt.readdata.readdata(this_dt, dataset_dict, verbose=False) # Override verbose
 
-        precip = RAIN['data'][:] * multiply_factor / 24.0  # Assuming LPT analysis is in mm/day, get mm/h.
+        if (dataset_dict['field_is_accumulated']
+            # and (tt > 0 or not lpo_options['cold_start_mode'])
+        ):
+
+            # If accumulated, I need to subtract the previous time.
+            prev_dt = (
+                this_dt
+                - dt.timedelta(hours=dataset_dict['data_time_interval'])
+            )
+            DATA_RAW1 = lpt.readdata.readdata(prev_dt, dataset_dict,
+                                                verbose=False)['data'][:]
+            DATA_RAW2 = lpt.readdata.readdata(this_dt, dataset_dict,
+                                                verbose=False)['data'][:]
+            RAIN = (DATA_RAW2 - DATA_RAW1) / dataset_dict['data_time_interval']
+
+        else:
+
+            RAIN = lpt.readdata.readdata(this_dt, dataset_dict,
+                                                verbose=False)['data'][:]
+
+        # Assuming LPT analysis is in mm/day, get mm/h.
+        precip = RAIN * multiply_factor / 24.0  
         precip[~np.isfinite(precip)] = 0.0
         precip[precip < -0.01] = 0.0
 
-        
         ## Global
         this_volrain['volrain_global_tser'] = np.sum(precip * AREA)
 
@@ -281,9 +308,11 @@ def get_volrain_at_time(this_dt, this_mask_array, multiply_factor, AREA, dataset
             this_mask = this_mask_array[field].toarray()
             this_mask[this_mask > 0] = 1.0
             precip_masked = precip * this_mask
-            this_volrain[field.replace('mask','volrain')+'_tser'] = np.sum(precip_masked * AREA)
+            this_volrain[field.replace('mask','volrain')+'_tser'] = np.sum(
+                                                        precip_masked * AREA)
 
-    ## If there is a problem reading the rain file (missint or corrupt), return NaN.
+    # If there is a problem reading the rain file (missint or corrupt)
+    # return NaN.
     except:
         this_volrain['volrain_global_tser'] = np.nan
         for field in mask_type_list:
