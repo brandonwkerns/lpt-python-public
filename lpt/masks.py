@@ -1306,7 +1306,6 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
     TC = lpt.lptio.read_lpt_systems_netcdf(lpt_systems_file)
     unique_lpt_ids = np.unique(TC['lptid'])
     unique_lpt_groups = np.unique(np.floor(TC['lptid'])).astype('int')
-    print(unique_lpt_groups)
     if mjo_only:
         lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
         try:
@@ -1329,7 +1328,6 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
 
         lp_object_id_list = []
         lpt_id_in_this_group = [x for x in TC['lptid'] if int(np.floor(x)) == this_lpt_group]
-        print(lpt_id_in_this_group)
 
         for this_lpt_id in lpt_id_in_this_group:
 
