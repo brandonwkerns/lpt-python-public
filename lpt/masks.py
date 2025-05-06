@@ -1052,9 +1052,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             for dt_idx, dt_this in enumerate(mask_times):
 
-                if dt_idx < 24:
-                    continue
-
+                # If there is no matching time in the LPT systems file,
+                # such as during the initial 72 h "spin up" period,
+                # Then this should just skip over those times.
                 timestamp_stitched_idx = np.argwhere(
                     np.logical_and(
                         TC['lptid_stitched'] == this_lpt_id, 
