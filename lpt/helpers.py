@@ -106,18 +106,18 @@ def calc_scaled_average(data_in_accumulation_period, factor):
     """
     accumulated_data = calc_accumulation(data_in accumulation_period, factor)
 
-    Calculate the sum and multiply by the data time interval to get the accumulation.
+    Calculate the sum and multiply by the data time interval
+    to get the accumulation.
     -- data_in_accumulation_period[t,y,x] is a 3D array.
-    -- factor gets multiplied by the mean. E.g., if the data is rain rate in mm/h,
+    -- factor gets multiplied by the mean.
+       E.g., if the data is rain rate in mm/h,
        using factor of 24 would be in mm/day.
     """
 
     return factor * np.nanmean(data_in_accumulation_period, axis=0)
 
 
-def identify_lp_objects(field, threshold, min_points=1,
-                        object_is_gt_threshold=True,
-                        thresh_or_equal=False, verbose=False):
+def identify_lp_objects(lon, lat, field, lpo_options, verbose=False):
 
     """
     label_im = identify_lp_objects(field, threshold, min_points=1,
@@ -128,6 +128,13 @@ def identify_lp_objects(field, threshold, min_points=1,
     identify the LP Objects in that field. Return an array the same size
     as field, but with values indexed by object IDs.
     """
+    grid_cell_area = calc_grid_cell_area(lon, lat)
+    print('grid_cell_area', grid_cell_area)
+    threshold = lpo_options['thresh']
+    min_points = lpo_options['min_points']
+    min_area = lpo_options['min_area']
+    object_is_gt_threshold = lpo_options['object_is_gt_threshold']
+    thresh_or_equal = lpo_options['thresh_or_equal']
 
     field_bw = 0 * field
     if object_is_gt_threshold:
@@ -143,17 +150,28 @@ def identify_lp_objects(field, threshold, min_points=1,
 
     label_im, nb_labels = ndimage_label_periodic_x(field_bw)
     if verbose:
-        print('Found '+str(nb_labels)+' objects.', flush=True) # how many regions?
+        print('Found '+str(nb_labels)+' objects.', flush=True)
 
     label_points = ndimage.sum(1, label_im, range(nb_labels+1))
+    label_areas = ndimage.sum(grid_cell_area, label_im, range(nb_labels+1))
 
-    throw_away = [x for x in range(1, nb_labels+1) if label_points[x] < min_points]
+    throw_away = [x for x in range(1, nb_labels+1) 
+            if (label_points[x] < min_points or label_areas[x] < min_area)]
     if len(throw_away) > 0:
         if verbose:
             if str(len(throw_away)) == 1:
-                print('Discarding ' + str(len(throw_away)) + ' feature that was < ' + str(min_points) + ' points.',flush=True)
+                print((
+                    'Discarding ' + str(len(throw_away))
+                    + ' feature that was < ' + str(min_points)
+                    + ' points.'),
+                    flush=True
+                )
             else:
-                print('Discarding ' + str(len(throw_away)) + ' features that were < ' + str(min_points) + ' points.',flush=True)
+                print(('Discarding ' + str(len(throw_away))
+                    + ' features that were < ' + str(min_points)
+                    + ' points.'),
+                    flush=True
+                )
         for nn in throw_away:
             label_im[label_im == nn] = 0
 
@@ -166,10 +184,10 @@ def identify_lp_objects(field, threshold, min_points=1,
     return label_im
 
 
-def calc_grid_cell_area(lon, lat):
+def calc_grid_cell_area(lon, lat, verbose=False):
 
     """
-    area = calc_grid_cell_area(lon, lat)
+    area = calc_grid_cell_area(lon, lat, verbose=False)
 
     Given lon and lat arrays, calculate the area of each grid cell.
     - lon and lat don't need to be a uniform grid, but they need to be increasing
@@ -177,22 +195,37 @@ def calc_grid_cell_area(lon, lat):
     - If 1-D arrays are given, they will be converted to 2D using np.meshgrid.
     """
 
-    area = None
+    ## If lon and lat not in 2d arrays, put them through np.meshgrid.
     if lon.ndim == 1:
-        print('ERROR: lon and lat must be 2D arrays for function calc_grid_cell_area.', flush=True)
+        if verbose:
+            print('Detected 1-D lat/lon. Using np.meshgrid to get 2d lat/lon.', flush=True)
+        lon2, lat2 = np.meshgrid(lon, lat)
     else:
-        ny,nx = lon.shape
-        dlon = 0.0*lon
-        dlat = 0.0*lat
+        lon2 = lon
+        lat2 = lat
 
-        dlon[:,1:nx-1] = abs(0.5*(lon[:,1:nx-1] + lon[:,2:nx]) - 0.5*(lon[:,0:nx-2] + lon[:,1:nx-1]))
+    area = None
+    if lon2.ndim != 2:
+        print(
+            'ERROR: lon and lat must be 2D arrays for function '
+            'calc_grid_cell_area.',
+            flush=True
+        )
+    else:
+        ny,nx = lon2.shape
+        dlon = 0.0*lon2
+        dlat = 0.0*lat2
+
+        dlon[:,1:nx-1] = abs(0.5*(lon2[:,1:nx-1] + lon2[:,2:nx])
+                            - 0.5*(lon2[:,0:nx-2] + lon2[:,1:nx-1]))
         dlon[:,0] = dlon[:,1]
         dlon[:,nx-1] = dlon[:,nx-2]
-        dlat[1:ny-1,:] = abs(0.5*(lat[1:ny-1,:] + lat[2:ny,:]) - 0.5*(lat[0:ny-2,:] + lat[1:ny-1,:]))
+        dlat[1:ny-1,:] = abs(0.5*(lat2[1:ny-1,:] + lat2[2:ny,:])
+                            - 0.5*(lat2[0:ny-2,:] + lat2[1:ny-1,:]))
         dlat[0,:] = dlat[1,:]
         dlat[ny-1,:] = dlat[ny-2,:]
 
-        area = (dlat*111.195) * (dlon*111.195*np.cos(np.pi*lat/180.0))
+        area = (dlat*111.195) * (dlon*111.195*np.cos(np.pi*lat2/180.0))
 
     return area
 
@@ -349,11 +382,17 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
 
             ## Get LP objects.
             label_im = identify_lp_objects(
-                DATA_FILTERED, lpo_options['thresh'],
-                min_points=lpo_options['min_points'], 
-                object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
-                thresh_or_equal=lpo_options['thresh_or_equal'],
-                verbose=dataset['verbose'])
+                DATA_RAW['lon'],
+                DATA_RAW['lat'],
+                DATA_FILTERED,
+                lpo_options
+            )
+                
+                # ['thresh'],
+                # min_points=lpo_options['min_points'], 
+                # object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
+                # thresh_or_equal=lpo_options['thresh_or_equal'],
+                # verbose=dataset['verbose'])
             OBJ = calculate_lp_object_properties(
                 DATA_RAW['lon'], DATA_RAW['lat'],
                 DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0,

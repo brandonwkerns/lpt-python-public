@@ -61,6 +61,7 @@ lpo_options['accumulation_hours'] = 72      # Accumulation period for LP objects
 lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of grid points.
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?
 lpo_options['min_points'] = 400             # Throw away LP objects smaller than this.
+lpo_options['min_area'] = 250000            # Throw away LP objects smaller than this (km2).
 # If COLD_START_MODE is specified, assume there is no rain data before time zero.
 #   Calculate the accumulation as follows:
 #   For the first COLD_START_CONST_PERIOD, use the average rain rate during
