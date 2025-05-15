@@ -756,13 +756,14 @@ def calc_overlapping_points(objid1, objid2, objdir,
 
 
 def get_nodes_this_time(this_dt, objdir, min_points, min_area, fmt):
-
-    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=this_dt.calendar) ## Only used internally.
+    """
+    Get the nodes for this time step.
+    """
+    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=this_dt.calendar)
     nodes_this_time = []
 
-    # print(this_dt)
-    fn = (objdir + '/' + this_dt.strftime(fmt)).replace('///','/').replace('//','/')
-    # print(fn)
+    fn = (objdir+'/'+this_dt.strftime(fmt)).replace('///','/').replace('//','/')
+
     try:
         DS = Dataset(fn)
         try:
@@ -777,7 +778,7 @@ def get_nodes_this_time(this_dt, objdir, min_points, min_area, fmt):
         DS.close()
 
         for ii, this_id in enumerate(id_list):
-            npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
+            npts = pixels_x[ii,:].count()  #ma.count(), n of non-masked values.
             if npts >= min_points and area[ii] >= min_area:
                 nodes_this_time += [(
                     int(this_id),
@@ -818,14 +819,14 @@ def init_lpt_graph(dt_list, objdir, n_cores=1, min_points = 1, min_area = 0,
     return initial_graph
 
 
-def get_lpo_overlap(dt1, dt2, objdir, min_points=1, min_area=0.0,
-        fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def get_lpo_overlap(dt1, dt2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    """
+    Get the overlap between two LPOs at two different times.
+    """
 
-    ##
-    ## Read in LPO masks for current and previous times.
-    ##
-    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
-    fn2 = (objdir + '/' + dt2.strftime(fmt)).replace('///','/').replace('//','/')
+    # Read in LPO masks for the two times
+    fn1 = (objdir+'/'+dt1.strftime(fmt)).replace('///','/').replace('//','/')
+    fn2 = (objdir+'/'+dt2.strftime(fmt)).replace('///','/').replace('//','/')
 
     with Dataset(fn1, 'r') as ds1:
         mask1 = ds1['grid_mask'][:]
@@ -835,29 +836,6 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, min_area=0.0,
     with Dataset(fn2, 'r') as ds2:
         mask2 = ds2['grid_mask'][:]
         objid2 = ds2['objid'][:]
-
-    ##
-    ## Apply minimum size.
-    ## Any LPOs smaller than the minimum size get taken out of the mask.
-    ## Their mask values get set to zero, and they will not be considered
-    ## for overlapping.
-    ##
-    if min_points > 1:
-        sizes = ndimage.sum(1, mask1, range(np.nanmax(mask1)+1))
-        for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
-            mask1[mask1 == nn] = -1
-
-        areas = ndimage.sum(grid_area, mask1, range(np.nanmax(mask1)+1))
-        for nn in [x for x in range(len(sizes)) if areas[x] < min_area]:
-            mask1[mask1 == nn] = -1
-
-        sizes = ndimage.sum(1, mask2, range(np.nanmax(mask2)+1))
-        for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
-            mask2[mask2 == nn] = -1
-
-        areas = ndimage.sum(grid_area, mask2, range(np.nanmax(mask1)+1))
-        for nn in [x for x in range(len(sizes)) if areas[x] < min_area]:
-            mask2[mask2 == nn] = -1
 
     ##
     ## Each overlap must necessarily be one LPO against another single LPO.
@@ -898,22 +876,22 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, min_area=0.0,
     overlap_dict_out['area'] = overlapping_area
     overlap_dict_out['frac1'] = overlapping_frac1
     overlap_dict_out['frac2'] = overlapping_frac2
+
     return overlap_dict_out
+
 
 def get_overlapping_lpo_pairs(this_timestamp, prev_timestamp,
     options, lpo_id_list, timestamp_list,
-    fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", min_points=1, min_area=0.0):
+    fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
     """
     Get list of graph edges that I need to add for two consecutive times:
     this_timestamp, and prev_timestamp.
     """
     this_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(this_timestamp))
     prev_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(prev_timestamp))
-    # print(this_dt, flush=True)
 
     ## Get overlap points.
-    OVERLAP = get_lpo_overlap(this_dt, prev_dt, options['objdir'], fmt=fmt,
-        min_points = min_points, min_area = min_area)
+    OVERLAP = get_lpo_overlap(this_dt, prev_dt, options['objdir'], fmt=fmt)
     overlapping_npoints = OVERLAP['npoints']
     overlapping_area = OVERLAP['area']
     overlapping_frac1 = OVERLAP['frac1']
@@ -1006,8 +984,8 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
     return Gnew
 
 
-def lpt_graph_allow_falling_below_threshold(G, options, min_points=1,
-        min_area=0, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", verbose=False):
+def lpt_graph_allow_falling_below_threshold(G, options,
+        fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", verbose=False):
     """
     Check duration of "leaf" (e.g., "this") to "root" nodes of other DAGs,
     and connect if less than center_jump_max_hours.
@@ -1020,7 +998,11 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1,
 
     for kk, this_SG in enumerate(SG):
 
-        end_nodes = [x for x in this_SG.nodes() if this_SG.out_degree(x)==0 and this_SG.in_degree(x)>=1]
+        end_nodes = [
+            x for x in this_SG.nodes()
+            if this_SG.out_degree(x)==0
+            and this_SG.in_degree(x)>=1
+        ]
         if len(end_nodes) < 0:
             continue
 
@@ -1028,7 +1010,11 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1,
             if ll == kk:
                 continue
 
-            begin_nodes = [x for x in SG[ll].nodes() if SG[ll].out_degree(x)>=1 and SG[ll].in_degree(x)==0]
+            begin_nodes = [
+                x for x in SG[ll].nodes()
+                if SG[ll].out_degree(x)>=1
+                and SG[ll].in_degree(x)==0
+            ]
             if len(begin_nodes) < 0:
                 continue
 
@@ -1039,10 +1025,11 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1,
                     # When end nodes are linked to begin nodes, they are
                     # removed from the list of end/begin nodes.
                     # Therefore, check whether these have already been removed.
-                    # If they were already removed, it means the edge was already
+                    # If they were already removed, the edge was already
                     # added to the graph, and we want to avoid the end node from
-                    # potentially being linked to another begin node further upstream.
-                    # When this happened, I was getting duplicate LPTs.
+                    # potentially being linked to another begin node further
+                    # upstream. When this happened, I was getting
+                    # duplicate LPTs.
                     if not kkkk in end_nodes or not llll in begin_nodes:
                         continue
 
@@ -1054,8 +1041,7 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1,
                         end_dt = get_objid_datetime(kkkk)
 
                         OVERLAP = get_lpo_overlap(
-                            end_dt, begin_dt, objdir, fmt=fmt,
-                            min_points = min_points, min_area = min_area
+                            end_dt, begin_dt, objdir, fmt=fmt
                         )
                         overlapping_npoints = OVERLAP['npoints']
                         overlapping_area = OVERLAP['area']
