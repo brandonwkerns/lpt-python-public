@@ -1030,8 +1030,6 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                     # potentially being linked to another begin node further
                     # upstream. When this happened, I was getting
                     # duplicate LPTs.
-                    if not kkkk in end_nodes or not llll in begin_nodes:
-                        continue
 
                     llll_idx = llll - int(1000*np.floor(llll/1000))
                     hours_diff = (
