@@ -1034,8 +1034,16 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                         continue
 
                     llll_idx = llll - int(1000*np.floor(llll/1000))
-                    hours_diff = (get_objid_datetime(llll)-get_objid_datetime(kkkk)).total_seconds()/3600.0
-                    if hours_diff > 0.1 and hours_diff < options['fall_below_threshold_max_hours']+0.1:
+                    hours_diff = (
+                        get_objid_datetime(llll)
+                        - get_objid_datetime(kkkk)
+                    ).total_seconds()/3600.0
+
+                    if (
+                        hours_diff > 0.1 
+                        and hours_diff < options[
+                                        'fall_below_threshold_max_hours']+0.1
+                    ):
 
                         begin_dt = get_objid_datetime(llll)
                         end_dt = get_objid_datetime(kkkk)
@@ -1053,18 +1061,19 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                         frac1 = overlapping_frac1[kkkk_idx, llll_idx]
                         frac2 = overlapping_frac2[kkkk_idx, llll_idx]
 
-                        if n_overlap >= options['min_overlap_points'] and a_overlap >= options['min_overlap_area']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
-                            G.add_edge(kkkk,llll)
-                            end_nodes.remove(kkkk)
-                            begin_nodes.remove(llll)
+                        is_overlap = False
+                        if (
+                            n_overlap >= options['min_overlap_points']
+                            and a_overlap >= options['min_overlap_area']
+                        ):
+                            is_overlap = True
                         elif 1.0*frac1 > options['min_overlap_frac']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
-                            G.add_edge(kkkk,llll)
-                            end_nodes.remove(kkkk)
-                            begin_nodes.remove(llll)
+                            is_overlap = True
                         elif 1.0*frac2 > options['min_overlap_frac']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
+                            is_overlap = True
+
+                        if is_overlap:
+                            print(f'Overlap: {kkkk} --> {llll}!', flush=True)
                             G.add_edge(kkkk,llll)
                             end_nodes.remove(kkkk)
                             begin_nodes.remove(llll)
