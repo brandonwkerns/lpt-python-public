@@ -127,6 +127,7 @@ lpo_options['accumulation_hours'] = 72      # Accumulation period for LP objects
 lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of grid points.
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?
 lpo_options['min_points'] = 400             # Throw away LP objects smaller than this.
+lpo_options['min_area'] = 250000            # Throw away LP objects smaller than this (km2).
 # "Cold start mode"
 #
 # Useful for model runs.
@@ -184,9 +185,11 @@ lpt_options['do_lpt_calc'] = False
 
 ## Options for the LPT step.
 lpt_options['min_overlap_points'] = 1600      # LP object connectivity is based on either points
+lpt_options['min_overlap_area'] = 0           # -- AND area overlap [km2]
 lpt_options['min_overlap_frac'] = 0.5         # -- OR fraction of either LP object.
 lpt_options['bare_min_overlap_frac'] = 0.1    # BOTH objects must have an overlap of at least this much.
-lpt_options['min_lp_objects_points'] = 400    # Disregard LP objects smaller than this.
+lpt_options['min_lp_objects_points'] = 400    # Disregard LP objects with fewer points than this.
+lpt_options['min_lp_objects_area'] = 0        # Disregard LP objects smaller than this area.
 lpt_options['min_lpt_duration_hours'] = 7*24  # Minumum duration to keep it as an LPT (hours)
 lpt_options['fall_below_threshold_max_hours'] = 3*24   # How long to allow center jumps (hours)
 lpt_options['lpt_n_cores'] = 1                # How many CPUs to use for LPT steps?

@@ -106,18 +106,18 @@ def calc_scaled_average(data_in_accumulation_period, factor):
     """
     accumulated_data = calc_accumulation(data_in accumulation_period, factor)
 
-    Calculate the sum and multiply by the data time interval to get the accumulation.
+    Calculate the sum and multiply by the data time interval
+    to get the accumulation.
     -- data_in_accumulation_period[t,y,x] is a 3D array.
-    -- factor gets multiplied by the mean. E.g., if the data is rain rate in mm/h,
+    -- factor gets multiplied by the mean.
+       E.g., if the data is rain rate in mm/h,
        using factor of 24 would be in mm/day.
     """
 
     return factor * np.nanmean(data_in_accumulation_period, axis=0)
 
 
-def identify_lp_objects(field, threshold, min_points=1,
-                        object_is_gt_threshold=True,
-                        thresh_or_equal=False, verbose=False):
+def identify_lp_objects(lon, lat, field, lpo_options, verbose=False):
 
     """
     label_im = identify_lp_objects(field, threshold, min_points=1,
@@ -128,6 +128,12 @@ def identify_lp_objects(field, threshold, min_points=1,
     identify the LP Objects in that field. Return an array the same size
     as field, but with values indexed by object IDs.
     """
+    grid_cell_area = calc_grid_cell_area(lon, lat)
+    threshold = lpo_options['thresh']
+    min_points = lpo_options['min_points']
+    min_area = lpo_options['min_area']
+    object_is_gt_threshold = lpo_options['object_is_gt_threshold']
+    thresh_or_equal = lpo_options['thresh_or_equal']
 
     field_bw = 0 * field
     if object_is_gt_threshold:
@@ -143,17 +149,28 @@ def identify_lp_objects(field, threshold, min_points=1,
 
     label_im, nb_labels = ndimage_label_periodic_x(field_bw)
     if verbose:
-        print('Found '+str(nb_labels)+' objects.', flush=True) # how many regions?
+        print('Found '+str(nb_labels)+' objects.', flush=True)
 
     label_points = ndimage.sum(1, label_im, range(nb_labels+1))
+    label_areas = ndimage.sum(grid_cell_area, label_im, range(nb_labels+1))
 
-    throw_away = [x for x in range(1, nb_labels+1) if label_points[x] < min_points]
+    throw_away = [x for x in range(1, nb_labels+1) 
+            if (label_points[x] < min_points or label_areas[x] < min_area)]
     if len(throw_away) > 0:
         if verbose:
             if str(len(throw_away)) == 1:
-                print('Discarding ' + str(len(throw_away)) + ' feature that was < ' + str(min_points) + ' points.',flush=True)
+                print((
+                    'Discarding ' + str(len(throw_away))
+                    + ' feature that was < ' + str(min_points)
+                    + ' points.'),
+                    flush=True
+                )
             else:
-                print('Discarding ' + str(len(throw_away)) + ' features that were < ' + str(min_points) + ' points.',flush=True)
+                print(('Discarding ' + str(len(throw_away))
+                    + ' features that were < ' + str(min_points)
+                    + ' points.'),
+                    flush=True
+                )
         for nn in throw_away:
             label_im[label_im == nn] = 0
 
@@ -166,10 +183,10 @@ def identify_lp_objects(field, threshold, min_points=1,
     return label_im
 
 
-def calc_grid_cell_area(lon, lat):
+def calc_grid_cell_area(lon, lat, verbose=False):
 
     """
-    area = calc_grid_cell_area(lon, lat)
+    area = calc_grid_cell_area(lon, lat, verbose=False)
 
     Given lon and lat arrays, calculate the area of each grid cell.
     - lon and lat don't need to be a uniform grid, but they need to be increasing
@@ -177,22 +194,37 @@ def calc_grid_cell_area(lon, lat):
     - If 1-D arrays are given, they will be converted to 2D using np.meshgrid.
     """
 
-    area = None
+    ## If lon and lat not in 2d arrays, put them through np.meshgrid.
     if lon.ndim == 1:
-        print('ERROR: lon and lat must be 2D arrays for function calc_grid_cell_area.', flush=True)
+        if verbose:
+            print('Detected 1-D lat/lon. Using np.meshgrid to get 2d lat/lon.', flush=True)
+        lon2, lat2 = np.meshgrid(lon, lat)
     else:
-        ny,nx = lon.shape
-        dlon = 0.0*lon
-        dlat = 0.0*lat
+        lon2 = lon
+        lat2 = lat
 
-        dlon[:,1:nx-1] = abs(0.5*(lon[:,1:nx-1] + lon[:,2:nx]) - 0.5*(lon[:,0:nx-2] + lon[:,1:nx-1]))
+    area = None
+    if lon2.ndim != 2:
+        print(
+            'ERROR: lon and lat must be 2D arrays for function '
+            'calc_grid_cell_area.',
+            flush=True
+        )
+    else:
+        ny,nx = lon2.shape
+        dlon = 0.0*lon2
+        dlat = 0.0*lat2
+
+        dlon[:,1:nx-1] = abs(0.5*(lon2[:,1:nx-1] + lon2[:,2:nx])
+                            - 0.5*(lon2[:,0:nx-2] + lon2[:,1:nx-1]))
         dlon[:,0] = dlon[:,1]
         dlon[:,nx-1] = dlon[:,nx-2]
-        dlat[1:ny-1,:] = abs(0.5*(lat[1:ny-1,:] + lat[2:ny,:]) - 0.5*(lat[0:ny-2,:] + lat[1:ny-1,:]))
+        dlat[1:ny-1,:] = abs(0.5*(lat2[1:ny-1,:] + lat2[2:ny,:])
+                            - 0.5*(lat2[0:ny-2,:] + lat2[1:ny-1,:]))
         dlat[0,:] = dlat[1,:]
         dlat[ny-1,:] = dlat[ny-2,:]
 
-        area = (dlat*111.195) * (dlon*111.195*np.cos(np.pi*lat/180.0))
+        area = (dlat*111.195) * (dlon*111.195*np.cos(np.pi*lat2/180.0))
 
     return area
 
@@ -349,11 +381,17 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
 
             ## Get LP objects.
             label_im = identify_lp_objects(
-                DATA_FILTERED, lpo_options['thresh'],
-                min_points=lpo_options['min_points'], 
-                object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
-                thresh_or_equal=lpo_options['thresh_or_equal'],
-                verbose=dataset['verbose'])
+                DATA_RAW['lon'],
+                DATA_RAW['lat'],
+                DATA_FILTERED,
+                lpo_options
+            )
+                
+                # ['thresh'],
+                # min_points=lpo_options['min_points'], 
+                # object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
+                # thresh_or_equal=lpo_options['thresh_or_equal'],
+                # verbose=dataset['verbose'])
             OBJ = calculate_lp_object_properties(
                 DATA_RAW['lon'], DATA_RAW['lat'],
                 DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0,
@@ -679,54 +717,53 @@ def to1d(ndarray_or_ma):
     return fout
 
 
-def calc_overlapping_points(objid1, objid2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def calc_overlapping_points(objid1, objid2, objdir,
+        fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    """
+    Given two objids, get the number of overlapping points
+    """
 
     dt1 = get_objid_datetime(objid1)
     dt2 = get_objid_datetime(objid2)
 
-    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
-    fn2 = (objdir + '/' + dt2.strftime(fmt)).replace('///','/').replace('//','/')
+    fn1 = (objdir+'/'+dt1.strftime(fmt)).replace('///','/').replace('//','/')
+    fn2 = (objdir+'/'+dt2.strftime(fmt)).replace('///','/').replace('//','/')
 
-    DS1 = Dataset(fn1)
-    id1 = DS1['objid'][:]
-    idx1, = np.where(id1 == objid1)
-    x1 = to1d(DS1['pixels_x'][:][idx1])
-    y1 = to1d(DS1['pixels_y'][:][idx1])
-    DS1.close()
+    with Dataset(fn1) as ds1:
+        id1 = ds1['objid'][:]
+        idx1, = np.where(np.abs(id1 - objid1) < 0.1)
+        x1 = to1d(ds1['pixels_x'][:][idx1])
+        y1 = to1d(ds1['pixels_y'][:][idx1])
+        area1 = ds1['grid_area'][:]
 
-
-    DS2 = Dataset(fn2)
-    id2 = DS2['objid'][:]
-    idx2, = np.where(id2 == objid2)
-    x2 = to1d(DS2['pixels_x'][:][idx2])
-    y2 = to1d(DS2['pixels_y'][:][idx2])
-    DS2.close()
+    with Dataset(fn2) as ds2:
+        id2 = ds2['objid'][:]
+        idx2, = np.where(np.abs(id2 - objid2) < 0.1)
+        x2 = to1d(ds2['pixels_x'][:][idx2])
+        y2 = to1d(ds2['pixels_y'][:][idx2])
+        area2 = ds2['grid_area'][:]
 
     xy1 = set(zip(x1,y1))
     xy2 = set(zip(x2,y2))
 
-    overlap = [x in xy2 for x in xy1]
+    overlap_points = np.sum([xy in xy2 for xy in xy1])
+    overlap_area = np.sum([area1[xy[1], xy[0]] for xy in xy1 if xy in xy2])
 
-    OUT = (len(x1), len(x2), np.sum(overlap))
-    del x1
-    del y1
-    del x2
-    del y2
-    del xy1
-    del xy2
+    OUT = (len(x1), len(x2), overlap_points, overlap_area)
 
     return OUT
 
 
 
-def get_nodes_this_time(this_dt, objdir, min_points, fmt):
-
-    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=this_dt.calendar) ## Only used internally.
+def get_nodes_this_time(this_dt, objdir, min_points, min_area, fmt):
+    """
+    Get the nodes for this time step.
+    """
+    REFTIME = cftime.datetime(1970,1,1,0,0,0,calendar=this_dt.calendar)
     nodes_this_time = []
 
-    # print(this_dt)
-    fn = (objdir + '/' + this_dt.strftime(fmt)).replace('///','/').replace('//','/')
-    # print(fn)
+    fn = (objdir+'/'+this_dt.strftime(fmt)).replace('///','/').replace('//','/')
+
     try:
         DS = Dataset(fn)
         try:
@@ -741,8 +778,8 @@ def get_nodes_this_time(this_dt, objdir, min_points, fmt):
         DS.close()
 
         for ii, this_id in enumerate(id_list):
-            npts = pixels_x[ii,:].count()  #ma.count() for number of non masked values.
-            if npts >= min_points:
+            npts = pixels_x[ii,:].count()  #ma.count(), n of non-masked values.
+            if npts >= min_points and area[ii] >= min_area:
                 nodes_this_time += [(
                     int(this_id),
                     dict(timestamp=(this_dt - REFTIME).total_seconds(),
@@ -757,71 +794,54 @@ def get_nodes_this_time(this_dt, objdir, min_points, fmt):
     return nodes_this_time
 
 
-def init_lpt_graph(dt_list, objdir, n_cores=1, min_points = 1, fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def init_lpt_graph(dt_list, objdir, n_cores=1, min_points = 1, min_area = 0,
+                    fmt = "/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    """
+    Initialize the graph with nodes for each LPO at each time.
 
+    This function also filteres out LPOs by minimum points and area.
+    """
     initial_graph = nx.DiGraph() # Empty graph
-
-    # nodes_all_times = []
-    # for this_dt in tqdm.tqdm(dt_list):
-    #     nodes_this_time = get_nodes_this_time(this_dt, objdir, min_points, fmt)
-    #     nodes_all_times += [nodes_this_time]
-
 
     with Pool(n_cores) as p:
         nodes_all_times = p.starmap(
             get_nodes_this_time,
             tqdm.tqdm(
-                [(dt_list[x], objdir, min_points, fmt) 
+                [(dt_list[x], objdir, min_points, min_area, fmt) 
                     for x in range(len(dt_list))],
             ),
             chunksize=1
             )
 
-
     for nodes_this_time in nodes_all_times:
         initial_graph.add_nodes_from(nodes_this_time)
-
 
     return initial_graph
 
 
-def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+def get_lpo_overlap(dt1, dt2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    """
+    Get the overlap between two LPOs at two different times.
+    """
 
-    ##
-    ## Read in LPO masks for current and previous times.
-    ##
-    fn1 = (objdir + '/' + dt1.strftime(fmt)).replace('///','/').replace('//','/')
-    fn2 = (objdir + '/' + dt2.strftime(fmt)).replace('///','/').replace('//','/')
+    # Read in LPO masks for the two times
+    fn1 = (objdir+'/'+dt1.strftime(fmt)).replace('///','/').replace('//','/')
+    fn2 = (objdir+'/'+dt2.strftime(fmt)).replace('///','/').replace('//','/')
 
-    DS1 = Dataset(fn1, 'r')
-    mask1 = DS1['grid_mask'][:]
-    objid1 = DS1['objid'][:]
-    DS1.close()
+    with Dataset(fn1, 'r') as ds1:
+        mask1 = ds1['grid_mask'][:]
+        objid1 = ds1['objid'][:]
+        grid_area = ds1['grid_area'][:]
 
-    DS2 = Dataset(fn2, 'r')
-    mask2 = DS2['grid_mask'][:]
-    objid2 = DS2['objid'][:]
-    DS2.close()
-
-    ##
-    ## Apply minimum size.
-    ## Any LPOs smaller than the minimum size get taken out of the mask.
-    ## Their mask values get set to zero, and they will not be considered
-    ## for overlapping.
-    ##
-    if min_points > 1:
-        sizes = ndimage.sum(1, mask1, range(np.nanmax(mask1)+1))
-        for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
-            mask1[mask1 == nn] = -1
-
-        sizes = ndimage.sum(1, mask2, range(np.nanmax(mask2)+1))
-        for nn in [x for x in range(len(sizes)) if sizes[x] < min_points]:
-            mask2[mask2 == nn] = -1
+    with Dataset(fn2, 'r') as ds2:
+        mask2 = ds2['grid_mask'][:]
+        objid2 = ds2['objid'][:]
 
     ##
     ## Each overlap must necessarily be one LPO against another single LPO.
     ##
     overlap = np.logical_and(mask1 > -1, mask2 > -1)
+    overlap_area = grid_area * overlap
     label_im, nb_labels = ndimage_label_periodic_x(overlap)
 
     ########################################################################
@@ -836,6 +856,7 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%
     ########################################################################
 
     overlapping_npoints = np.zeros([len(objid1), len(objid2)])
+    overlapping_area = np.zeros([len(objid1), len(objid2)])
     overlapping_frac1 = np.zeros([len(objid1), len(objid2)])
     overlapping_frac2 = np.zeros([len(objid1), len(objid2)])
 
@@ -845,31 +866,34 @@ def get_lpo_overlap(dt1, dt2, objdir, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%
         jj = int(ndimage.maximum(mask2, label_im, nn))
 
         overlapping_npoints[ii,jj] += ndimage.sum(overlap, label_im, nn)
+        overlapping_area[ii,jj] += ndimage.sum(overlap_area, label_im, nn)
         overlapping_frac1[ii,jj] = overlapping_npoints[ii,jj] / np.sum(mask1==ii)
         overlapping_frac2[ii,jj] = overlapping_npoints[ii,jj] / np.sum(mask2==jj)
 
     ## Prepare outputs.
-    OVERLAP={}
-    OVERLAP['npoints'] = overlapping_npoints
-    OVERLAP['frac1'] = overlapping_frac1
-    OVERLAP['frac2'] = overlapping_frac2
-    return OVERLAP
+    overlap_dict_out={}
+    overlap_dict_out['npoints'] = overlapping_npoints
+    overlap_dict_out['area'] = overlapping_area
+    overlap_dict_out['frac1'] = overlapping_frac1
+    overlap_dict_out['frac2'] = overlapping_frac2
+
+    return overlap_dict_out
+
 
 def get_overlapping_lpo_pairs(this_timestamp, prev_timestamp,
     options, lpo_id_list, timestamp_list,
-    fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", min_points=1):
+    fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
     """
     Get list of graph edges that I need to add for two consecutive times:
     this_timestamp, and prev_timestamp.
     """
     this_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(this_timestamp))
     prev_dt = cftime.datetime(1970,1,1,0,0,0,calendar=options['calendar']) + dt.timedelta(seconds=int(prev_timestamp))
-    # print(this_dt, flush=True)
 
     ## Get overlap points.
-    OVERLAP = get_lpo_overlap(this_dt, prev_dt, options['objdir'], fmt=fmt,
-        min_points = min_points)
+    OVERLAP = get_lpo_overlap(this_dt, prev_dt, options['objdir'], fmt=fmt)
     overlapping_npoints = OVERLAP['npoints']
+    overlapping_area = OVERLAP['area']
     overlapping_frac1 = OVERLAP['frac1']
     overlapping_frac2 = OVERLAP['frac2']
 
@@ -889,11 +913,12 @@ def get_overlapping_lpo_pairs(this_timestamp, prev_timestamp,
             idx2 = int(str(prev_objid)[-4:])
 
             n_overlap = overlapping_npoints[idx1,idx2]
+            a_overlap = overlapping_area[idx1,idx2]
             frac1 = overlapping_frac1[idx1,idx2]
             frac2 = overlapping_frac2[idx1,idx2]
 
             if min(frac1, frac2) > options['bare_min_overlap_frac']:
-                if n_overlap >= options['min_overlap_points']:
+                if n_overlap >= options['min_overlap_points'] and a_overlap >= options['min_overlap_area']:
                     matches.append(jj)
                 elif 1.0*frac1 > options['min_overlap_frac']:
                     matches.append(jj)
@@ -959,10 +984,11 @@ def connect_lpt_graph(G0, options, min_points=1, verbose=False, fmt="/%Y/%m/%Y%m
     return Gnew
 
 
-def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", verbose=False):
+def lpt_graph_allow_falling_below_threshold(G, options,
+        fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc", verbose=False):
     """
-    Check duration of "leaf" (e.g., "this") to "root" nodes of other DAGs, and connect if less than
-    center_jump_max_hours.
+    Check duration of "leaf" (e.g., "this") to "root" nodes of other DAGs,
+    and connect if less than center_jump_max_hours.
     """
 
     objdir=options['objdir']
@@ -972,7 +998,11 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
 
     for kk, this_SG in enumerate(SG):
 
-        end_nodes = [x for x in this_SG.nodes() if this_SG.out_degree(x)==0 and this_SG.in_degree(x)>=1]
+        end_nodes = [
+            x for x in this_SG.nodes()
+            if this_SG.out_degree(x)==0
+            and this_SG.in_degree(x)>=1
+        ]
         if len(end_nodes) < 0:
             continue
 
@@ -980,7 +1010,11 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
             if ll == kk:
                 continue
 
-            begin_nodes = [x for x in SG[ll].nodes() if SG[ll].out_degree(x)>=1 and SG[ll].in_degree(x)==0]
+            begin_nodes = [
+                x for x in SG[ll].nodes()
+                if SG[ll].out_degree(x)>=1
+                and SG[ll].in_degree(x)==0
+            ]
             if len(begin_nodes) < 0:
                 continue
 
@@ -991,41 +1025,55 @@ def lpt_graph_allow_falling_below_threshold(G, options, min_points=1, fmt="/%Y/%
                     # When end nodes are linked to begin nodes, they are
                     # removed from the list of end/begin nodes.
                     # Therefore, check whether these have already been removed.
-                    # If they were already removed, it means the edge was already
+                    # If they were already removed, the edge was already
                     # added to the graph, and we want to avoid the end node from
-                    # potentially being linked to another begin node further upstream.
-                    # When this happened, I was getting duplicate LPTs.
+                    # potentially being linked to another begin node further
+                    # upstream. When this happened, I was getting
+                    # duplicate LPTs.
                     if not kkkk in end_nodes or not llll in begin_nodes:
                         continue
 
                     llll_idx = llll - int(1000*np.floor(llll/1000))
-                    hours_diff = (get_objid_datetime(llll)-get_objid_datetime(kkkk)).total_seconds()/3600.0
-                    if hours_diff > 0.1 and hours_diff < options['fall_below_threshold_max_hours']+0.1:
+                    hours_diff = (
+                        get_objid_datetime(llll)
+                        - get_objid_datetime(kkkk)
+                    ).total_seconds()/3600.0
+
+                    if (
+                        hours_diff > 0.1 
+                        and hours_diff < options[
+                                        'fall_below_threshold_max_hours']+0.1
+                    ):
 
                         begin_dt = get_objid_datetime(llll)
                         end_dt = get_objid_datetime(kkkk)
 
-                        OVERLAP = get_lpo_overlap(end_dt, begin_dt, objdir, fmt=fmt, min_points = min_points)
+                        OVERLAP = get_lpo_overlap(
+                            end_dt, begin_dt, objdir, fmt=fmt
+                        )
                         overlapping_npoints = OVERLAP['npoints']
+                        overlapping_area = OVERLAP['area']
                         overlapping_frac1 = OVERLAP['frac1']
                         overlapping_frac2 = OVERLAP['frac2']
 
                         n_overlap = overlapping_npoints[kkkk_idx, llll_idx]
+                        a_overlap = overlapping_area[kkkk_idx, llll_idx]
                         frac1 = overlapping_frac1[kkkk_idx, llll_idx]
                         frac2 = overlapping_frac2[kkkk_idx, llll_idx]
 
-                        if n_overlap >= options['min_overlap_points']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
-                            G.add_edge(kkkk,llll)
-                            end_nodes.remove(kkkk)
-                            begin_nodes.remove(llll)
+                        is_overlap = False
+                        if (
+                            n_overlap >= options['min_overlap_points']
+                            and a_overlap >= options['min_overlap_area']
+                        ):
+                            is_overlap = True
                         elif 1.0*frac1 > options['min_overlap_frac']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
-                            G.add_edge(kkkk,llll)
-                            end_nodes.remove(kkkk)
-                            begin_nodes.remove(llll)
+                            is_overlap = True
                         elif 1.0*frac2 > options['min_overlap_frac']:
-                            print('Overlap: '+ str(kkkk) + ' --> ' + str(llll) + '!', flush=True)
+                            is_overlap = True
+
+                        if is_overlap:
+                            print(f'Overlap: {kkkk} --> {llll}!', flush=True)
                             G.add_edge(kkkk,llll)
                             end_nodes.remove(kkkk)
                             begin_nodes.remove(llll)

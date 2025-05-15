@@ -115,6 +115,7 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         G = lpt.helpers.init_lpt_graph(time_list, options['objdir'],
             n_cores = options['lpt_n_cores'],
             min_points = options['min_lp_objects_points'],
+            min_area = options['min_lp_objects_area'],
             fmt = output['sub_directory_format']+"/objects_%Y%m%d%H.nc"
         )
 
