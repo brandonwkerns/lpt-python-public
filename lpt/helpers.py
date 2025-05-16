@@ -1040,7 +1040,8 @@ def lpt_graph_allow_falling_below_threshold(G, options,
     CC = list(nx.connected_components(nx.to_undirected(G)))
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
-    for kk, this_SG in enumerate(SG):
+    for kk, this_SG in tqdm.tqdm(enumerate(SG), total=len(SG),
+                            desc='Searching for center jumps'):
 
         end_nodes = [
             x for x in this_SG.nodes()
@@ -1103,11 +1104,6 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                         frac1 = overlap_dict['frac1']
                         frac2 = overlap_dict['frac2']
 
-                        # n_overlap = overlapping_npoints
-                        # a_overlap = overlapping_area
-                        # frac1 = overlapping_frac1
-                        # frac2 = overlapping_frac2
-
                         is_overlap = False
                         if (
                             n_overlap >= options['min_overlap_points']
@@ -1120,7 +1116,7 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                             is_overlap = True
 
                         if is_overlap:
-                            print(f'Overlap: {kkkk} --> {llll}!', flush=True)
+                            # print(f'Overlap: {kkkk} --> {llll}!', flush=True)
                             G.add_edge(kkkk,llll)
                             end_nodes.remove(kkkk)
                             begin_nodes.remove(llll)
