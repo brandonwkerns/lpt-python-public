@@ -819,6 +819,51 @@ def init_lpt_graph(dt_list, objdir, n_cores=1, min_points = 1, min_area = 0,
     return initial_graph
 
 
+def get_specific_lpo_overlap(lpo_id1, lpo_id2, objdir,
+                            fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
+    """
+    Given two objids, get the number, area, and fractions of overlapping points
+    """
+    # Read in LPO masks for the two times
+    dt1 = get_objid_datetime(lpo_id1)
+    dt2 = get_objid_datetime(lpo_id2)
+    fn1 = (objdir+'/'+dt1.strftime(fmt)).replace('///','/').replace('//','/')
+    fn2 = (objdir+'/'+dt2.strftime(fmt)).replace('///','/').replace('//','/')
+
+    with Dataset(fn1, 'r') as ds1:
+        idx1, = np.where(np.abs(ds1['objid'][:] - lpo_id1) < 0.1)
+        idx1 = idx1[0]
+        x1 = ds1['pixels_x'][idx1,:].compressed()
+        y1 = ds1['pixels_y'][idx1,:].compressed()
+        xy1_set = set(zip(x1,y1))
+        grid_area = ds1['grid_area'][:]
+
+    with Dataset(fn2, 'r') as ds2:
+        idx2, = np.where(np.abs(ds2['objid'][:] - lpo_id2) < 0.1)
+        idx2 = idx2[0]
+        x2 = ds2['pixels_x'][idx2,:].compressed()
+        y2 = ds2['pixels_y'][idx2,:].compressed()
+        xy2_set = set(zip(x2,y2))
+
+    ##
+    ## Each overlap must necessarily be one LPO against another single LPO.
+    ##
+    xy_overlap = xy1_set.intersection(xy2_set)
+    overlapping_npoints = len(xy_overlap)
+    overlapping_area = np.nansum([grid_area[xy[1], xy[0]] for xy in xy_overlap])
+    overlapping_frac1 = overlapping_npoints / len(xy1_set)
+    overlapping_frac2 = overlapping_npoints / len(xy2_set)
+
+    ## Prepare outputs.
+    overlap_dict_out={}
+    overlap_dict_out['npoints'] = overlapping_npoints
+    overlap_dict_out['area'] = overlapping_area
+    overlap_dict_out['frac1'] = overlapping_frac1
+    overlap_dict_out['frac2'] = overlapping_frac2
+
+    return overlap_dict_out
+
+
 def get_lpo_overlap(dt1, dt2, objdir, fmt="/%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc"):
     """
     Get the overlap between two LPOs at two different times.
@@ -991,12 +1036,12 @@ def lpt_graph_allow_falling_below_threshold(G, options,
     and connect if less than center_jump_max_hours.
     """
 
-    objdir=options['objdir']
     # Get connected components of graph.
     CC = list(nx.connected_components(nx.to_undirected(G)))
     SG = [G.subgraph(CC[x]).copy() for x in range(len(CC))]
 
-    for kk, this_SG in enumerate(SG):
+    for kk, this_SG in tqdm.tqdm(enumerate(SG), total=len(SG),
+                            desc='Searching for center jumps'):
 
         end_nodes = [
             x for x in this_SG.nodes()
@@ -1048,18 +1093,16 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                         begin_dt = get_objid_datetime(llll)
                         end_dt = get_objid_datetime(kkkk)
 
-                        OVERLAP = get_lpo_overlap(
-                            end_dt, begin_dt, objdir, fmt=fmt
+                        # Get the overlap between the two LPOs.
+                        # With this function, the output dict "overlap_dict"
+                        # has only one value.
+                        overlap_dict = get_specific_lpo_overlap(
+                            kkkk, llll, options['objdir'], fmt=fmt
                         )
-                        overlapping_npoints = OVERLAP['npoints']
-                        overlapping_area = OVERLAP['area']
-                        overlapping_frac1 = OVERLAP['frac1']
-                        overlapping_frac2 = OVERLAP['frac2']
-
-                        n_overlap = overlapping_npoints[kkkk_idx, llll_idx]
-                        a_overlap = overlapping_area[kkkk_idx, llll_idx]
-                        frac1 = overlapping_frac1[kkkk_idx, llll_idx]
-                        frac2 = overlapping_frac2[kkkk_idx, llll_idx]
+                        n_overlap = overlap_dict['npoints']
+                        a_overlap = overlap_dict['area']
+                        frac1 = overlap_dict['frac1']
+                        frac2 = overlap_dict['frac2']
 
                         is_overlap = False
                         if (
@@ -1073,7 +1116,7 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                             is_overlap = True
 
                         if is_overlap:
-                            print(f'Overlap: {kkkk} --> {llll}!', flush=True)
+                            # print(f'Overlap: {kkkk} --> {llll}!', flush=True)
                             G.add_edge(kkkk,llll)
                             end_nodes.remove(kkkk)
                             begin_nodes.remove(llll)
