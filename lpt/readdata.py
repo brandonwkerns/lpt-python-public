@@ -111,6 +111,19 @@ def readdata(datetime_to_read, dataset_options_dict, verbose=None):
                 , verbose = verbose_actual)
         DATA['data'] = ma.masked_array(DATA['precip'][0])
 
+    elif dataset_options_dict['raw_data_format'] == 'wrfout':
+        # variable_names = (dataset_options_dict['longitude_variable_name']
+        #         , dataset_options_dict['latitude_variable_name']
+        #         , dataset_options_dict['time_variable_name']
+        #         , dataset_options_dict['field_variable_name'])
+
+        DATA = read_wrfout(
+            datetime_to_read,
+            data_dir = dataset_options_dict['raw_data_parent_dir'],
+            fmt = dataset_options_dict['file_name_format'],
+            verbose = verbose_actual
+        )
+
     ## -- Add an elif block here for new datasets. --
 
     else:
@@ -688,3 +701,59 @@ def get_cfsr_6h_rain(dt_ending, verbose=False):
     DATA['precip'] = precip6hr
 
     return DATA
+
+
+################################################################################
+################################################################################
+################################################################################
+
+def read_wrfout(dt_this, data_dir = './',
+    fmt = 'wrfout_d01_%Y-%m-%d_%H:00:00',
+    verbose=False):
+    """
+    Read rainfall accumulation data from a wrfout file.
+    For now, it assumes one time output per file.
+    This will add together the rainfall from the variables:
+    - RAINNC (grid scale)
+    - RAINC (deep convection)
+    - RAINSH (shallow convection)
+
+    DATA = read_wrfout(fn)
+
+    output is like this:
+    list(DATA)
+    Out[12]: ['lon', 'lat', 'precip']
+    In [21]: DATA['lon'].shape
+    Out[21]: (1440,)
+    In [22]: DATA['lat'].shape
+    Out[22]: (400,)
+    In [23]: DATA['precip'].shape
+    Out[23]: (400, 1440)
+    """
+
+    data = {}
+    fn = os.path.join(data_dir, dt_this.strftime(fmt))
+    if verbose:
+        print(fn)
+    
+    with xr.open_dataset(fn) as ds:
+        # Eliminate the first (time) dimension
+        data['lon'] = ds['XLONG'].values[0,:,:]
+        data['lat'] = ds['XLAT'].values[0,:,:]
+        data['data'] = ds['RAINNC'].values[0,:,:]
+        if 'RAINC' in ds.variables:
+            data['data'] += ds['RAINC'].values[0,:,:]
+        if 'RAINSH' in ds.variables:
+            data['data'] += ds['RAINSH'].values[0,:,:]
+
+    data['data'] = np.ma.masked_array(data['data'], mask=np.isnan(data['data']))
+
+    # If it is crossing the international dateline,
+    # Need to get from (-180, 180) to (0, 360) longitude.
+    lon_lt_0 = data['lon'] < -0.0001
+    lon_ge_0 = data['lon'] > -0.0001
+    if np.nansum(lon_lt_0) > 0 and np.nansum(lon_ge_0) > 0:
+        data['lon'][lon_lt_0] += 360.0
+
+    return data
+
