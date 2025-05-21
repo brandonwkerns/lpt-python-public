@@ -736,7 +736,7 @@ def read_wrfout(dt_this, data_dir = './',
     if verbose:
         print(fn)
     
-    with xr.open_dataset(fn) as ds:
+    with xr.open_dataset(fn, decode_times=False) as ds:
         # Eliminate the first (time) dimension
         data['lon'] = ds['XLONG'].values[0,:,:]
         data['lat'] = ds['XLAT'].values[0,:,:]
