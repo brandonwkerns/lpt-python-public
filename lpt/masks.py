@@ -778,12 +778,21 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             lp_object_id_list[0], lp_objects_dir, lp_objects_fn_format
         )
         
-        mask_arrays = initialize_mask_arrays(
-            len(mask_lat), len(mask_lon), len(mask_times),
-            detailed_output,
-            calc_with_accumulation_period, accumulation_hours,
-            calc_with_filter_radius
-        )
+        # Lon/Lat may be 2-D.
+        if len(mask_lat.shape) == 2:
+            mask_arrays = initialize_mask_arrays(
+                len(mask_lat[:,0]), len(mask_lon[0,:]), len(mask_times),
+                detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                calc_with_filter_radius
+            )
+        else:
+            mask_arrays = initialize_mask_arrays(
+                len(mask_lat), len(mask_lon), len(mask_times),
+                detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                calc_with_filter_radius
+            )
 
         with Pool(nproc) as p:
             points_collect = p.starmap(
@@ -1171,12 +1180,24 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         coords_dict = {}
         coords_dict['n'] = (['n',], [1,])
         coords_dict['time'] = (['time',], mask_times)
-        coords_dict['lon'] = (['lon',], mask_lon, {'units':'degrees_east'})
-        coords_dict['lat'] = (['lat',], mask_lat, {'units':'degrees_north'})
+
+        # Check whether the lon/lat are 2-D.
+        if mask_lon.ndim == 1:
+            coords_dict['grid_x'] = (['grid_x',], range(len(mask_lon)),)
+            coords_dict['grid_y'] = (['grid_y',], range(len(mask_lat)),)
+        else:
+            coords_dict['grid_x'] = (['grid_x',], range(len(mask_lon[0,:])),)
+            coords_dict['grid_y'] = (['grid_y',], range(len(mask_lat[:,0])),)
 
         ## Set Data
         data_dict = {}
-        data_dict['grid_area'] = (['lat','lon',], AREA, {'units':'km2','description':'Area of each grid cell.'})
+        if mask_lon.ndim == 1:
+            data_dict['lon'] = (['grid_x',], mask_lon, {'units':'degrees_east'})
+            data_dict['lat'] = (['grid_y',], mask_lat, {'units':'degrees_north'})
+        else:
+            data_dict['lon'] = (['grid_y','grid_x',], mask_lon, {'units':'degrees_east'})
+            data_dict['lat'] = (['grid_y','grid_x',], mask_lat, {'units':'degrees_north'})
+        data_dict['grid_area'] = (['grid_y','grid_x',], AREA, {'units':'km2','description':'Area of each grid cell.'})
 
         ## Basic LPT system track data for convenience
         for mask_var in basic_lpt_info_field_list:
@@ -1241,7 +1262,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             for field in fields:
                 dtype = 'i1'
                 this_units = '1'
-                DSnew.createVariable(field,dtype,('time','lat','lon'),zlib=True,complevel=4)
+                DSnew.createVariable(field,dtype,('time','grid_y','grid_x'),zlib=True,complevel=4)
                 DSnew[field].setncattr('units',this_units)
 
         ## Writing mask variables.
@@ -1265,7 +1286,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 mask_array_with_rain = add_masked_rain_rates(mask_arrays[field], mask_times, multiply_factor, dataset_dict, nproc=nproc)
 
                 with Dataset(fn_out, 'a') as DSnew:
-                    DSnew.createVariable(new_field,dtype,('time','lat','lon'),zlib=True,complevel=4)
+                    DSnew.createVariable(new_field,dtype,('time','grid_y','grid_x'),zlib=True,complevel=4)
                     DSnew[new_field].setncattr('units',this_units)
                 add_mask_var_to_netcdf(fn_out, new_field, mask_array_with_rain
                                     , memory_target_mb = memory_target_mb, data_mask = mask_arrays[field])
