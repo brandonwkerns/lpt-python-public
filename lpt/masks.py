@@ -827,7 +827,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 fill_matrix,
                 tqdm(
                     [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)],
-                    desc=f"Filling {mask_name}.",
+                    desc=f"Filling {mask_name}",
                 ),
                 chunksize=1
             )
@@ -864,7 +864,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     fill_matrix,
                     tqdm(
                         [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices_expanded, iii_indices_expanded, jjj_indices_expanded)],
-                        desc=f"Filling {mask_name}.",
+                        desc=f"Filling {mask_name}",
                     ),
                     chunksize=1
                 )
