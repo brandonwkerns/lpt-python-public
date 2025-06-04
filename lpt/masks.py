@@ -745,12 +745,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , nproc = 1):
 
     """
-    dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
+    dt_begin, dt_end: datetime objects for the first and last times.
+    These are END of accumulation times!
     """
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
 
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc').replace('///','/').replace('//','/')
-    # lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt').replace('///','/').replace('//','/')
 
     MISSING = np.nan
     FILL_VALUE = MISSING
@@ -804,21 +804,41 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             calc_with_accumulation_period, accumulation_hours,
             calc_with_filter_radius
         )
-        print('Mask arrays initialized: '+str(dt.datetime.now()), flush=True)
         with Pool(nproc) as p:
             points_collect = p.starmap(
                 get_lpo_grid_points,
                 [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
                 chunksize=1
             )
-        print('LP Object points collected: '+str(dt.datetime.now()), flush=True)
+
         # Convert list of (dt_idx, iii, jjj) to arrays for advanced indexing
         dt_indices = np.array([p[0] for p in points_collect])
         iii_indices = [p[1] for p in points_collect]
         jjj_indices = [p[2] for p in points_collect]
 
-        # Create lists to hold the expanded indices (for accumulation period)
+        if detailed_output:
+            mask_name = 'mask_at_end_time'
+        else:
+            mask_name = 'mask'
+
+        with Pool(nproc) as p:
+
+            output = p.starmap(
+                fill_matrix,
+                tqdm(
+                    [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)],
+                    desc=f"Filling {mask_name}.",
+                ),
+                chunksize=1
+            )
+        # Assign output to the correct location.
+        for t0, t in enumerate(dt_indices):
+            mask_arrays[mask_name][t] = output[t0]
+
         if accumulation_hours > 0 and calc_with_accumulation_period:
+
+            # Create lists to hold the expanded indices
+            # if needed for accumulation period masks/
 
             dt_indices_expanded = []
             iii_indices_expanded = []
@@ -834,35 +854,23 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                         iii_indices_expanded.append(i)
                         jjj_indices_expanded.append(j)
 
-        print(len(dt_indices), len(iii_indices), len(jjj_indices))
+            if detailed_output:
+                mask_name = 'mask_with_accumulation'
+            else:
+                mask_name = 'mask'
 
-        with Pool(nproc) as p:
-            output = p.starmap(
-                fill_matrix,
-                [(mask_arrays['mask_at_end_time'][t], i, j, 1) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)],
-                chunksize=1
-            )
-        # Assign output to the correct location.
-        for t0, t in enumerate(dt_indices):
-            mask_arrays['mask_at_end_time'][t] = output[t0]
-
-        print('first step: mask arrays filled with LP Object points at end time: '+str(dt.datetime.now()), flush=True)
-        print(len(dt_indices_expanded), len(iii_indices_expanded), len(jjj_indices_expanded))
-
-        with Pool(nproc) as p:
-            output = p.starmap(
-                fill_matrix,
-                tqdm(
-                    [(mask_arrays['mask_with_accumulation'][t], i, j, 1) for t, i, j in zip(dt_indices_expanded, iii_indices_expanded, jjj_indices_expanded)],
-                    desc="Filling mask_with_accumulation",
-                ),
-                chunksize=1
-            )
-        # Assign output to the correct location.
-        for t0, t in enumerate(dt_indices_expanded):
-            mask_arrays['mask_with_accumulation'][t] = sparse_max(mask_arrays['mask_with_accumulation'][t], output[t0])
-
-        print('Mask arrays filled with LP Object points: '+str(dt.datetime.now()), flush=True)
+            with Pool(nproc) as p:
+                output = p.starmap(
+                    fill_matrix,
+                    tqdm(
+                        [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices_expanded, iii_indices_expanded, jjj_indices_expanded)],
+                        desc=f"Filling {mask_name}.",
+                    ),
+                    chunksize=1
+                )
+            # Assign output to the correct location.
+            for t0, t in enumerate(dt_indices_expanded):
+                mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t], output[t0])
 
 
         ##
@@ -1308,6 +1316,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             print('Done adding masked rainfall.')
 
+        break
 
 def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
