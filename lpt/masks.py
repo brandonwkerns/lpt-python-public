@@ -1035,10 +1035,10 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
         do_filter = False
         if type(filter_stdev) is list:
-            if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
+            if filter_stdev[0] > 0 and (calc_with_filter_radius):
                 do_filter = True
         else:
-            if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
+            if filter_stdev > 0 and (calc_with_filter_radius):
                 do_filter = True
         if do_filter:
             print('Filter width spreading...this may take awhile.', flush=True)
