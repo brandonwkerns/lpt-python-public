@@ -1353,7 +1353,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
             print('Done adding masked rainfall.')
 
-        break
 
 def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
