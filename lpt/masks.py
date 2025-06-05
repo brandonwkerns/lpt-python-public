@@ -584,31 +584,14 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
     if do_filter:
-        print('Filter width spreading...this may take awhile.', flush=True)
+        print('Filter width spreading...', flush=True)
 
-        if detailed_output:
-
-            if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-            else:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-            if accumulation_hours > 0 and calc_with_accumulation_period:
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-        else:
-            # Only spread the "1" region. Not "2."
-            if coarse_grid_factor > 1:
-                mask_arrays['mask'] = feature_spread_reduce_res(
-                    mask_arrays['mask'], filter_stdev,
-                    reduce_res_factor=coarse_grid_factor,
-                    spread_value=1, nproc=nproc)
-            else:
-                mask_arrays['mask'] = feature_spread(
-                    mask_arrays['mask'], filter_stdev,
-                    spread_value=1, nproc=nproc)
+        # Do the filter width spreading.
+        mask_arrays = add_filter_width_spreading(
+            mask_arrays, filter_stdev, detailed_output,
+            calc_with_accumulation_period, accumulation_hours,
+            coarse_grid_factor, nproc=nproc
+        )
 
     ## Do volumetric rain.
     if do_volrain:
@@ -771,6 +754,79 @@ def determine_filtering(filter_stdev, calc_with_filter_radius):
     return do_filter
 
 
+def do_feature_spread(in_array, filter_stdev, coarse_grid_factor=0, nproc=1):
+    """
+    Apply feature spreading to the input array based
+    on the specified filter standard deviation.
+    If coarse_grid_factor is greater than 1,
+    it will reduce the resolution before spreading.
+    """
+    if coarse_grid_factor > 1:
+        out_array = feature_spread_reduce_res(
+            in_array,
+            filter_stdev,
+            coarse_grid_factor,
+            nproc=nproc
+        )
+    else:
+        out_array = feature_spread(
+            in_array,
+            filter_stdev,
+            nproc=nproc
+        )
+    return out_array
+
+
+def add_filter_width_spreading(
+    mask_arrays, filter_stdev, detailed_output,
+    calc_with_accumulation_period, accumulation_hours,
+    coarse_grid_factor, nproc=1
+):
+    """
+    If detailed_output is specified, then calculate it for 
+    mask_at_end_time and/or mask_with_accumulation.
+    Otherwise, just do the consolidated "mask" variable.
+    """
+    if detailed_output:
+
+        new_mask_name = 'mask_with_filter_at_end_time'
+        source_mask_name = 'mask_at_end_time'
+        print(f'{source_mask_name} -> {new_mask_name}')
+
+        mask_arrays[new_mask_name] = do_feature_spread(
+            mask_arrays[source_mask_name],
+            filter_stdev,
+            coarse_grid_factor=coarse_grid_factor,
+            nproc=nproc
+        )
+
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            new_mask_name = 'mask_with_filter_and_accumulation'
+            source_mask_name = 'mask_with_accumulation'
+            print(f'{source_mask_name} -> {new_mask_name}')
+
+            mask_arrays[new_mask_name] = do_feature_spread(
+                mask_arrays[source_mask_name],
+                filter_stdev,
+                coarse_grid_factor=coarse_grid_factor,
+                nproc=nproc
+            )
+
+    else:
+        new_mask_name = 'mask'
+        source_mask_name = 'mask'
+        print(f'{source_mask_name} -> {new_mask_name}')
+
+        mask_arrays[new_mask_name] = do_feature_spread(
+            mask_arrays[source_mask_name],
+            filter_stdev,
+            coarse_grid_factor=coarse_grid_factor,
+            nproc=nproc
+        )
+
+    return mask_arrays
+
+
 def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
@@ -923,31 +979,15 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
         if do_filter:
-            print('Filter width spreading...this may take awhile.', flush=True)
+            print('Filter width spreading...', flush=True)
 
-            if detailed_output:
+            # Do the filter width spreading.
+            mask_arrays = add_filter_width_spreading(
+                mask_arrays, filter_stdev, detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                coarse_grid_factor, nproc=nproc
+            )
 
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    if coarse_grid_factor > 1:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                    else:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-            else:
-                # Only spread the "1" region. Not "2."
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask'] = feature_spread_reduce_res(
-                        mask_arrays['mask'], filter_stdev,
-                        reduce_res_factor=coarse_grid_factor,
-                        spread_value=1, nproc=nproc)
-                else:
-                    mask_arrays['mask'] = feature_spread(
-                        mask_arrays['mask'], filter_stdev,
-                        spread_value=1, nproc=nproc)
 
         ## Do volumetric rain.
         if do_volrain:
@@ -1338,32 +1378,14 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
         if do_filter:
-            print('Filter width spreading...this may take awhile.', flush=True)
+            print('Filter width spreading...', flush=True)
 
-            if detailed_output:
-
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    if coarse_grid_factor > 1:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                    else:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-            else:
-                # Only spread the "1" region. Not "2."
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask'] = feature_spread_reduce_res(
-                        mask_arrays['mask'], filter_stdev,
-                        reduce_res_factor=coarse_grid_factor,
-                        spread_value=1, nproc=nproc)
-                else:
-                    mask_arrays['mask'] = feature_spread(
-                        mask_arrays['mask'], filter_stdev,
-                        spread_value=1, nproc=nproc)
-
+            # Do the filter width spreading.
+            mask_arrays = add_filter_width_spreading(
+                mask_arrays, filter_stdev, detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                coarse_grid_factor, nproc=nproc
+            )
 
         ## Do volumetric rain.
         if do_volrain:
@@ -1704,31 +1726,14 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
     if do_filter:
-        print('Filter width spreading...this may take awhile.', flush=True)
+        print('Filter width spreading...', flush=True)
 
-        if detailed_output:
-
-            if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-            else:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-            if accumulation_hours > 0 and calc_with_accumulation_period:
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-        else:
-            # Only spread the "1" region. Not "2."
-            if coarse_grid_factor > 1:
-                mask_arrays['mask'] = feature_spread_reduce_res(
-                    mask_arrays['mask'], filter_stdev,
-                    reduce_res_factor=coarse_grid_factor,
-                    spread_value=1, nproc=nproc)
-            else:
-                mask_arrays['mask'] = feature_spread(
-                    mask_arrays['mask'], filter_stdev,
-                    spread_value=1, nproc=nproc)
+        # Do the filter width spreading.
+        mask_arrays = add_filter_width_spreading(
+            mask_arrays, filter_stdev, detailed_output,
+            calc_with_accumulation_period, accumulation_hours,
+            coarse_grid_factor, nproc=nproc
+        )
 
     ## Do volumetric rain.
     if do_volrain:
