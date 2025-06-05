@@ -738,6 +738,101 @@ def sparse_max(A, B):
        return M
 
 
+def fill_mask_arrays(
+    lp_object_id_list, mask_times, mask_arrays,
+    lp_objects_dir, lp_objects_fn_format,
+    detailed_output, accumulation_hours, interval_hours,
+    calc_with_accumulation_period, filter_stdev,
+    coarse_grid_factor, nproc=1
+):
+    """
+    Fill the mask arrays with points from the LP objects.
+    lp_object_id_list: List of LP object IDs to process.
+    mask_times: List of datetime objects for the mask times.
+    mask_arrays: Dictionary of mask arrays to fill.
+    lp_objects_dir: Directory where LP object files are stored.
+    lp_objects_fn_format: Format string for LP object filenames.
+    detailed_output: Boolean indicating if detailed output is required.
+    accumulation_hours: Number of hours for accumulation.
+    interval_hours: Interval in hours for the mask times.
+    calc_with_accumulation_period: Boolean indicating 
+                                   if accumulation period should be calculated.
+    filter_stdev: Standard deviation for filtering.
+    coarse_grid_factor: Factor for reducing resolution.
+    nproc: Number of processes to use for parallel processing.
+    """
+    
+    with Pool(nproc) as p:
+        points_collect = p.starmap(
+            get_lpo_grid_points,
+            [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
+            chunksize=1
+        )
+
+    # Convert list of (dt_idx, iii, jjj) to arrays for advanced indexing
+    dt_indices = np.array([p[0] for p in points_collect])
+    iii_indices = [p[1] for p in points_collect]
+    jjj_indices = [p[2] for p in points_collect]
+
+    if detailed_output:
+        mask_name = 'mask_at_end_time'
+    else:
+        mask_name = 'mask'
+
+    with Pool(nproc) as p:
+
+        output = p.starmap(
+            fill_matrix,
+            tqdm(
+                [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)],
+                desc=f"Filling {mask_name}",
+            ),
+            chunksize=1
+        )
+    # Assign output to the correct location.
+    for t0, t in enumerate(dt_indices):
+        mask_arrays[mask_name][t] = output[t0]
+
+    if accumulation_hours > 0 and calc_with_accumulation_period:
+
+        # Create lists to hold the expanded indices
+        # if needed for accumulation period masks/
+
+        dt_indices_expanded = []
+        iii_indices_expanded = []
+        jjj_indices_expanded = []
+
+        n_back = int(accumulation_hours / interval_hours)
+
+        for t, i, j in zip(dt_indices, iii_indices, jjj_indices):
+            for n in range(n_back, -1, -1):
+                t_back = t - n
+                if t_back >= 0:
+                    dt_indices_expanded.append(t_back)
+                    iii_indices_expanded.append(i)
+                    jjj_indices_expanded.append(j)
+
+        if detailed_output:
+            mask_name = 'mask_with_accumulation'
+        else:
+            mask_name = 'mask'
+
+        with Pool(nproc) as p:
+            output = p.starmap(
+                fill_matrix,
+                tqdm(
+                    [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices_expanded, iii_indices_expanded, jjj_indices_expanded)],
+                    desc=f"Filling {mask_name}",
+                ),
+                chunksize=1
+            )
+        # Assign output to the correct location.
+        for t0, t in enumerate(dt_indices_expanded):
+            mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t], output[t0])
+
+    return mask_arrays
+
+
 def determine_filtering(filter_stdev, calc_with_filter_radius):
     """
     Determine if filtering should be applied based on the provided parameters.
@@ -859,6 +954,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Read Stitched data.
     TC = lpt.lptio.read_lpt_systems_netcdf(lpt_systems_file)
     unique_lpt_ids = np.unique(TC['lptid'])
+    ntimes = len(TC['timestamp_stitched'])
 
     if mjo_only:
         lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
@@ -905,75 +1001,15 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             calc_with_accumulation_period, accumulation_hours,
             calc_with_filter_radius
         )
-        with Pool(nproc) as p:
-            points_collect = p.starmap(
-                get_lpo_grid_points,
-                [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
-                chunksize=1
-            )
 
-        # Convert list of (dt_idx, iii, jjj) to arrays for advanced indexing
-        dt_indices = np.array([p[0] for p in points_collect])
-        iii_indices = [p[1] for p in points_collect]
-        jjj_indices = [p[2] for p in points_collect]
-
-        if detailed_output:
-            mask_name = 'mask_at_end_time'
-        else:
-            mask_name = 'mask'
-
-        with Pool(nproc) as p:
-
-            output = p.starmap(
-                fill_matrix,
-                tqdm(
-                    [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)],
-                    desc=f"Filling {mask_name}",
-                ),
-                chunksize=1
-            )
-        # Assign output to the correct location.
-        for t0, t in enumerate(dt_indices):
-            mask_arrays[mask_name][t] = output[t0]
-
-        if accumulation_hours > 0 and calc_with_accumulation_period:
-
-            # Create lists to hold the expanded indices
-            # if needed for accumulation period masks/
-
-            dt_indices_expanded = []
-            iii_indices_expanded = []
-            jjj_indices_expanded = []
-
-            n_back = int(accumulation_hours / interval_hours)
-
-            for t, i, j in zip(dt_indices, iii_indices, jjj_indices):
-                for n in range(n_back, -1, -1):
-                    t_back = t - n
-                    if t_back >= 0:
-                        dt_indices_expanded.append(t_back)
-                        iii_indices_expanded.append(i)
-                        jjj_indices_expanded.append(j)
-
-            if detailed_output:
-                mask_name = 'mask_with_accumulation'
-            else:
-                mask_name = 'mask'
-
-            with Pool(nproc) as p:
-                output = p.starmap(
-                    fill_matrix,
-                    tqdm(
-                        [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices_expanded, iii_indices_expanded, jjj_indices_expanded)],
-                        desc=f"Filling {mask_name}",
-                    ),
-                    chunksize=1
-                )
-            # Assign output to the correct location.
-            for t0, t in enumerate(dt_indices_expanded):
-                mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t], output[t0])
-
-        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
+        # Fill in the mask array data for the list of LP objects.
+        mask_arrays = fill_mask_arrays(
+            lp_object_id_list, mask_times, mask_arrays,
+            lp_objects_dir, lp_objects_fn_format,
+            detailed_output, accumulation_hours, interval_hours,
+            calc_with_accumulation_period, filter_stdev,
+            coarse_grid_factor, nproc=nproc
+        )
 
         # Do filter width spreading if specified.
         do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
