@@ -1367,48 +1367,14 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
             calc_with_filter_radius
         )
 
-        with Pool(nproc) as p:
-            points_collect = p.starmap(
-                get_lpo_grid_points,
-                [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
-                chunksize=1
-            )
-
-        for points in points_collect:
-            dt_idx = points[0]
-            iii = points[1]
-            jjj = points[2]
-            ##
-            ## Fill in the mask information.
-            ##
-            if detailed_output:
-                ## For mask_at_end_time, just use the mask from the objects file.
-                mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
-
-                ## For the mask with accumulation, go backwards and fill in ones.
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
-            else:
-                # For mask > 1, apply accumulation hours, if specified.
-                # This region is expanded below in "filter width spreading"
-                # For the consolidated "mask" variable, I need to make sure
-                # I don't set values of "2" to be "1" in future loop iterations.
-                if accumulation_hours > 0:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        dummy = mask_arrays['mask'][ttt].copy()
-                        dummy[jjj, iii] = 1
-                        mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
-
-                # Set the "inner core" of the mask to 2.
-                # (or 1, if no filter or accumulation)
-                if accumulation_hours < 0.01 and filter_stdev < 0.01:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
-                else:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
+        # Fill in the mask array data for the list of LP objects.
+        mask_arrays = fill_mask_arrays(
+            lp_object_id_list, mask_times, mask_arrays,
+            lp_objects_dir, lp_objects_fn_format,
+            detailed_output, accumulation_hours, interval_hours,
+            calc_with_accumulation_period, filter_stdev,
+            coarse_grid_factor, nproc=nproc
+        )
 
         # Do filter width spreading if specified.
         do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
