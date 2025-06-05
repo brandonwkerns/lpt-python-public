@@ -79,6 +79,18 @@ def initialize_mask_arrays(ny, nx, nt, detailed_output,
 
 
 def feature_spread_2d(array_2d, npoints, spread_value=None):
+    """ feature_spread_2d(array_2d, npoints, spread_value=None)
+
+    Use binary dilation convolution to "spread out"
+    the features in the 2-D image array.
+    This function is meant to be called in a parallel loop.
+    (I tried using 3-D convolution here with (time, lat, lon),
+    but it took almost twice as much memory and was slightly SLOWER)
+
+    If spread_value is None, the new values will be the same as the original
+    feature values. If spread_value is specified, the new values will be
+    set to spread_value.
+    """
 
     array_2d_new = array_2d.copy()
 
@@ -89,26 +101,51 @@ def feature_spread_2d(array_2d, npoints, spread_value=None):
         npx = 1*npoints
         npy = 1*npoints
 
-    [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
-    circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
+    [circle_array_x, circle_array_y] = np.meshgrid(
+        np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
+    circle_array_dist = np.sqrt(
+        np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
     circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
     circle_array_mask = circle_array_mask / np.sum(circle_array_mask)
 
-    ## Loop over the times.
-    ## For each time, use the convolution to "spread out" the effect of each time's field.
-    ## (I tried using 3-D convolution here, but it took almost twice as much memory
-    ##  and was slightly SLOWER than this method.)
     unique_values = np.unique(array_2d)
-    unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
+    unique_values = unique_values[unique_values > 0]  # Zero is not a feature.
+
     for this_value in unique_values:
-        starting_mask = (array_2d == this_value).astype(np.double)
-        binary_dilation_mask = array_2d < 0.1 #starting_mask < 0.1
-        starting_mask_spread = scipy.ndimage.binary_dilation(starting_mask,structure=circle_array_mask, iterations=1, mask=binary_dilation_mask)
-        new_feature_mask = np.logical_and(starting_mask_spread > 0.001, binary_dilation_mask)
+        starting_mask = (array_2d == this_value).astype(int)
+
+        # Find the bounding box of the current feature (where starting_mask > 0)
+        feature_indices = np.argwhere(starting_mask > 0)
+        feature_indices_j = feature_indices[:, 0]  # row indices (j)
+        feature_indices_i = feature_indices[:, 1]  # column indices (i)
+        j_min = np.min(feature_indices_j)
+        j_max = np.max(feature_indices_j)
+        i_min = np.min(feature_indices_i)
+        i_max = np.max(feature_indices_i)
+
+        sub_mask = starting_mask[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1]
+        sub_mask_2d_new = np.zeros_like(sub_mask)
+
+        binary_dilation_mask = sub_mask < 0.1
+
+        sub_mask_spread = scipy.ndimage.binary_dilation(
+            sub_mask,
+            structure=circle_array_mask,
+            iterations=1,
+            mask=binary_dilation_mask
+        )
+        new_feature_mask = np.logical_and(sub_mask_spread > 0.001, binary_dilation_mask)
+
         if spread_value is None:
-            array_2d_new[new_feature_mask] = this_value
+            sub_mask_2d_new[new_feature_mask] = this_value
         else:
-            array_2d_new[new_feature_mask] = spread_value
+            sub_mask_2d_new[new_feature_mask] = spread_value
+
+        # Update the original array with the new spread mask
+        array_2d_new[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1] = np.maximum(
+            array_2d_new[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1],
+            sub_mask_2d_new
+        )
 
     return array_2d_new
 
@@ -121,9 +158,9 @@ def feature_spread(data, npoints, spread_value=None, nproc=1):
     with Pool(nproc) as p:
         r = p.starmap(
             feature_spread_2d,
-            tqdm([(x.toarray(), npoints, spread_value) for x in data]),
+            tqdm([(x.toarray().astype(int), npoints, spread_value) for x in data]),
             chunksize=1
-            )
+        )
 
     data_new = [csr_matrix(x) for x in r]
 
