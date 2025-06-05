@@ -580,17 +580,9 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
         except:
             DS.close()
 
-    ##
-    ## Do filter width spreading.
-    ##
+    # Do filter width spreading if specified.
+    do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-    do_filter = False
-    if type(filter_stdev) is list:
-        if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
-    else:
-        if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
     if do_filter:
         print('Filter width spreading...this may take awhile.', flush=True)
 
@@ -763,6 +755,22 @@ def sparse_max(A, B):
        return M
 
 
+def determine_filtering(filter_stdev, calc_with_filter_radius):
+    """
+    Determine if filtering should be applied based on the provided parameters.
+    """
+
+    do_filter = False
+    if type(filter_stdev) is list:
+        if filter_stdev[0] > 0 and (calc_with_filter_radius):
+            do_filter = True
+    else:
+        if filter_stdev > 0 and (calc_with_filter_radius):
+            do_filter = True
+
+    return do_filter
+
+
 def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
@@ -911,17 +919,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
         ntimes = len(TC['timestamp_stitched']) #len(mask_times)
 
-        ##
-        ## Do filter width spreading.
-        ##
+        # Do filter width spreading if specified.
+        do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-        do_filter = False
-        if type(filter_stdev) is list:
-            if filter_stdev[0] > 0 and (calc_with_filter_radius):
-                do_filter = True
-        else:
-            if filter_stdev > 0 and (calc_with_filter_radius):
-                do_filter = True
         if do_filter:
             print('Filter width spreading...this may take awhile.', flush=True)
 
@@ -1334,15 +1334,9 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
                 else:
                     mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
-        # Do filter width spreading.
+        # Do filter width spreading if specified.
+        do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-        do_filter = False
-        if type(filter_stdev) is list:
-            if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-                do_filter = True
-        else:
-            if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-                do_filter = True
         if do_filter:
             print('Filter width spreading...this may take awhile.', flush=True)
 
@@ -1706,18 +1700,9 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 else:
                     mask_arrays['mask'][dt_idx][jjj, iii] = 2
 
+    # Do filter width spreading if specified.
+    do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-    ##
-    ## Do filter width spreading.
-    ##
-
-    do_filter = False
-    if type(filter_stdev) is list:
-        if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
-    else:
-        if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
     if do_filter:
         print('Filter width spreading...this may take awhile.', flush=True)
 
