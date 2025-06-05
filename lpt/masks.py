@@ -1024,7 +1024,6 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                 coarse_grid_factor, nproc=nproc
             )
 
-
         ## Do volumetric rain.
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
@@ -1657,85 +1656,28 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         dt1 = cftime.datetime(dt11.year,dt11.month,dt11.day,dt11.hour,calendar=TC['datetime'][0].calendar)
         duration_hours = int((dt1 - dt0).total_seconds()/3600)
 
-        for lp_object_id in lp_object_id_list:
 
-            nnnn = int(str(int(lp_object_id))[-4:])
-            try:
-                dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
-                dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour,calendar=TC['datetime'][0].calendar)
-                dt_idx = [tt for tt in range(len(grand_mask_times)) if dt_this == grand_mask_times[tt]]
-            except:
-                continue
-
-            if len(dt_idx) < 0:
-                print('This time not found in mask time list. Skipping LP object id: ' + str(int(lp_object_id)))
-                continue
-            elif len(dt_idx) > 1:
-                print('Found more than one mask time for this LP object. This should not happen! Skipping it.')
-                continue
-            else:
-                dt_idx = dt_idx[0]
-
-            fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
-            DS=Dataset(fn)
-
-            ##
-            ## Get LP Object pixel information.
-            ##
-            try:
-                iii = DS['pixels_x'][nnnn,:].compressed()
-                jjj = DS['pixels_y'][nnnn,:].compressed()
-            except:
-                DS.close()
-                continue
-
-            DS.close()
-
-            ##
-            ## Fill in the mask information.
-            ##
-
-            if detailed_output:
-                ## For mask_at_end_time, just use the mask from the objects file.
-                mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
-
-                ## For the mask with accumulation, go backwards and fill in ones.
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
-            else:
-                # For mask > 1, apply accumulation hours, if specified.
-                # This region is expanded below in "filter width spreading"
-                # For the consolidated "mask" variable, I need to make sure
-                # I don't set values of "2" to be "1" in future loop iterations.
-                if accumulation_hours > 0:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        dummy = mask_arrays['mask'][ttt].copy()
-                        dummy[jjj, iii] = 1
-                        mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
-
-                # Set the "inner core" of the mask to 2.
-                # (or 1, if no filter or accumulation)
-                if accumulation_hours < 0.01 and filter_stdev < 0.01:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
-                else:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
-
-    # Do filter width spreading if specified.
-    do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
-
-    if do_filter:
-        print('Filter width spreading...', flush=True)
-
-        # Do the filter width spreading.
-        mask_arrays = add_filter_width_spreading(
-            mask_arrays, filter_stdev, detailed_output,
-            calc_with_accumulation_period, accumulation_hours,
+        # Fill in the mask array data for the list of LP objects.
+        mask_arrays = fill_mask_arrays(
+            lp_object_id_list, grand_mask_times, mask_arrays,
+            lp_objects_dir, lp_objects_fn_format,
+            detailed_output, accumulation_hours, interval_hours,
+            calc_with_accumulation_period, filter_stdev,
             coarse_grid_factor, nproc=nproc
         )
+
+        # Do filter width spreading if specified.
+        do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
+
+        if do_filter:
+            print('Filter width spreading...', flush=True)
+
+            # Do the filter width spreading.
+            mask_arrays = add_filter_width_spreading(
+                mask_arrays, filter_stdev, detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                coarse_grid_factor, nproc=nproc
+            )
 
     ## Do volumetric rain.
     if do_volrain:
