@@ -544,7 +544,8 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
         calc_with_filter_radius)
 
     # Fill in the mask array data for the list of LP objects.
-    print('Fill in the mask arrays for {} LP objects.'.format(len(lp_object_id_list)))
+    print('Fill in the mask arrays for {} LP objects.'.format(
+        len(lp_object_id_list)))
     mask_arrays = fill_mask_arrays(
         lp_object_id_list, mask_times, mask_arrays,
         lp_objects_dir, lp_objects_fn_format,
@@ -971,6 +972,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             lp_object_id_list[0], lp_objects_dir, lp_objects_fn_format
         )
         
+        print('Initialize Mask:')
+        print('Mask times: {}'.format(len(mask_times)))
+        print('Mask lon/lat shape: {}, {}'.format(mask_lon.shape, mask_lat.shape))
         mask_arrays = initialize_mask_arrays(
             len(mask_lat), len(mask_lon), len(mask_times),
             detailed_output,
@@ -979,6 +983,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         )
 
         # Fill in the mask array data for the list of LP objects.
+        print('Fill in the mask arrays for {} LP objects.'.format(
+            len(lp_object_id_list)))
         mask_arrays = fill_mask_arrays(
             lp_object_id_list, mask_times, mask_arrays,
             lp_objects_dir, lp_objects_fn_format,
@@ -1334,7 +1340,10 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         mask_lon, mask_lat, AREA = get_lpo_grid_coords(
             lp_object_id_list[0], lp_objects_dir, lp_objects_fn_format
         )
-        
+
+        print('Initialize Mask:')
+        print('Mask times: {}'.format(len(mask_times)))
+        print('Mask lon/lat shape: {}, {}'.format(mask_lon.shape, mask_lat.shape))
         mask_arrays = initialize_mask_arrays(
             len(mask_lat), len(mask_lon), len(mask_times),
             detailed_output,
@@ -1343,6 +1352,8 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         )
 
         # Fill in the mask array data for the list of LP objects.
+        print('Fill in the mask arrays for {} LP objects.'.format(
+            len(lp_object_id_list)))
         mask_arrays = fill_mask_arrays(
             lp_object_id_list, mask_times, mask_arrays,
             lp_objects_dir, lp_objects_fn_format,
@@ -1580,6 +1591,9 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         grand_mask_lat = DS['grid_lat'][:]
         AREA = DS['grid_area'][:]
 
+    print('Initialize Mask:')
+    print('Mask times: {}'.format(len(mask_times)))
+    print('Mask lon/lat shape: {}, {}'.format(grand_mask_lon.shape, grand_mask_lat.shape))
     mask_arrays = initialize_mask_arrays(
         len(grand_mask_lat), len(grand_mask_lon), len(grand_mask_times),
         detailed_output,
@@ -1634,6 +1648,8 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
 
 
         # Fill in the mask array data for the list of LP objects.
+        print('Fill in the mask arrays for {} LP objects.'.format(
+            len(lp_object_id_list)))
         mask_arrays = fill_mask_arrays(
             lp_object_id_list, grand_mask_times, mask_arrays,
             lp_objects_dir, lp_objects_fn_format,
