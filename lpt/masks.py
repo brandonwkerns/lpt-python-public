@@ -78,7 +78,7 @@ def initialize_mask_arrays(ny, nx, nt, detailed_output,
 ##
 
 
-def feature_spread_2d(array_2d, npoints, spread_value=None):
+def feature_spread_2d(array_2d0, npoints, spread_value=None):
     """ feature_spread_2d(array_2d, npoints, spread_value=None)
 
     Use binary dilation convolution to "spread out"
@@ -92,6 +92,7 @@ def feature_spread_2d(array_2d, npoints, spread_value=None):
     set to spread_value.
     """
 
+    array_2d = array_2d0.toarray().astype(int)
     array_2d_new = array_2d.copy()
 
     if type(npoints) is list:
@@ -110,7 +111,6 @@ def feature_spread_2d(array_2d, npoints, spread_value=None):
 
     unique_values = np.unique(array_2d)
     unique_values = unique_values[unique_values > 0]  # Zero is not a feature.
-
     for this_value in unique_values:
         starting_mask = (array_2d == this_value).astype(int)
 
@@ -158,7 +158,7 @@ def feature_spread(data, npoints, spread_value=None, nproc=1):
     with Pool(nproc) as p:
         r = p.starmap(
             feature_spread_2d,
-            tqdm([(x.toarray().astype(int), npoints, spread_value) for x in data]),
+            tqdm([(x, npoints, spread_value) for x in data]),
             chunksize=1
         )
 
@@ -205,7 +205,7 @@ def feature_spread_reduce_res(data, npoints, spread_value=None, reduce_res_facto
         r = p.starmap(
             feature_spread_2d,
             tqdm(
-                [(x.toarray()[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor), spread_value) for x in data]
+                [(x[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor), spread_value) for x in data]
                 ),
             chunksize=1
             )
@@ -1666,18 +1666,18 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
             coarse_grid_factor, nproc=nproc
         )
 
-        # Do filter width spreading if specified.
-        do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
+    # Do filter width spreading if specified.
+    do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-        if do_filter:
-            print('Filter width spreading...', flush=True)
+    if do_filter:
+        print('Filter width spreading...', flush=True)
 
-            # Do the filter width spreading.
-            mask_arrays = add_filter_width_spreading(
-                mask_arrays, filter_stdev, detailed_output,
-                calc_with_accumulation_period, accumulation_hours,
-                coarse_grid_factor, nproc=nproc
-            )
+        # Do the filter width spreading.
+        mask_arrays = add_filter_width_spreading(
+            mask_arrays, filter_stdev, detailed_output,
+            calc_with_accumulation_period, accumulation_hours,
+            coarse_grid_factor, nproc=nproc
+        )
 
     ## Do volumetric rain.
     if do_volrain:
