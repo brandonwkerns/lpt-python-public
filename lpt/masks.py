@@ -163,9 +163,11 @@ def feature_spread_2d(array_2d0, npoints, spread_value=None):
 
 def feature_spread(data, npoints, spread_value=None, nproc=1):
 
-    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
-    ## For this purpose, it takes a 3-D array with the first entry being time.
-
+    """ feature_spread(data, npoints, spread_value=None, nproc=1)
+    Use the binary dilation technique to expand the mask "array_in"
+    a radius of np points. For this purpose,
+    it takes a list of 2-D sparse arrays.
+    """
     with Pool(nproc) as p:
         r = p.starmap(
             feature_spread_2d,
@@ -174,6 +176,47 @@ def feature_spread(data, npoints, spread_value=None, nproc=1):
         )
 
     data_new = [csr_matrix(x) for x in r]
+
+    return data_new
+
+
+def feature_spread_reduce_res(data, npoints, spread_value=None,
+                                reduce_res_factor=5, nproc=1):
+    """ feature_spread_reduce_res(data, npoints, spread_value=None,
+                                    reduce_res_factor=5, nproc=1)
+    Use the binary dilation technique to expand the mask "array_in"
+    a radius of np points. For this purpose,     
+    it takes a list of 2-D sparse arrays.
+    
+    In this version of the feature_spread function,
+    use a reduced resolution grid then interp back to the original resolution.
+    """
+    print(f'Feature spread with reduce_res_factor = {reduce_res_factor}.')
+
+    # Try to get near the middle of reduce_res_factor
+    start_idx = max(0, int(reduce_res_factor/2)-1) 
+
+    with Pool(nproc) as p:
+        r = p.starmap(
+            feature_spread_2d,
+            tqdm(
+                [(x[start_idx::reduce_res_factor,start_idx::reduce_res_factor],
+                int(npoints/reduce_res_factor), spread_value) for x in data]
+            ),
+            chunksize=1
+            )
+
+    ## Interpolating the coarsened data to the original resolution grid.
+    print('Interpolate back to original grid.')
+    S = data[0].shape
+
+    with Pool(nproc) as p2:
+        r2 = p2.starmap(
+            back_to_orig_res,
+            tqdm([(x2, S, reduce_res_factor) for x2 in r])
+        )
+
+    data_new = [csr_matrix(x3) for x3 in r2]
 
     return data_new
 
@@ -199,40 +242,6 @@ def back_to_orig_res(array_2d_reduced, S_orig, reduce_res_factor):
     array_2d_new = array_2d_new0[0:S_orig[0], 0:S_orig[1]]
 
     return array_2d_new
-
-
-def feature_spread_reduce_res(data, npoints, spread_value=None, reduce_res_factor=5, nproc=1):
-    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
-    ## For this purpose, it takes a 3-D array with the first entry being time.
-    ##
-    ## In this version of the feature_spread function,
-    ## use a reduced resolution grid then interp back to the original resolution.
-
-    print('Feature spread with reduce_res_factor = {}'.format(reduce_res_factor))
-
-    start_idx = max(0, int(reduce_res_factor/2)-1) # Try to get near the middle of reduce_res_factor
-
-    with Pool(nproc) as p:
-        r = p.starmap(
-            feature_spread_2d,
-            tqdm(
-                [(x[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor), spread_value) for x in data]
-                ),
-            chunksize=1
-            )
-
-    ## Interpolating the coarsened data to the original resolution grid.
-    print('Interpolate back to original grid.')
-    S = data[0].shape
-
-    with Pool(nproc) as p2:
-        r2 = p2.starmap(back_to_orig_res, tqdm([(x2, S, reduce_res_factor) for x2 in r]))
-
-    data_new = [csr_matrix(x3) for x3 in r2]
-
-    return data_new
-
-
 
 
 def get_mask_type_list(mask_arrays):
