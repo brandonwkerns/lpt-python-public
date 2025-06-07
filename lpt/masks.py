@@ -92,8 +92,10 @@ def feature_spread_2d(array_2d0, npoints, spread_value=None):
     set to spread_value.
     """
 
-    array_2d = array_2d0.toarray().astype(int)
-    array_2d_new = array_2d.copy()
+    if scipy.sparse.issparse(array_2d0):
+        array_2d = array_2d0.toarray().astype(int)
+    else:
+        array_2d = array_2d0.astype(int)
 
     if type(npoints) is list:
         npx = npoints[0]
@@ -101,6 +103,12 @@ def feature_spread_2d(array_2d0, npoints, spread_value=None):
     else:
         npx = 1*npoints
         npy = 1*npoints
+
+    # Pad with zeros to avoid index errors.
+    array_2d = np.pad(array_2d, pad_width=((npy, npy), (npx, npx)),
+                        mode='constant', constant_values=0)
+
+    array_2d_new = array_2d.copy()
 
     [circle_array_x, circle_array_y] = np.meshgrid(
         np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
@@ -146,6 +154,9 @@ def feature_spread_2d(array_2d0, npoints, spread_value=None):
             array_2d_new[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1],
             sub_mask_2d_new
         )
+
+    # Unpad the array to return to original size.
+    array_2d_new = array_2d_new[npy:-npy, npx:-npx]
 
     return array_2d_new
 
