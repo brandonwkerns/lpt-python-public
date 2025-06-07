@@ -74,13 +74,28 @@ def initialize_mask_arrays(ny, nx, nt, detailed_output,
 
 
 ##
-## feature spread function -- used for all of the mask functions.
+## feature spread functions -- used for all of the mask functions.
 ##
 
 
-def feature_spread_2d(array_2d, npoints, spread_value=None):
+def feature_spread_2d(array_2d0, npoints, spread_value=None):
+    """ feature_spread_2d(array_2d, npoints, spread_value=None)
 
-    array_2d_new = array_2d.copy()
+    Use binary dilation convolution to "spread out"
+    the features in the 2-D image array.
+    This function is meant to be called in a parallel loop.
+    (I tried using 3-D convolution here with (time, lat, lon),
+    but it took almost twice as much memory and was slightly SLOWER)
+
+    If spread_value is None, the new values will be the same as the original
+    feature values. If spread_value is specified, the new values will be
+    set to spread_value.
+    """
+
+    if scipy.sparse.issparse(array_2d0):
+        array_2d = array_2d0.toarray().astype(int)
+    else:
+        array_2d = array_2d0.astype(int)
 
     if type(npoints) is list:
         npx = npoints[0]
@@ -89,43 +104,119 @@ def feature_spread_2d(array_2d, npoints, spread_value=None):
         npx = 1*npoints
         npy = 1*npoints
 
-    [circle_array_x, circle_array_y] = np.meshgrid(np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
-    circle_array_dist = np.sqrt(np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
+    # Pad with zeros to avoid index errors.
+    array_2d = np.pad(array_2d, pad_width=((npy, npy), (npx, npx)),
+                        mode='constant', constant_values=0)
+
+    array_2d_new = array_2d.copy()
+
+    [circle_array_x, circle_array_y] = np.meshgrid(
+        np.arange(-1*npx,npx+1), np.arange(-1*npy,npy+1))
+    circle_array_dist = np.sqrt(
+        np.power(circle_array_x,2) + np.power(circle_array_y * (npx/npy),2))
     circle_array_mask = (circle_array_dist < (npx + 0.1)).astype(np.double)
     circle_array_mask = circle_array_mask / np.sum(circle_array_mask)
 
-    ## Loop over the times.
-    ## For each time, use the convolution to "spread out" the effect of each time's field.
-    ## (I tried using 3-D convolution here, but it took almost twice as much memory
-    ##  and was slightly SLOWER than this method.)
     unique_values = np.unique(array_2d)
-    unique_values = unique_values[unique_values > 0]  #take out zero -- it is not a feature.
+    unique_values = unique_values[unique_values > 0]  # Zero is not a feature.
     for this_value in unique_values:
-        starting_mask = (array_2d == this_value).astype(np.double)
-        binary_dilation_mask = array_2d < 0.1 #starting_mask < 0.1
-        starting_mask_spread = scipy.ndimage.binary_dilation(starting_mask,structure=circle_array_mask, iterations=1, mask=binary_dilation_mask)
-        new_feature_mask = np.logical_and(starting_mask_spread > 0.001, binary_dilation_mask)
+        starting_mask = (array_2d == this_value).astype(int)
+
+        # Find the bounding box of the current feature (where starting_mask > 0)
+        feature_indices = np.argwhere(starting_mask > 0)
+        feature_indices_j = feature_indices[:, 0]  # row indices (j)
+        feature_indices_i = feature_indices[:, 1]  # column indices (i)
+        j_min = np.min(feature_indices_j)
+        j_max = np.max(feature_indices_j)
+        i_min = np.min(feature_indices_i)
+        i_max = np.max(feature_indices_i)
+
+        sub_mask = starting_mask[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1]
+        sub_mask_2d_new = np.zeros_like(sub_mask)
+
+        binary_dilation_mask = sub_mask < 0.1
+
+        sub_mask_spread = scipy.ndimage.binary_dilation(
+            sub_mask,
+            structure=circle_array_mask,
+            iterations=1,
+            mask=binary_dilation_mask
+        )
+        new_feature_mask = np.logical_and(sub_mask_spread > 0.001, binary_dilation_mask)
+
         if spread_value is None:
-            array_2d_new[new_feature_mask] = this_value
+            sub_mask_2d_new[new_feature_mask] = this_value
         else:
-            array_2d_new[new_feature_mask] = spread_value
+            sub_mask_2d_new[new_feature_mask] = spread_value
+
+        # Update the original array with the new spread mask
+        array_2d_new[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1] = np.maximum(
+            array_2d_new[j_min-npy:j_max+npy+1, i_min-npx:i_max+npx+1],
+            sub_mask_2d_new
+        )
+
+    # Unpad the array to return to original size.
+    array_2d_new = array_2d_new[npy:-npy, npx:-npx]
 
     return array_2d_new
 
 
 def feature_spread(data, npoints, spread_value=None, nproc=1):
 
-    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
-    ## For this purpose, it takes a 3-D array with the first entry being time.
+    """ feature_spread(data, npoints, spread_value=None, nproc=1)
+    Use the binary dilation technique to expand the mask "array_in"
+    a radius of np points. For this purpose,
+    it takes a list of 2-D sparse arrays.
+    """
+    with Pool(nproc) as p:
+        r = p.starmap(
+            feature_spread_2d,
+            tqdm([(x, npoints, spread_value) for x in data]),
+            chunksize=1
+        )
+
+    data_new = [csr_matrix(x) for x in r]
+
+    return data_new
+
+
+def feature_spread_reduce_res(data, npoints, spread_value=None,
+                                reduce_res_factor=5, nproc=1):
+    """ feature_spread_reduce_res(data, npoints, spread_value=None,
+                                    reduce_res_factor=5, nproc=1)
+    Use the binary dilation technique to expand the mask "array_in"
+    a radius of np points. For this purpose,     
+    it takes a list of 2-D sparse arrays.
+    
+    In this version of the feature_spread function,
+    use a reduced resolution grid then interp back to the original resolution.
+    """
+    print(f'Feature spread with reduce_res_factor = {reduce_res_factor}.')
+
+    # Try to get near the middle of reduce_res_factor
+    start_idx = max(0, int(reduce_res_factor/2)-1) 
 
     with Pool(nproc) as p:
         r = p.starmap(
             feature_spread_2d,
-            tqdm([(x.toarray(), npoints, spread_value) for x in data]),
+            tqdm(
+                [(x[start_idx::reduce_res_factor,start_idx::reduce_res_factor],
+                int(npoints/reduce_res_factor), spread_value) for x in data]
+            ),
             chunksize=1
             )
 
-    data_new = [csr_matrix(x) for x in r]
+    ## Interpolating the coarsened data to the original resolution grid.
+    print('Interpolate back to original grid.')
+    S = data[0].shape
+
+    with Pool(nproc) as p2:
+        r2 = p2.starmap(
+            back_to_orig_res,
+            tqdm([(x2, S, reduce_res_factor) for x2 in r])
+        )
+
+    data_new = [csr_matrix(x3) for x3 in r2]
 
     return data_new
 
@@ -153,38 +244,94 @@ def back_to_orig_res(array_2d_reduced, S_orig, reduce_res_factor):
     return array_2d_new
 
 
-def feature_spread_reduce_res(data, npoints, spread_value=None, reduce_res_factor=5, nproc=1):
-    ## Use the binary dilation technique to expand the mask "array_in" a radius of np points.
-    ## For this purpose, it takes a 3-D array with the first entry being time.
-    ##
-    ## In this version of the feature_spread function,
-    ## use a reduced resolution grid then interp back to the original resolution.
 
-    print('Feature spread with reduce_res_factor = {}'.format(reduce_res_factor))
+def determine_filtering(filter_stdev, calc_with_filter_radius):
+    """
+    Determine if filtering should be applied based on the provided parameters.
+    """
 
-    start_idx = max(0, int(reduce_res_factor/2)-1) # Try to get near the middle of reduce_res_factor
+    do_filter = False
+    if type(filter_stdev) is list:
+        if filter_stdev[0] > 0 and (calc_with_filter_radius):
+            do_filter = True
+    else:
+        if filter_stdev > 0 and (calc_with_filter_radius):
+            do_filter = True
 
-    with Pool(nproc) as p:
-        r = p.starmap(
-            feature_spread_2d,
-            tqdm(
-                [(x.toarray()[start_idx::reduce_res_factor,start_idx::reduce_res_factor], int(npoints/reduce_res_factor), spread_value) for x in data]
-                ),
-            chunksize=1
+    return do_filter
+
+
+def do_feature_spread(in_array, filter_stdev, coarse_grid_factor=0, nproc=1):
+    """
+    Apply feature spreading to the input array based
+    on the specified filter standard deviation.
+    If coarse_grid_factor is greater than 1,
+    it will reduce the resolution before spreading.
+    """
+    if coarse_grid_factor > 1:
+        out_array = feature_spread_reduce_res(
+            in_array,
+            filter_stdev,
+            reduce_res_factor = coarse_grid_factor,
+            nproc = nproc
+        )
+    else:
+        out_array = feature_spread(
+            in_array,
+            filter_stdev,
+            nproc = nproc
+        )
+    return out_array
+
+
+def add_filter_width_spreading(
+    mask_arrays, filter_stdev, detailed_output,
+    calc_with_accumulation_period, accumulation_hours,
+    coarse_grid_factor, nproc=1
+):
+    """
+    If detailed_output is specified, then calculate it for 
+    mask_at_end_time and/or mask_with_accumulation.
+    Otherwise, just do the consolidated "mask" variable.
+    """
+    if detailed_output:
+
+        new_mask_name = 'mask_with_filter_at_end_time'
+        source_mask_name = 'mask_at_end_time'
+        print(f'{source_mask_name} -> {new_mask_name}')
+
+        mask_arrays[new_mask_name] = do_feature_spread(
+            mask_arrays[source_mask_name],
+            filter_stdev,
+            coarse_grid_factor=coarse_grid_factor,
+            nproc=nproc
+        )
+
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            new_mask_name = 'mask_with_filter_and_accumulation'
+            source_mask_name = 'mask_with_accumulation'
+            print(f'{source_mask_name} -> {new_mask_name}')
+
+            mask_arrays[new_mask_name] = do_feature_spread(
+                mask_arrays[source_mask_name],
+                filter_stdev,
+                coarse_grid_factor=coarse_grid_factor,
+                nproc=nproc
             )
 
-    ## Interpolating the coarsened data to the original resolution grid.
-    print('Interpolate back to original grid.')
-    S = data[0].shape
+    else:
+        new_mask_name = 'mask'
+        source_mask_name = 'mask'
+        print(f'{source_mask_name} -> {new_mask_name}')
 
-    with Pool(nproc) as p2:
-        r2 = p2.starmap(back_to_orig_res, tqdm([(x2, S, reduce_res_factor) for x2 in r]))
+        mask_arrays[new_mask_name] = do_feature_spread(
+            mask_arrays[source_mask_name],
+            filter_stdev,
+            coarse_grid_factor=coarse_grid_factor,
+            nproc=nproc
+        )
 
-    data_new = [csr_matrix(x3) for x3 in r2]
-
-    return data_new
-
-
+    return mask_arrays
 
 
 def get_mask_type_list(mask_arrays):
@@ -431,6 +578,186 @@ def add_volrain_to_netcdf(DS, volrain_var_sum, data_sum
     DS[volrain_var_tser].setncatts({'units':'mm - km2','description':'Time Series of Volumetric Rain','description':'Volumetric rain (sum of area * raw rain rate).'})
 
 
+def get_lpo_grid_coords(lp_object_id, lp_objects_dir, lp_objects_fn_format):
+
+    dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
+    dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour)
+
+    fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
+    
+    with Dataset(fn) as ds:
+        grid_lon = ds['grid_lon'][:]
+        grid_lat = ds['grid_lat'][:]
+        grid_area = ds['grid_area'][:]
+
+    return (grid_lon, grid_lat, grid_area)
+
+
+def get_lpo_grid_points(lp_object_id, mask_times, lp_objects_dir, lp_objects_fn_format):
+
+    nnnn = int(str(int(lp_object_id))[-4:])
+
+    dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
+    dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour) #,calendar=mask_times[0].calendar)
+    dt_idx = [tt for tt in range(len(mask_times)) if dt_this == mask_times[tt]][0]
+
+    fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
+    
+    with Dataset(fn) as ds:
+
+        ##
+        ## Get LP Object pixel information.
+        ##
+        iii = ds['pixels_x'][nnnn,:].compressed().tolist()
+        jjj = ds['pixels_y'][nnnn,:].compressed().tolist()
+
+    return (dt_idx, iii, jjj)
+
+
+def fill_matrix(x, i, j, value):
+    """
+    Fill a sparse matrix with the specified value at the specified indices.
+
+    x: The sparse matrix to fill.
+    i: The row indices where the value should be placed.
+    j: The column indices where the value should be placed.
+    value: The value to place in the sparse matrix.
+    """
+    x[j, i] = value
+    return x
+
+
+def sparse_max(A, B):
+       """Return the element-wise maximum of sparse matrices `A` and `B`."""
+       AgtB = (A > B).astype(int)
+       M = AgtB.multiply(A - B) + B
+       return M
+
+
+def fill_mask_arrays(
+    lp_object_id_list, mask_times, mask_arrays,
+    lp_objects_dir, lp_objects_fn_format,
+    detailed_output, accumulation_hours, interval_hours,
+    calc_with_accumulation_period, filter_stdev,
+    coarse_grid_factor, nproc=1
+):
+    """
+    Fill the mask arrays with points from the LP objects.
+    lp_object_id_list: List of LP object IDs to process.
+    mask_times: List of datetime objects for the mask times.
+    mask_arrays: Dictionary of mask arrays to fill.
+    lp_objects_dir: Directory where LP object files are stored.
+    lp_objects_fn_format: Format string for LP object filenames.
+    detailed_output: Boolean indicating if detailed output is required.
+    accumulation_hours: Number of hours for accumulation.
+    interval_hours: Interval in hours for the mask times.
+    calc_with_accumulation_period: Boolean indicating 
+                                   if accumulation period should be calculated.
+    filter_stdev: Standard deviation for filtering.
+    coarse_grid_factor: Factor for reducing resolution.
+    nproc: Number of processes to use for parallel processing.
+    """
+    
+    with Pool(nproc) as p:
+        points_collect = p.starmap(
+            get_lpo_grid_points,
+            tqdm(
+                [
+                    (
+                        x,
+                        mask_times,
+                        lp_objects_dir,
+                        lp_objects_fn_format
+                    ) for x in lp_object_id_list
+                ],
+                desc="Collecting LP object grid points"
+            ),
+            chunksize=1
+        )
+
+    # Convert list of (dt_idx, iii, jjj) to arrays for advanced indexing
+    dt_indices = np.array([p[0] for p in points_collect])
+    iii_indices = [p[1] for p in points_collect]
+    jjj_indices = [p[2] for p in points_collect]
+
+    if detailed_output:
+        mask_name = 'mask_at_end_time'
+    else:
+        mask_name = 'mask'
+
+    with Pool(nproc) as p:
+
+        output = p.starmap(
+            fill_matrix,
+            tqdm(
+                [
+                    (
+                        mask_arrays[mask_name][t],
+                        i,
+                        j,
+                        1
+                    ) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)
+                ],
+                desc=f"Filling {mask_name}",
+            ),
+            chunksize=1
+        )
+    # Assign output to the correct location.
+    for t0, t in enumerate(dt_indices):
+        mask_arrays[mask_name][t] = output[t0]
+
+    if accumulation_hours > 0 and calc_with_accumulation_period:
+
+        # Create lists to hold the expanded indices
+        # if needed for accumulation period masks/
+
+        dt_indices_expanded = []
+        iii_indices_expanded = []
+        jjj_indices_expanded = []
+
+        n_back = int(accumulation_hours / interval_hours)
+
+        for t, i, j in zip(dt_indices, iii_indices, jjj_indices):
+            for n in range(n_back, -1, -1):
+                t_back = t - n
+                if t_back >= 0:
+                    dt_indices_expanded.append(t_back)
+                    iii_indices_expanded.append(i)
+                    jjj_indices_expanded.append(j)
+
+        if detailed_output:
+            mask_name = 'mask_with_accumulation'
+        else:
+            mask_name = 'mask'
+
+        with Pool(nproc) as p:
+            output = p.starmap(
+                fill_matrix,
+                tqdm(
+                    [
+                        (
+                            mask_arrays[mask_name][t],
+                            i,
+                            j,
+                            1
+                        ) for t, i, j in zip(
+                            dt_indices_expanded,
+                            iii_indices_expanded,
+                            jjj_indices_expanded
+                        )
+                    ],
+                    desc=f"Filling {mask_name}",
+                ),
+                chunksize=1
+            )
+        # Assign output to the correct location.
+        for t0, t in enumerate(dt_indices_expanded):
+            mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t],
+                                                    output[t0])
+
+    return mask_arrays
+
+
 ################################################################################
 ################################################################################
 ################################################################################
@@ -472,114 +799,63 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     mask_times = [dt0 + dt.timedelta(hours=x) for x in range(0,duration_hours+interval_hours,interval_hours)]
     mask_arrays = None
 
+    # Collect list of LP objects.
+    lp_object_id_list = []
+
     for dt_idx in range(dt_idx0, len(mask_times)):
         this_dt = mask_times[dt_idx]
 
         if dt_idx == dt_idx0 or dt_idx == len(mask_times)-1 or np.mod(dt_idx, 100) == 0:
-            print(('LPO Mask: ' + this_dt.strftime('%Y%m%d%H') + ' ('+str(dt_idx)+' of '+str(len(mask_times)-1)+')'), flush=True)
+            print(('Get LPO IDs: ' + this_dt.strftime('%Y%m%d%H') + ' ('+str(dt_idx)+' of '+str(len(mask_times)-1)+')'), flush=True)
 
         fn = (lp_objects_dir + '/' + this_dt.strftime(lp_objects_fn_format)).replace('///','/').replace('//','/')
-        try:
-            DS=Dataset(fn)
-        except:
-            print('WARNING: For LPO mask calculation, Objects file not found: ' + fn)
-            continue
-
-
-        ## Initialize the mask arrays dictionary if this is the first LP object.
-        ## First, I need the grid information. Get this from the first LP object.
-        if mask_arrays is None:
-            mask_lon = DS['grid_lon'][:]
-            mask_lat = DS['grid_lat'][:]
-            AREA = DS['grid_area'][:]
-
-            mask_arrays = initialize_mask_arrays(
-                len(mask_lat), len(mask_lon), len(mask_times),
-                detailed_output,
-                calc_with_accumulation_period, accumulation_hours,
-                calc_with_filter_radius)
-
-        ##
-        ## Get LP Object pixel information.
-        ##
-        try:
-            iii = DS['pixels_x'][:].compressed()
-            jjj = DS['pixels_y'][:].compressed()
-            DS.close()
-
-            ##
-            ## Fill in the mask information.
-            ##
-
-            if detailed_output:
-                ## For mask_at_end_time, just use the mask from the objects file.
-                mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
-
-                ## For the mask with accumulation, go backwards and fill in ones.
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
+        with Dataset(fn) as DS:
+            if 'objid' in DS.variables:
+                this_lp_object_id_list = DS['objid'][:].compressed().tolist()
+                lp_object_id_list.extend(this_lp_object_id_list)
             else:
-                # For mask > 1, apply accumulation hours, if specified.
-                # This region is expanded below in "filter width spreading"
-                # For the consolidated "mask" variable, I need to make sure
-                # I don't set values of "2" to be "1" in future loop iterations.
-                if accumulation_hours > 0:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        dummy = mask_arrays['mask'][ttt].copy()
-                        dummy[jjj, iii] = 1
-                        mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
+                print('WARNING: For LPO mask calculation, Objects file does not have "object_id" variable: ' + fn)
+                continue
 
-                # Set the "inner core" of the mask to 2.
-                # (or 1, if no filter or accumulation)
-                if accumulation_hours < 0.01 and filter_stdev < 0.01:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
-                else:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
+    # Initialize masks.
+    fn = (lp_objects_dir + '/' + mask_times[0].strftime(lp_objects_fn_format)).replace('///','/').replace('//','/')
+    with Dataset(fn) as ds:
+        mask_lon = ds['grid_lon'][:]
+        mask_lat = ds['grid_lat'][:]
+        AREA = ds['grid_area'][:]
 
-        except:
-            DS.close()
+    print('Initialize Mask:')
+    print('Mask times: {}'.format(len(mask_times)))
+    print('Mask lon/lat shape: {}, {}'.format(mask_lon.shape, mask_lat.shape))
+    mask_arrays = initialize_mask_arrays(
+        len(mask_lat), len(mask_lon), len(mask_times),
+        detailed_output,
+        calc_with_accumulation_period, accumulation_hours,
+        calc_with_filter_radius)
 
-    ##
-    ## Do filter width spreading.
-    ##
+    # Fill in the mask array data for the list of LP objects.
+    print('Fill in the mask arrays for {} LP objects.'.format(
+        len(lp_object_id_list)))
+    mask_arrays = fill_mask_arrays(
+        lp_object_id_list, mask_times, mask_arrays,
+        lp_objects_dir, lp_objects_fn_format,
+        detailed_output, accumulation_hours, interval_hours,
+        calc_with_accumulation_period, filter_stdev,
+        coarse_grid_factor, nproc=nproc
+    )
 
-    do_filter = False
-    if type(filter_stdev) is list:
-        if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
-    else:
-        if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
+    # Do filter width spreading if specified.
+    do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
+
     if do_filter:
-        print('Filter width spreading...this may take awhile.', flush=True)
+        print('Filter width spreading...', flush=True)
 
-        if detailed_output:
-
-            if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-            else:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-            if accumulation_hours > 0 and calc_with_accumulation_period:
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-        else:
-            # Only spread the "1" region. Not "2."
-            if coarse_grid_factor > 1:
-                mask_arrays['mask'] = feature_spread_reduce_res(
-                    mask_arrays['mask'], filter_stdev,
-                    reduce_res_factor=coarse_grid_factor,
-                    spread_value=1, nproc=nproc)
-            else:
-                mask_arrays['mask'] = feature_spread(
-                    mask_arrays['mask'], filter_stdev,
-                    spread_value=1, nproc=nproc)
+        # Do the filter width spreading.
+        mask_arrays = add_filter_width_spreading(
+            mask_arrays, filter_stdev, detailed_output,
+            calc_with_accumulation_period, accumulation_hours,
+            coarse_grid_factor, nproc=nproc
+        )
 
     ## Do volumetric rain.
     if do_volrain:
@@ -670,42 +946,6 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
 ################################################################################
 
 
-def get_lpo_grid_coords(lp_object_id, lp_objects_dir, lp_objects_fn_format):
-
-    dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
-    dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour)
-
-    fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
-    
-    with Dataset(fn) as ds:
-        grid_lon = ds['grid_lon'][:]
-        grid_lat = ds['grid_lat'][:]
-        grid_area = ds['grid_area'][:]
-
-    return (grid_lon, grid_lat, grid_area)
-
-
-def get_lpo_grid_points(lp_object_id, mask_times, lp_objects_dir, lp_objects_fn_format):
-
-    nnnn = int(str(int(lp_object_id))[-4:])
-
-    dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
-    dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour) #,calendar=mask_times[0].calendar)
-    dt_idx = [tt for tt in range(len(mask_times)) if dt_this == mask_times[tt]][0]
-
-    fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
-    
-    with Dataset(fn) as ds:
-
-        ##
-        ## Get LP Object pixel information.
-        ##
-        iii = ds['pixels_x'][nnnn,:].compressed().tolist()
-        jjj = ds['pixels_y'][nnnn,:].compressed().tolist()
-
-    return (dt_idx, iii, jjj)
-
-
 def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
@@ -725,12 +965,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     , nproc = 1):
 
     """
-    dt_begin, dt_end: datetime objects for the first and last times. These are END of accumulation times!
+    dt_begin, dt_end: datetime objects for the first and last times.
+    These are END of accumulation times!
     """
     YMDH1_YMDH2 = (dt_begin.strftime('%Y%m%d%H') + '_' + dt_end.strftime('%Y%m%d%H'))
 
     lpt_systems_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.nc').replace('///','/').replace('//','/')
-    # lpt_group_file = (lpt_systems_dir + '/lpt_systems_'+prod+'_'+YMDH1_YMDH2+'.group_array.txt').replace('///','/').replace('//','/')
 
     MISSING = np.nan
     FILL_VALUE = MISSING
@@ -738,6 +978,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ## Read Stitched data.
     TC = lpt.lptio.read_lpt_systems_netcdf(lpt_systems_file)
     unique_lpt_ids = np.unique(TC['lptid'])
+    ntimes = len(TC['timestamp_stitched'])
 
     if mjo_only:
         lpt_list_file = (lpt_systems_dir + '/mjo_lpt_list_'+prod+'_'+YMDH1_YMDH2+'.txt')
@@ -778,6 +1019,9 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             lp_object_id_list[0], lp_objects_dir, lp_objects_fn_format
         )
         
+        print('Initialize Mask:')
+        print('Mask times: {}'.format(len(mask_times)))
+        print('Mask lon/lat shape: {}, {}'.format(mask_lon.shape, mask_lat.shape))
         mask_arrays = initialize_mask_arrays(
             len(mask_lat), len(mask_lon), len(mask_times),
             detailed_output,
@@ -785,243 +1029,29 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             calc_with_filter_radius
         )
 
-        with Pool(nproc) as p:
-            points_collect = p.starmap(
-                get_lpo_grid_points,
-                [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
-                chunksize=1
-            )
+        # Fill in the mask array data for the list of LP objects.
+        print('Fill in the mask arrays for {} LP objects.'.format(
+            len(lp_object_id_list)))
+        mask_arrays = fill_mask_arrays(
+            lp_object_id_list, mask_times, mask_arrays,
+            lp_objects_dir, lp_objects_fn_format,
+            detailed_output, accumulation_hours, interval_hours,
+            calc_with_accumulation_period, filter_stdev,
+            coarse_grid_factor, nproc=nproc
+        )
 
-        for points in points_collect:
-            dt_idx = points[0]
-            iii = points[1]
-            jjj = points[2]
-            ##
-            ## Fill in the mask information.
-            ##
-            if detailed_output:
-                ## For mask_at_end_time, just use the mask from the objects file.
-                mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
+        # Do filter width spreading if specified.
+        do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-                ## For the mask with accumulation, go backwards and fill in ones.
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
-            else:
-                # For mask > 1, apply accumulation hours, if specified.
-                # This region is expanded below in "filter width spreading"
-                # For the consolidated "mask" variable, I need to make sure
-                # I don't set values of "2" to be "1" in future loop iterations.
-                if accumulation_hours > 0:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        dummy = mask_arrays['mask'][ttt].copy()
-                        dummy[jjj, iii] = 1
-                        mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
-
-                # Set the "inner core" of the mask to 2.
-                # (or 1, if no filter or accumulation)
-                if accumulation_hours < 0.01 and filter_stdev < 0.01:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
-                else:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
-
-
-        ##
-        ## Get contours from the grid.
-        ##
-
-        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
-
-        """
-
-        ntimes = len(TC['timestamp_stitched']) #len(mask_times)
-        max_len = 1   # 2000
-        max_len_core = 1 # 4000
-
-        with xr.open_dataset(lpt_systems_file) as ds:
-            if 'mask_contour_lon' in ds:
-
-                F_lon = ds['mask_contour_lon'].data
-                F_lat = ds['mask_contour_lat'].data
-                F_lon_core = ds['mask_contour_core_lon'].data
-                F_lat_core = ds['mask_contour_core_lat'].data
-                max_len = F_lat.shape[1]
-                max_len_core = F_lat_core.shape[1]
-
-            else:
-
-                F_lon = np.full([ntimes, max_len], np.nan)
-                F_lat = np.full([ntimes, max_len], np.nan)
-                F_lon_core = np.full([ntimes, max_len_core], np.nan)
-                F_lat_core = np.full([ntimes, max_len_core], np.nan)
-
-            mask_contour_lon = [[] for x in range(len(mask_times))]
-            mask_contour_lat = [[] for x in range(len(mask_times))]
-            mask_contour_lon_core = [[] for x in range(len(mask_times))]
-            mask_contour_lat_core = [[] for x in range(len(mask_times))]
-
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            # NOTE: 
-            # I need to add the "spin-up" time (e.g., 3 days) to the stitched variables.
-            # Right now, the consecutive LPT systems are running in to eachother.
-            # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            for dt_idx, dt_this in enumerate(mask_times):
-
-                # Just in case the mask hits the north or south pole,
-                # I need it to have a closed contour.
-                # So set the mask values at the north and south poles
-                # to zero for this step.
-                this_mask = mask_arrays['mask'][dt_idx].todense()
-                this_mask[0,:] = 0
-                this_mask[-1,:] = 0
-                # In rare cases, it may wrap all the way around! Then it
-                # would not be a closed contour, and not have an exterior.
-                # Set the first column to zero.
-                if np.nanmin(np.nanmax(this_mask, axis=0)) > 0.5:
-                    this_mask[:,0] = 0
-    
-                cg = contourpy.contour_generator(
-                    mask_lon, mask_lat, this_mask)
-
-                contours = cg.lines(0.5)
-                contours_core = cg.lines(1.5)
-
-                for this_contour in contours_core:
-                    mask_contour_lon_core[dt_idx] += [np.nan,]
-                    mask_contour_lat_core[dt_idx] += [np.nan,]
-                    mask_contour_lon_core[dt_idx] += this_contour[:,0].flatten().tolist()
-                    mask_contour_lat_core[dt_idx] += this_contour[:,1].flatten().tolist()
-
-                # Filter width spreading. (Only for the outer contour)
-                for this_contour in contours:
-                    res = mask_lon[1] - mask_lon[0]
-                    s = Polygon(LinearRing(this_contour))
-                    print(dt_this)
-                    t2 = Polygon(s.buffer(filter_stdev*res).exterior)
-                    t2_coords = np.array(
-                        [t2.exterior.coords[x] for x in range(len(t2.exterior.coords))])
-
-                    mask_contour_lon[dt_idx] += [np.nan,]
-                    mask_contour_lat[dt_idx] += [np.nan,]
-                    mask_contour_lon[dt_idx] += t2_coords[:,0].flatten().tolist()
-                    mask_contour_lat[dt_idx] += t2_coords[:,1].flatten().tolist()
-
-            for dt_idx, dt_this in enumerate(mask_times):
-
-                if dt_idx < 24:
-                    continue
-
-                timestamp_stitched_idx = np.argwhere(
-                    np.logical_and(
-                        TC['lptid_stitched'] == this_lpt_id, 
-                        TC['timestamp_stitched'] == dt_this)) 
-                # Check if I need to expand the arrays.
-                if len(mask_contour_lon[dt_idx]) > max_len:
-                    print('Expand max_lon to: ', len(mask_contour_lon[dt_idx]))
-                    array_to_stack = np.full([ntimes, len(mask_contour_lon[dt_idx]) - max_len], np.nan)
-                    F_lon = np.column_stack((F_lon, array_to_stack))
-                    F_lat = np.column_stack((F_lat, array_to_stack))
-                    max_len = len(mask_contour_lon[dt_idx])
-                if len(mask_contour_lon_core[dt_idx]) > max_len_core:
-                    print('Expand max_lon to: ', len(mask_contour_lon_core[dt_idx]))
-                    array_to_stack = np.full([ntimes, len(mask_contour_lon_core[dt_idx]) - max_len_core], np.nan)
-                    F_lon_core = np.column_stack((F_lon_core, array_to_stack))
-                    F_lat_core = np.column_stack((F_lat_core, array_to_stack))
-                    max_len_core = len(mask_contour_lon_core[dt_idx])
-
-                F_lon[timestamp_stitched_idx, 0:len(mask_contour_lon[dt_idx])] = mask_contour_lon[dt_idx]
-                F_lat[timestamp_stitched_idx, 0:len(mask_contour_lat[dt_idx])] = mask_contour_lat[dt_idx]
-                F_lon_core[timestamp_stitched_idx, 0:len(mask_contour_lon_core[dt_idx])] = mask_contour_lon_core[dt_idx]
-                F_lat_core[timestamp_stitched_idx, 0:len(mask_contour_lat_core[dt_idx])] = mask_contour_lat_core[dt_idx]
-
-
-            ## Write mask contour coordinates to LPT systems file.
-            ## First, start a new set of variables if it does not yet exist.
-            ## Otherwise modify the existing variables.
-
-            with xr.open_dataset(lpt_systems_file) as ds:
-
-                new_coords = {'mask_contour_npts': (['mask_contour_npts',], range(max_len)),
-                                'mask_contour_core_npts': (['mask_contour_core_npts',], range(max_len_core))}
-
-                desc = ('The mask_contour_core is the contour of the LPOs which make up the LPT system.'
-                    + ' The mask_contour includes the entire LPO area swept out during the accumulation period'
-                    + ' as well as a buffer of one standard deviation.'
-                    + ' The mask_contour contains the full extent of rainfall contributing to the LPT system,'
-                    + ' whereas the mask_contour_core is regarded as the core region of the LPT system.')
-
-                new_data_vars = {
-                    'mask_contour_lon': (['nstitch','mask_contour_npts'], F_lon, {'units':'degrees_east','description':desc}),
-                    'mask_contour_lat': (['nstitch','mask_contour_npts'], F_lat, {'units':'degrees_north','description':desc}),
-                    'mask_contour_core_lon': (['nstitch','mask_contour_core_npts'], F_lon_core, {'units':'degrees_east','description':desc}),
-                    'mask_contour_core_lat': (['nstitch','mask_contour_core_npts'], F_lat_core, {'units':'degrees_north','description':desc})}
-
-                ds2 = ds.copy()
-                if 'mask_contour_lon' in ds2.variables:
-                    ds2 = ds2.drop_vars(['mask_contour_lon','mask_contour_lat','mask_contour_core_lon','mask_contour_core_lat'])
-                ds2 = ds2.assign_coords(new_coords)
-                ds2 = ds2.assign(new_data_vars)
-
-            encoding = {
-                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
-                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-                'num_objects': {'dtype': 'i'},
-                'mask_contour_npts': {'dtype': 'i'},
-                'mask_contour_core_npts': {'dtype': 'i'},
-                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
-                'is_mjo_eprop_stitched': {'dtype': 'bool'},
-                'mask_contour_lon': {'zlib': True},
-                'mask_contour_lat': {'zlib': True},
-                'mask_contour_core_lon': {'zlib': True},
-                'mask_contour_core_lat': {'zlib': True},
-                }
-
-            print(f'Update mask contour coordinates in {lpt_systems_file}')
-            lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
-
-        """
-
-        ##
-        ## Do filter width spreading.
-        ##
-
-        do_filter = False
-        if type(filter_stdev) is list:
-            if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-                do_filter = True
-        else:
-            if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-                do_filter = True
         if do_filter:
-            print('Filter width spreading...this may take awhile.', flush=True)
+            print('Filter width spreading...', flush=True)
 
-            if detailed_output:
-
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    if coarse_grid_factor > 1:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                    else:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-            else:
-                # Only spread the "1" region. Not "2."
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask'] = feature_spread_reduce_res(
-                        mask_arrays['mask'], filter_stdev,
-                        reduce_res_factor=coarse_grid_factor,
-                        spread_value=1, nproc=nproc)
-                else:
-                    mask_arrays['mask'] = feature_spread(
-                        mask_arrays['mask'], filter_stdev,
-                        spread_value=1, nproc=nproc)
+            # Do the filter width spreading.
+            mask_arrays = add_filter_width_spreading(
+                mask_arrays, filter_stdev, detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                coarse_grid_factor, nproc=nproc
+            )
 
         ## Do volumetric rain.
         if do_volrain:
@@ -1357,7 +1387,10 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         mask_lon, mask_lat, AREA = get_lpo_grid_coords(
             lp_object_id_list[0], lp_objects_dir, lp_objects_fn_format
         )
-        
+
+        print('Initialize Mask:')
+        print('Mask times: {}'.format(len(mask_times)))
+        print('Mask lon/lat shape: {}, {}'.format(mask_lon.shape, mask_lat.shape))
         mask_arrays = initialize_mask_arrays(
             len(mask_lat), len(mask_lon), len(mask_times),
             detailed_output,
@@ -1365,171 +1398,29 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
             calc_with_filter_radius
         )
 
-        with Pool(nproc) as p:
-            points_collect = p.starmap(
-                get_lpo_grid_points,
-                [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
-                chunksize=1
-            )
+        # Fill in the mask array data for the list of LP objects.
+        print('Fill in the mask arrays for {} LP objects.'.format(
+            len(lp_object_id_list)))
+        mask_arrays = fill_mask_arrays(
+            lp_object_id_list, mask_times, mask_arrays,
+            lp_objects_dir, lp_objects_fn_format,
+            detailed_output, accumulation_hours, interval_hours,
+            calc_with_accumulation_period, filter_stdev,
+            coarse_grid_factor, nproc=nproc
+        )
 
-        for points in points_collect:
-            dt_idx = points[0]
-            iii = points[1]
-            jjj = points[2]
-            ##
-            ## Fill in the mask information.
-            ##
-            if detailed_output:
-                ## For mask_at_end_time, just use the mask from the objects file.
-                mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
+        # Do filter width spreading if specified.
+        do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-                ## For the mask with accumulation, go backwards and fill in ones.
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
-            else:
-                # For mask > 1, apply accumulation hours, if specified.
-                # This region is expanded below in "filter width spreading"
-                # For the consolidated "mask" variable, I need to make sure
-                # I don't set values of "2" to be "1" in future loop iterations.
-                if accumulation_hours > 0:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        dummy = mask_arrays['mask'][ttt].copy()
-                        dummy[jjj, iii] = 1
-                        mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
-
-                # Set the "inner core" of the mask to 2.
-                # (or 1, if no filter or accumulation)
-                if accumulation_hours < 0.01 and filter_stdev < 0.01:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
-                else:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
-
-
-        # for lp_object_id in lp_object_id_list:
-        #     nnnn = int(str(int(lp_object_id))[-4:])
-        #     try:
-        #         dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
-        #         dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour,calendar=TC['datetime'][0].calendar)
-        #         dt_idx = [tt for tt in range(len(mask_times)) if dt_this == mask_times[tt]]
-        #     except:
-        #         continue
-
-
-        #     if len(dt_idx) < 0:
-        #         print('This time not found in mask time list. Skipping LP object id: ' + str(int(lp_object_id)))
-        #         continue
-        #     elif len(dt_idx) > 1:
-        #         print('Found more than one mask time for this LP object. This should not happen! Skipping it.')
-        #         continue
-        #     else:
-        #         dt_idx = dt_idx[0]
-
-        #     fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
-        #     if verbose:
-        #         print(fn)
-        #     DS=Dataset(fn)
-
-        #     ## Initialize the mask arrays dictionary if this is the first LP object.
-        #     ## First, I need the grid information. Get this from the first LP object.
-        #     if mask_arrays is None:
-        #         mask_lon = DS['grid_lon'][:]
-        #         mask_lat = DS['grid_lat'][:]
-        #         AREA = DS['grid_area'][:]
-
-        #         mask_arrays = initialize_mask_arrays(
-        #             len(mask_lat), len(mask_lon), len(mask_times),
-        #             detailed_output,
-        #             calc_with_accumulation_period, accumulation_hours,
-        #             calc_with_filter_radius)
-
-        #     ##
-        #     ## Get LP Object pixel information.
-        #     ##
-        #     try:
-        #         iii = DS['pixels_x'][nnnn,:].compressed()
-        #         jjj = DS['pixels_y'][nnnn,:].compressed()
-
-        #     except:
-        #         DS.close()
-        #         continue
-
-        #     DS.close()
-
-        #     ##
-        #     ## Fill in the mask information.
-        #     ##
-
-        #     ## For mask_at_end_time, just use the mask from the objects file.
-        #     if detailed_output:
-        #         mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
-
-        #         ## For the mask with accumulation, go backwards and fill in ones.
-        #         if accumulation_hours > 0 and calc_with_accumulation_period:
-        #             n_back = int(accumulation_hours/interval_hours)
-        #             for ttt in range(dt_idx - n_back, dt_idx+1):
-        #                 mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
-        #     else:
-        #         # For mask > 1, apply accumulation hours, if specified.
-        #         # This region is expanded below in "filter width spreading"
-        #         # For the consolidated "mask" variable, I need to make sure
-        #         # I don't set values of "2" to be "1" in future loop iterations.
-        #         if accumulation_hours > 0:
-        #             n_back = int(accumulation_hours/interval_hours)
-        #             for ttt in range(dt_idx - n_back, dt_idx+1):
-        #                 dummy = mask_arrays['mask'][ttt].copy()
-        #                 dummy[jjj, iii] = 1
-        #                 mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
-
-        #         # Set the "inner core" of the mask to 2.
-        #         # (or 1, if no filter or accumulation)
-        #         if accumulation_hours < 0.01 and filter_stdev < 0.01:
-        #             mask_arrays['mask'][dt_idx][jjj, iii] = 1
-        #         else:
-        #             mask_arrays['mask'][dt_idx][jjj, iii] = 2
-
-        ##
-        ## Do filter width spreading.
-        ##
-
-        do_filter = False
-        if type(filter_stdev) is list:
-            if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-                do_filter = True
-        else:
-            if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-                do_filter = True
         if do_filter:
-            print('Filter width spreading...this may take awhile.', flush=True)
+            print('Filter width spreading...', flush=True)
 
-            if detailed_output:
-
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    if coarse_grid_factor > 1:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                    else:
-                        mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-            else:
-                # Only spread the "1" region. Not "2."
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask'] = feature_spread_reduce_res(
-                        mask_arrays['mask'], filter_stdev,
-                        reduce_res_factor=coarse_grid_factor,
-                        spread_value=1, nproc=nproc)
-                else:
-                    mask_arrays['mask'] = feature_spread(
-                        mask_arrays['mask'], filter_stdev,
-                        spread_value=1, nproc=nproc)
-
+            # Do the filter width spreading.
+            mask_arrays = add_filter_width_spreading(
+                mask_arrays, filter_stdev, detailed_output,
+                calc_with_accumulation_period, accumulation_hours,
+                coarse_grid_factor, nproc=nproc
+            )
 
         ## Do volumetric rain.
         if do_volrain:
@@ -1747,6 +1638,9 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         grand_mask_lat = DS['grid_lat'][:]
         AREA = DS['grid_area'][:]
 
+    print('Initialize Mask:')
+    print('Mask times: {}'.format(len(mask_times)))
+    print('Mask lon/lat shape: {}, {}'.format(grand_mask_lon.shape, grand_mask_lat.shape))
     mask_arrays = initialize_mask_arrays(
         len(grand_mask_lat), len(grand_mask_lon), len(grand_mask_times),
         detailed_output,
@@ -1799,111 +1693,30 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         dt1 = cftime.datetime(dt11.year,dt11.month,dt11.day,dt11.hour,calendar=TC['datetime'][0].calendar)
         duration_hours = int((dt1 - dt0).total_seconds()/3600)
 
-        for lp_object_id in lp_object_id_list:
 
-            nnnn = int(str(int(lp_object_id))[-4:])
-            try:
-                dt_this0 = lpt.helpers.get_objid_datetime(lp_object_id)
-                dt_this = cftime.datetime(dt_this0.year,dt_this0.month,dt_this0.day,dt_this0.hour,calendar=TC['datetime'][0].calendar)
-                dt_idx = [tt for tt in range(len(grand_mask_times)) if dt_this == grand_mask_times[tt]]
-            except:
-                continue
+        # Fill in the mask array data for the list of LP objects.
+        print('Fill in the mask arrays for {} LP objects.'.format(
+            len(lp_object_id_list)))
+        mask_arrays = fill_mask_arrays(
+            lp_object_id_list, grand_mask_times, mask_arrays,
+            lp_objects_dir, lp_objects_fn_format,
+            detailed_output, accumulation_hours, interval_hours,
+            calc_with_accumulation_period, filter_stdev,
+            coarse_grid_factor, nproc=nproc
+        )
 
-            if len(dt_idx) < 0:
-                print('This time not found in mask time list. Skipping LP object id: ' + str(int(lp_object_id)))
-                continue
-            elif len(dt_idx) > 1:
-                print('Found more than one mask time for this LP object. This should not happen! Skipping it.')
-                continue
-            else:
-                dt_idx = dt_idx[0]
+    # Do filter width spreading if specified.
+    do_filter = determine_filtering(filter_stdev, calc_with_filter_radius)
 
-            fn = (lp_objects_dir + '/' + dt_this.strftime(lp_objects_fn_format))
-            DS=Dataset(fn)
-
-            ##
-            ## Get LP Object pixel information.
-            ##
-            try:
-                iii = DS['pixels_x'][nnnn,:].compressed()
-                jjj = DS['pixels_y'][nnnn,:].compressed()
-            except:
-                DS.close()
-                continue
-
-            DS.close()
-
-            ##
-            ## Fill in the mask information.
-            ##
-
-            if detailed_output:
-                ## For mask_at_end_time, just use the mask from the objects file.
-                mask_arrays['mask_at_end_time'][dt_idx][jjj, iii] = 1
-
-                ## For the mask with accumulation, go backwards and fill in ones.
-                if accumulation_hours > 0 and calc_with_accumulation_period:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        mask_arrays['mask_with_accumulation'][ttt][jjj, iii] = 1
-
-            else:
-                # For mask > 1, apply accumulation hours, if specified.
-                # This region is expanded below in "filter width spreading"
-                # For the consolidated "mask" variable, I need to make sure
-                # I don't set values of "2" to be "1" in future loop iterations.
-                if accumulation_hours > 0:
-                    n_back = int(accumulation_hours/interval_hours)
-                    for ttt in range(dt_idx - n_back, dt_idx+1):
-                        dummy = mask_arrays['mask'][ttt].copy()
-                        dummy[jjj, iii] = 1
-                        mask_arrays['mask'][ttt] = mask_arrays['mask'][ttt].maximum(dummy)
-
-                # Set the "inner core" of the mask to 2.
-                # (or 1, if no filter or accumulation)
-                if accumulation_hours < 0.01 and filter_stdev < 0.01:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 1
-                else:
-                    mask_arrays['mask'][dt_idx][jjj, iii] = 2
-
-
-    ##
-    ## Do filter width spreading.
-    ##
-
-    do_filter = False
-    if type(filter_stdev) is list:
-        if filter_stdev[0] > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
-    else:
-        if filter_stdev > 0 and (calc_with_filter_radius or detailed_output):
-            do_filter = True
     if do_filter:
-        print('Filter width spreading...this may take awhile.', flush=True)
+        print('Filter width spreading...', flush=True)
 
-        if detailed_output:
-
-            if coarse_grid_factor > 1:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread_reduce_res(mask_arrays['mask_at_end_time'], filter_stdev, coarse_grid_factor, nproc=nproc)
-            else:
-                mask_arrays['mask_with_filter_at_end_time'] = feature_spread(mask_arrays['mask_at_end_time'], filter_stdev, nproc=nproc)
-            if accumulation_hours > 0 and calc_with_accumulation_period:
-                if coarse_grid_factor > 1:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread_reduce_res(mask_arrays['mask_with_accumulation'], filter_stdev, coarse_grid_factor, nproc=nproc)
-                else:
-                    mask_arrays['mask_with_filter_and_accumulation'] = feature_spread(mask_arrays['mask_with_accumulation'], filter_stdev, nproc=nproc)
-
-        else:
-            # Only spread the "1" region. Not "2."
-            if coarse_grid_factor > 1:
-                mask_arrays['mask'] = feature_spread_reduce_res(
-                    mask_arrays['mask'], filter_stdev,
-                    reduce_res_factor=coarse_grid_factor,
-                    spread_value=1, nproc=nproc)
-            else:
-                mask_arrays['mask'] = feature_spread(
-                    mask_arrays['mask'], filter_stdev,
-                    spread_value=1, nproc=nproc)
+        # Do the filter width spreading.
+        mask_arrays = add_filter_width_spreading(
+            mask_arrays, filter_stdev, detailed_output,
+            calc_with_accumulation_period, accumulation_hours,
+            coarse_grid_factor, nproc=nproc
+        )
 
     ## Do volumetric rain.
     if do_volrain:
