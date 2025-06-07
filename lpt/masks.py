@@ -74,7 +74,7 @@ def initialize_mask_arrays(ny, nx, nt, detailed_output,
 
 
 ##
-## feature spread function -- used for all of the mask functions.
+## feature spread functions -- used for all of the mask functions.
 ##
 
 
@@ -242,6 +242,96 @@ def back_to_orig_res(array_2d_reduced, S_orig, reduce_res_factor):
     array_2d_new = array_2d_new0[0:S_orig[0], 0:S_orig[1]]
 
     return array_2d_new
+
+
+
+def determine_filtering(filter_stdev, calc_with_filter_radius):
+    """
+    Determine if filtering should be applied based on the provided parameters.
+    """
+
+    do_filter = False
+    if type(filter_stdev) is list:
+        if filter_stdev[0] > 0 and (calc_with_filter_radius):
+            do_filter = True
+    else:
+        if filter_stdev > 0 and (calc_with_filter_radius):
+            do_filter = True
+
+    return do_filter
+
+
+def do_feature_spread(in_array, filter_stdev, coarse_grid_factor=0, nproc=1):
+    """
+    Apply feature spreading to the input array based
+    on the specified filter standard deviation.
+    If coarse_grid_factor is greater than 1,
+    it will reduce the resolution before spreading.
+    """
+    if coarse_grid_factor > 1:
+        out_array = feature_spread_reduce_res(
+            in_array,
+            filter_stdev,
+            reduce_res_factor = coarse_grid_factor,
+            nproc = nproc
+        )
+    else:
+        out_array = feature_spread(
+            in_array,
+            filter_stdev,
+            nproc = nproc
+        )
+    return out_array
+
+
+def add_filter_width_spreading(
+    mask_arrays, filter_stdev, detailed_output,
+    calc_with_accumulation_period, accumulation_hours,
+    coarse_grid_factor, nproc=1
+):
+    """
+    If detailed_output is specified, then calculate it for 
+    mask_at_end_time and/or mask_with_accumulation.
+    Otherwise, just do the consolidated "mask" variable.
+    """
+    if detailed_output:
+
+        new_mask_name = 'mask_with_filter_at_end_time'
+        source_mask_name = 'mask_at_end_time'
+        print(f'{source_mask_name} -> {new_mask_name}')
+
+        mask_arrays[new_mask_name] = do_feature_spread(
+            mask_arrays[source_mask_name],
+            filter_stdev,
+            coarse_grid_factor=coarse_grid_factor,
+            nproc=nproc
+        )
+
+        if accumulation_hours > 0 and calc_with_accumulation_period:
+            new_mask_name = 'mask_with_filter_and_accumulation'
+            source_mask_name = 'mask_with_accumulation'
+            print(f'{source_mask_name} -> {new_mask_name}')
+
+            mask_arrays[new_mask_name] = do_feature_spread(
+                mask_arrays[source_mask_name],
+                filter_stdev,
+                coarse_grid_factor=coarse_grid_factor,
+                nproc=nproc
+            )
+
+    else:
+        new_mask_name = 'mask'
+        source_mask_name = 'mask'
+        print(f'{source_mask_name} -> {new_mask_name}')
+
+        mask_arrays[new_mask_name] = do_feature_spread(
+            mask_arrays[source_mask_name],
+            filter_stdev,
+            coarse_grid_factor=coarse_grid_factor,
+            nproc=nproc
+        )
+
+    return mask_arrays
 
 
 def get_mask_type_list(mask_arrays):
@@ -572,7 +662,14 @@ def fill_mask_arrays(
         points_collect = p.starmap(
             get_lpo_grid_points,
             tqdm(
-                [(x, mask_times, lp_objects_dir, lp_objects_fn_format) for x in lp_object_id_list],
+                [
+                    (
+                        x,
+                        mask_times,
+                        lp_objects_dir,
+                        lp_objects_fn_format
+                    ) for x in lp_object_id_list
+                ],
                 desc="Collecting LP object grid points"
             ),
             chunksize=1
@@ -593,7 +690,14 @@ def fill_mask_arrays(
         output = p.starmap(
             fill_matrix,
             tqdm(
-                [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)],
+                [
+                    (
+                        mask_arrays[mask_name][t],
+                        i,
+                        j,
+                        1
+                    ) for t, i, j in zip(dt_indices, iii_indices, jjj_indices)
+                ],
                 desc=f"Filling {mask_name}",
             ),
             chunksize=1
@@ -630,103 +734,26 @@ def fill_mask_arrays(
             output = p.starmap(
                 fill_matrix,
                 tqdm(
-                    [(mask_arrays[mask_name][t], i, j, 1) for t, i, j in zip(dt_indices_expanded, iii_indices_expanded, jjj_indices_expanded)],
+                    [
+                        (
+                            mask_arrays[mask_name][t],
+                            i,
+                            j,
+                            1
+                        ) for t, i, j in zip(
+                            dt_indices_expanded,
+                            iii_indices_expanded,
+                            jjj_indices_expanded
+                        )
+                    ],
                     desc=f"Filling {mask_name}",
                 ),
                 chunksize=1
             )
         # Assign output to the correct location.
         for t0, t in enumerate(dt_indices_expanded):
-            mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t], output[t0])
-
-    return mask_arrays
-
-
-def determine_filtering(filter_stdev, calc_with_filter_radius):
-    """
-    Determine if filtering should be applied based on the provided parameters.
-    """
-
-    do_filter = False
-    if type(filter_stdev) is list:
-        if filter_stdev[0] > 0 and (calc_with_filter_radius):
-            do_filter = True
-    else:
-        if filter_stdev > 0 and (calc_with_filter_radius):
-            do_filter = True
-
-    return do_filter
-
-
-def do_feature_spread(in_array, filter_stdev, coarse_grid_factor=0, nproc=1):
-    """
-    Apply feature spreading to the input array based
-    on the specified filter standard deviation.
-    If coarse_grid_factor is greater than 1,
-    it will reduce the resolution before spreading.
-    """
-    if coarse_grid_factor > 1:
-        out_array = feature_spread_reduce_res(
-            in_array,
-            filter_stdev,
-            coarse_grid_factor,
-            nproc=nproc
-        )
-    else:
-        out_array = feature_spread(
-            in_array,
-            filter_stdev,
-            nproc=nproc
-        )
-    return out_array
-
-
-def add_filter_width_spreading(
-    mask_arrays, filter_stdev, detailed_output,
-    calc_with_accumulation_period, accumulation_hours,
-    coarse_grid_factor, nproc=1
-):
-    """
-    If detailed_output is specified, then calculate it for 
-    mask_at_end_time and/or mask_with_accumulation.
-    Otherwise, just do the consolidated "mask" variable.
-    """
-    if detailed_output:
-
-        new_mask_name = 'mask_with_filter_at_end_time'
-        source_mask_name = 'mask_at_end_time'
-        print(f'{source_mask_name} -> {new_mask_name}')
-
-        mask_arrays[new_mask_name] = do_feature_spread(
-            mask_arrays[source_mask_name],
-            filter_stdev,
-            coarse_grid_factor=coarse_grid_factor,
-            nproc=nproc
-        )
-
-        if accumulation_hours > 0 and calc_with_accumulation_period:
-            new_mask_name = 'mask_with_filter_and_accumulation'
-            source_mask_name = 'mask_with_accumulation'
-            print(f'{source_mask_name} -> {new_mask_name}')
-
-            mask_arrays[new_mask_name] = do_feature_spread(
-                mask_arrays[source_mask_name],
-                filter_stdev,
-                coarse_grid_factor=coarse_grid_factor,
-                nproc=nproc
-            )
-
-    else:
-        new_mask_name = 'mask'
-        source_mask_name = 'mask'
-        print(f'{source_mask_name} -> {new_mask_name}')
-
-        mask_arrays[new_mask_name] = do_feature_spread(
-            mask_arrays[source_mask_name],
-            filter_stdev,
-            coarse_grid_factor=coarse_grid_factor,
-            nproc=nproc
-        )
+            mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t],
+                                                    output[t0])
 
     return mask_arrays
 
