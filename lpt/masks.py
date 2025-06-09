@@ -1064,8 +1064,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     volrain_name = mask_name.replace('mask','volrain')
                     volrain_global_name = mask_name.replace('mask','volrain_global')
                     volrain_tser_name = mask_name.replace('mask','volrain')+'_tser'
-                    volrain_global_tser_name = mask_name.replace('mask','volrain_global')+'_max'
-                    volrain_max_name = mask_name.replace('mask','volrain')+'_tser'
+                    volrain_global_tser_name = mask_name.replace('mask','volrain_global')+'_tser'
+
+                    volrain_stitched_name = mask_name.replace('mask','volrain')+'_stitched'
+                    volrain_global_stitched_name = mask_name.replace('mask','volrain_global')+'_stitched'
+
+                    volrain_max_name = mask_name.replace('mask','volrain')+'_max'
                     volrain_global_max_name = mask_name.replace('mask','volrain_global')+'_max'
 
                     # Save the volrain to the LPT systems file.
@@ -1074,8 +1078,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
 
                             volrain = ds[volrain_name].data
                             volrain_global = ds[volrain_global_name].data
-                            volrain_tser = ds[volrain_tser_name].data
-                            volrain_global_tser = ds[volrain_global_tser_name].data
+                            volrain_tser = ds[volrain_stitched_name].data
+                            volrain_global_tser = ds[volrain_global_stitched_name].data
                             maxvolrain = ds[volrain_max_name].data
                             maxvolrain_global = ds[volrain_global_max_name].data
 
@@ -1088,12 +1092,11 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                             maxvolrain = np.full([len(TC['lptid']),], np.nan)
                             maxvolrain_global = np.full([len(TC['lptid']),], np.nan)
 
+                    # Assign the time integrated volrain variables.
+                    volrain[this_lpt_idx] = VOLRAIN[volrain_name]
+                    volrain_global[this_lpt_idx] = VOLRAIN[volrain_global_name]
 
-                    # volrain_tser += mask_arrays[mask_name].toarray() * VOLRAIN[mask_name.replace('mask','volrain')+'_tser']
-                    # volrain_global_tser += mask_arrays[mask_name].toarray() * VOLRAIN[mask_name.replace('mask','volrain_global')+'_tser']
-                    volrain[this_lpt_idx] = VOLRAIN['volrain']
-                    volrain_global[this_lpt_idx] = VOLRAIN['volrain_global']
-
+                    # Assign the time series volrain variables.
                     for dt_idx, dt_this in enumerate(mask_times):
 
                         # If there is no matching time in the LPT systems file,
@@ -1104,74 +1107,66 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                                 TC['lptid_stitched'] == this_lpt_id, 
                                 TC['timestamp_stitched'] == dt_this)) 
 
-                        volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
-                        volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
+                        volrain_tser[timestamp_stitched_idx] = VOLRAIN[volrain_tser_name][dt_idx]
+                        volrain_global_tser[timestamp_stitched_idx] = VOLRAIN[volrain_global_tser_name][dt_idx]
 
                     maxvolrain[this_lpt_idx] = np.nanmax(volrain_tser)
                     maxvolrain_global[this_lpt_idx] = np.nanmax(volrain_global_tser)
 
-            # Add the volrain variables to the output NetCDF file.
-            print(f'Adding volrain variables to: {lpt_systems_file}')
+                    # Add the volrain variables to the output NetCDF file.
+                    print(f'Adding {volrain_name} variables to: {lpt_systems_file}')
 
-            volrain_atts1 = {
-                'units':'mm h-1 km2',
-                'description':'Instantaneous volumetric rain flux of the LPT system.',
-                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+                    volrain_atts1 = {
+                        'units':'mm h-1 km2',
+                        'description':'Instantaneous volumetric rain flux of the LPT system.',
+                        'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
 
-            volrain_atts2 = {
-                'units':'mm h-1 km2',
-                'description':'Instantaneous volumetric rain flux: Entire area with rainfall data.',
-                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+                    volrain_atts2 = {
+                        'units':'mm h-1 km2',
+                        'description':'Instantaneous volumetric rain flux: Entire area with rainfall data.',
+                        'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
 
-            volrain_atts3 = {
-                'units':'mm h-1 km2',
-                'description':'Max of volrain over the LPT system lifetime.',
-                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+                    volrain_atts3 = {
+                        'units':'mm h-1 km2',
+                        'description':'Max of volrain over the LPT system lifetime.',
+                        'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
 
-            volrain_atts4 = {
-                'units':'mm h-1 km2',
-                'description':'Max of volrain_global over the LPT system lifetime.',
-                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+                    volrain_atts4 = {
+                        'units':'mm h-1 km2',
+                        'description':'Max of volrain_global over the LPT system lifetime.',
+                        'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
 
-            volrain_atts5 = {
-                'units':'mm km2',
-                'description':'Time integral of volrain over the LPT system lifetime.',
-                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+                    volrain_atts5 = {
+                        'units':'mm km2',
+                        'description':'Time integral of volrain over the LPT system lifetime.',
+                        'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
 
-            volrain_atts6 = {
-                'units':'mm km2',
-                'description':'Time integral of volrain_global over the LPT system lifetime.',
-                'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
+                    volrain_atts6 = {
+                        'units':'mm km2',
+                        'description':'Time integral of volrain_global over the LPT system lifetime.',
+                        'note':'Units assumes rain is converted to mm d-1 for LPT analysis.'}
 
+                    data_vars = {
+                        volrain_stitched_name: (['nstitch',], volrain_tser, volrain_atts1),
+                        volrain_global_stitched_name: (['nstitch',], volrain_global_tser, volrain_atts2),
+                        volrain_max_name: (['nlpt',], maxvolrain, volrain_atts3),
+                        volrain_global_max_name: (['nlpt',], maxvolrain_global, volrain_atts4),
+                        volrain_name: (['nlpt',], volrain, volrain_atts5),
+                        volrain_global_name: (['nlpt',], volrain_global, volrain_atts6),
+                    }
 
-            data_vars = {
-                'volrain_stitched': (['nstitch',], volrain_tser, volrain_atts1),
-                'volrain_global_stitched': (['nstitch',], volrain_global_tser, volrain_atts2),
-                'maxvolrain': (['nlpt',], maxvolrain, volrain_atts3),
-                'maxvolrain_global': (['nlpt',], maxvolrain_global, volrain_atts4),
-                'volrain': (['nlpt',], volrain, volrain_atts5),
-                'volrain_global': (['nlpt',], volrain_global, volrain_atts6),
-            }
+                    with xr.open_dataset(lpt_systems_file) as ds:
+                        ds2 = ds.copy().assign(data_vars)
 
-            with xr.open_dataset(lpt_systems_file) as ds:
-                ds2 = ds.copy().assign(data_vars)
+                    encoding = {
+                        'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
+                        'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
+                        'num_objects': {'dtype': 'i'},
+                        'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
+                        'is_mjo_eprop_stitched': {'dtype': 'bool'},
+                    }
 
-
-            encoding = {
-                'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
-                'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-                'num_objects': {'dtype': 'i'},
-                # 'mask_contour_npts': {'dtype': 'i'},
-                # 'mask_contour_core_npts': {'dtype': 'i'},
-                'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
-                'is_mjo_eprop_stitched': {'dtype': 'bool'},
-                # 'mask_contour_lon': {'zlib': True},
-                # 'mask_contour_lat': {'zlib': True},
-                # 'mask_contour_core_lon': {'zlib': True},
-                # 'mask_contour_core_lat': {'zlib': True},
-                }
-
-            lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
+                    lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
 
         ##########################################################
         ## Include some basic LPT info for user friendliness.  ###
