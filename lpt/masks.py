@@ -818,7 +818,7 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
                 continue
 
     # Initialize masks.
-    fn = (lp_objects_dir + '/' + mask_times[0].strftime(lp_objects_fn_format)).replace('///','/').replace('//','/')
+    fn = (lp_objects_dir + '/' + dt_begin.strftime(lp_objects_fn_format)).replace('///','/').replace('//','/')
     with Dataset(fn) as ds:
         mask_lon = ds['grid_lon'][:]
         mask_lat = ds['grid_lat'][:]
