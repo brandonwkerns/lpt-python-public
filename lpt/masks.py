@@ -1056,21 +1056,23 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         ## Do volumetric rain.
         if do_volrain:
             print('Now calculating the volumetric rain.', flush=True)
-            VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
+            VOLRAIN = mask_calc_volrain(
+                mask_times,interval_hours,multiply_factor,
+                AREA,mask_arrays,dataset_dict,nproc=nproc
+            )
 
             for mask_name in mask_arrays:
                 if 'mask' in mask_name and 'with_rain' not in mask_name:
 
                     volrain_name = mask_name.replace('mask','volrain')
-                    volrain_global_name = mask_name.replace('mask','volrain_global')
                     volrain_tser_name = mask_name.replace('mask','volrain')+'_tser'
-                    volrain_global_tser_name = mask_name.replace('mask','volrain_global')+'_tser'
-
                     volrain_stitched_name = mask_name.replace('mask','volrain')+'_stitched'
-                    volrain_global_stitched_name = mask_name.replace('mask','volrain_global')+'_stitched'
-
                     volrain_max_name = mask_name.replace('mask','volrain')+'_max'
-                    volrain_global_max_name = mask_name.replace('mask','volrain_global')+'_max'
+
+                    volrain_global_name = 'volrain_global'
+                    volrain_global_tser_name = 'volrain_global_tser'
+                    volrain_global_stitched_name = 'volrain_global_stitched'
+                    volrain_global_max_name = 'volrain_global_max'
 
                     # Save the volrain to the LPT systems file.
                     with xr.open_dataset(lpt_systems_file) as ds:
