@@ -1058,44 +1058,57 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
             print('Now calculating the volumetric rain.', flush=True)
             VOLRAIN = mask_calc_volrain(mask_times,interval_hours,multiply_factor,AREA,mask_arrays,dataset_dict,nproc=nproc)
 
-            # Save the volrain to the LPT systems file.
-            with xr.open_dataset(lpt_systems_file) as ds:
-                if 'volrain' in ds:
+            for mask_name in mask_arrays:
+                if 'mask' in mask_name and 'with_rain' not in mask_name:
 
-                    volrain = ds['volrain'].data
-                    volrain_global = ds['volrain_global'].data
-                    maxvolrain = ds['maxvolrain'].data
-                    maxvolrain_global = ds['maxvolrain_global'].data
-                    volrain_tser = ds['volrain_stitched'].data
-                    volrain_global_tser = ds['volrain_global_stitched'].data
+                    volrain_name = mask_name.replace('mask','volrain')
+                    volrain_global_name = mask_name.replace('mask','volrain_global')
+                    volrain_tser_name = mask_name.replace('mask','volrain')+'_tser'
+                    volrain_global_tser_name = mask_name.replace('mask','volrain_global')+'_max'
+                    volrain_max_name = mask_name.replace('mask','volrain')+'_tser'
+                    volrain_global_max_name = mask_name.replace('mask','volrain_global')+'_max'
 
-                else:
+                    # Save the volrain to the LPT systems file.
+                    with xr.open_dataset(lpt_systems_file) as ds:
+                        if volrain_name in ds:
 
-                    volrain = np.full([len(TC['lptid']),], np.nan)
-                    volrain_global = np.full([len(TC['lptid']),], np.nan)
-                    maxvolrain = np.full([len(TC['lptid']),], np.nan)
-                    maxvolrain_global = np.full([len(TC['lptid']),], np.nan)
-                    volrain_tser = np.full([ntimes,], np.nan)
-                    volrain_global_tser = np.full([ntimes,], np.nan)
+                            volrain = ds[volrain_name].data
+                            volrain_global = ds[volrain_global_name].data
+                            volrain_tser = ds[volrain_tser_name].data
+                            volrain_global_tser = ds[volrain_global_tser_name].data
+                            maxvolrain = ds[volrain_max_name].data
+                            maxvolrain_global = ds[volrain_global_max_name].data
 
-            volrain[this_lpt_idx] = VOLRAIN['volrain']
-            volrain_global[this_lpt_idx] = VOLRAIN['volrain_global']
+                        else:
 
-            for dt_idx, dt_this in enumerate(mask_times):
+                            volrain = np.full([len(TC['lptid']),], np.nan)
+                            volrain_global = np.full([len(TC['lptid']),], np.nan)
+                            volrain_tser = np.full([ntimes,], np.nan)
+                            volrain_global_tser = np.full([ntimes,], np.nan)
+                            maxvolrain = np.full([len(TC['lptid']),], np.nan)
+                            maxvolrain_global = np.full([len(TC['lptid']),], np.nan)
 
-                # If there is no matching time in the LPT systems file,
-                # such as during the initial 72 h "spin up" period,
-                # Then this should just skip over those times.
-                timestamp_stitched_idx = np.argwhere(
-                    np.logical_and(
-                        TC['lptid_stitched'] == this_lpt_id, 
-                        TC['timestamp_stitched'] == dt_this)) 
 
-                volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
-                volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
+                    # volrain_tser += mask_arrays[mask_name].toarray() * VOLRAIN[mask_name.replace('mask','volrain')+'_tser']
+                    # volrain_global_tser += mask_arrays[mask_name].toarray() * VOLRAIN[mask_name.replace('mask','volrain_global')+'_tser']
+                    volrain[this_lpt_idx] = VOLRAIN['volrain']
+                    volrain_global[this_lpt_idx] = VOLRAIN['volrain_global']
 
-            maxvolrain[this_lpt_idx] = np.nanmax(volrain_tser)
-            maxvolrain_global[this_lpt_idx] = np.nanmax(volrain_global_tser)
+                    for dt_idx, dt_this in enumerate(mask_times):
+
+                        # If there is no matching time in the LPT systems file,
+                        # such as during the initial 72 h "spin up" period,
+                        # Then this should just skip over those times.
+                        timestamp_stitched_idx = np.argwhere(
+                            np.logical_and(
+                                TC['lptid_stitched'] == this_lpt_id, 
+                                TC['timestamp_stitched'] == dt_this)) 
+
+                        volrain_tser[timestamp_stitched_idx] = VOLRAIN['volrain_tser'][dt_idx]
+                        volrain_global_tser[timestamp_stitched_idx] = VOLRAIN['volrain_global_tser'][dt_idx]
+
+                    maxvolrain[this_lpt_idx] = np.nanmax(volrain_tser)
+                    maxvolrain_global[this_lpt_idx] = np.nanmax(volrain_global_tser)
 
             # Add the volrain variables to the output NetCDF file.
             print(f'Adding volrain variables to: {lpt_systems_file}')
