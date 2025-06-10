@@ -279,7 +279,7 @@ def read_lpt_systems_group_array(fn):
 
 
 
-def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
+def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, dataset, lpo_options, units={}):
     """
     This function outputs the "bulk" LPT system properties (centroid, date, area)
     plus the LP Objects belonging to each "TIMECLUSTER" to a netcdf file.
@@ -347,55 +347,68 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     ## Fill in stitched variables.
     ##
     max_lpo = 1
-    for ii in range(len(TIMECLUSTERS)):
+    for ii, this_tc in enumerage(TIMECLUSTERS):
 
-        max_lpo = max(max_lpo, len(TIMECLUSTERS[ii]['objid'])) # will be used below.
+        max_lpo = max(max_lpo, len(this_tc['objid'])) # will be used below.
 
         lpt_begin_index += [len(lptid_collect)] # zero based, so next index is the length.
 
         # TODO: 
         # All the entries   =   LPT tracked centroids          +    initial "spin up" period
         # n_entries_in_stitch = len(TIMECLUSTERS[ii]['datetime'] +    
+        this_lpt_datetimes = xr.daterange(
+            start=this_tc['datetime'][0]-dt.timedelta(hours=lpo_options['acccumulation_hours']),
+            end=this_tc['datetime'][-1],
+            freq=str(dataset['data_time_interval'])+'H',
+            calendar=this_tc['datetime'][0].calendar
+        )
 
-        lptid_collect = np.append(np.append(lptid_collect, np.ones(len(TIMECLUSTERS[ii]['datetime']))*TIMECLUSTERS[ii]['lpt_id']),MISSING)
-        this_timestamp = [(TIMECLUSTERS[ii]['datetime'][x] - REFTIME).total_seconds()/3600.0 for x in range(len(TIMECLUSTERS[ii]['datetime']))]
+        lptid_collect = np.append(np.append(lptid_collect, np.ones(len(this_lpt_datetimes)*this_tc['lpt_id']),MISSING)
+        this_timestamp = [(x - REFTIME).total_seconds()/3600.0 for x in this_lpt_datetimes]
         timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
-        this_datetime = [TIMECLUSTERS[ii]['datetime'][x] for x in range(len(TIMECLUSTERS[ii]['datetime']))]
+        this_datetime = this_lpt_datetimes.to_pandas().to_list()
         datetime_collect = datetime_collect + this_datetime + [this_datetime[-1]]
-        
-        nobj_collect = np.append(np.append(nobj_collect, TIMECLUSTERS[ii]['nobj']),MISSING)
-        centroid_lon_collect = np.append(np.append(centroid_lon_collect, TIMECLUSTERS[ii]['centroid_lon']),MISSING)
-        centroid_lat_collect = np.append(np.append(centroid_lat_collect, TIMECLUSTERS[ii]['centroid_lat']),MISSING)
-        centroid_lon_smoothed_collect = np.append(np.append(centroid_lon_smoothed_collect, TIMECLUSTERS[ii]['centroid_lon_smoothed']),MISSING)
-        centroid_lat_smoothed_collect = np.append(np.append(centroid_lat_smoothed_collect, TIMECLUSTERS[ii]['centroid_lat_smoothed']),MISSING)
-        largest_object_centroid_lon_collect = np.append(np.append(largest_object_centroid_lon_collect, TIMECLUSTERS[ii]['largest_object_centroid_lon']),MISSING)
-        largest_object_centroid_lat_collect = np.append(np.append(largest_object_centroid_lat_collect, TIMECLUSTERS[ii]['largest_object_centroid_lat']),MISSING)
-        area_collect = np.append(np.append(area_collect, TIMECLUSTERS[ii]['area']),MISSING)
-        max_lon_collect = np.append(np.append(max_lon_collect, TIMECLUSTERS[ii]['max_lon']),MISSING)
-        max_lat_collect = np.append(np.append(max_lat_collect, TIMECLUSTERS[ii]['max_lat']),MISSING)
-        min_lon_collect = np.append(np.append(min_lon_collect, TIMECLUSTERS[ii]['min_lon']),MISSING)
-        min_lat_collect = np.append(np.append(min_lat_collect, TIMECLUSTERS[ii]['min_lat']),MISSING)
-        westmost_lat_collect = np.append(np.append(westmost_lat_collect, TIMECLUSTERS[ii]['westmost_lat']),MISSING)
-        eastmost_lat_collect = np.append(np.append(eastmost_lat_collect, TIMECLUSTERS[ii]['eastmost_lat']),MISSING)
-        southmost_lon_collect = np.append(np.append(southmost_lon_collect, TIMECLUSTERS[ii]['southmost_lon']),MISSING)
-        northmost_lon_collect = np.append(np.append(northmost_lon_collect, TIMECLUSTERS[ii]['northmost_lon']),MISSING)
 
-        mean_inst_collect = np.append(np.append(mean_inst_collect, TIMECLUSTERS[ii]['amean_inst_field']),MISSING)
-        mean_running_collect = np.append(np.append(mean_running_collect, TIMECLUSTERS[ii]['amean_running_field']),MISSING)
-        mean_filtered_running_collect = np.append(np.append(mean_filtered_running_collect, TIMECLUSTERS[ii]['amean_filtered_running_field']),MISSING)
-        min_inst_collect = np.append(np.append(min_inst_collect, TIMECLUSTERS[ii]['min_inst_field']),MISSING)
-        min_running_collect = np.append(np.append(min_running_collect, TIMECLUSTERS[ii]['min_running_field']),MISSING)
-        min_filtered_running_collect = np.append(np.append(min_filtered_running_collect, TIMECLUSTERS[ii]['min_filtered_running_field']),MISSING)
-        max_inst_collect = np.append(np.append(max_inst_collect, TIMECLUSTERS[ii]['max_inst_field']),MISSING)
-        max_running_collect = np.append(np.append(max_running_collect, TIMECLUSTERS[ii]['max_running_field']),MISSING)
-        max_filtered_running_collect = np.append(np.append(max_filtered_running_collect, TIMECLUSTERS[ii]['max_filtered_running_field']),MISSING)
+        # lptid_collect = np.append(np.append(lptid_collect, np.ones(len(TIMECLUSTERS[ii]['datetime']))*TIMECLUSTERS[ii]['lpt_id']),MISSING)
+        # this_timestamp = [(TIMECLUSTERS[ii]['datetime'][x] - REFTIME).total_seconds()/3600.0 for x in range(len(TIMECLUSTERS[ii]['datetime']))]
+        # timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
+        # this_datetime = [TIMECLUSTERS[ii]['datetime'][x] for x in range(len(TIMECLUSTERS[ii]['datetime']))]
+        # datetime_collect = datetime_collect + this_datetime + [this_datetime[-1]]
+
+        nobj_collect = np.append(np.append(nobj_collect, this_tc['nobj']),MISSING)
+
+        centroid_lon_collect = np.append(np.append(centroid_lon_collect, this_tc['centroid_lon']),MISSING)
+        centroid_lat_collect = np.append(np.append(centroid_lat_collect, this_tc['centroid_lat']),MISSING)
+        centroid_lon_smoothed_collect = np.append(np.append(centroid_lon_smoothed_collect, this_tc['centroid_lon_smoothed']),MISSING)
+        centroid_lat_smoothed_collect = np.append(np.append(centroid_lat_smoothed_collect, this_tc['centroid_lat_smoothed']),MISSING)
+        largest_object_centroid_lon_collect = np.append(np.append(largest_object_centroid_lon_collect, this_tc['largest_object_centroid_lon']),MISSING)
+        largest_object_centroid_lat_collect = np.append(np.append(largest_object_centroid_lat_collect, this_tc['largest_object_centroid_lat']),MISSING)
+        area_collect = np.append(np.append(area_collect, this_tc['area']),MISSING)
+        max_lon_collect = np.append(np.append(max_lon_collect, this_tc['max_lon']),MISSING)
+        max_lat_collect = np.append(np.append(max_lat_collect, this_tc['max_lat']),MISSING)
+        min_lon_collect = np.append(np.append(min_lon_collect, this_tc['min_lon']),MISSING)
+        min_lat_collect = np.append(np.append(min_lat_collect, this_tc['min_lat']),MISSING)
+        westmost_lat_collect = np.append(np.append(westmost_lat_collect, this_tc['westmost_lat']),MISSING)
+        eastmost_lat_collect = np.append(np.append(eastmost_lat_collect, this_tc['eastmost_lat']),MISSING)
+        southmost_lon_collect = np.append(np.append(southmost_lon_collect, this_tc['southmost_lon']),MISSING)
+        northmost_lon_collect = np.append(np.append(northmost_lon_collect, this_tc['northmost_lon']),MISSING)
+
+        mean_inst_collect = np.append(np.append(mean_inst_collect, this_tc['amean_inst_field']),MISSING)
+        mean_running_collect = np.append(np.append(mean_running_collect, this_tc['amean_running_field']),MISSING)
+        mean_filtered_running_collect = np.append(np.append(mean_filtered_running_collect, this_tc['amean_filtered_running_field']),MISSING)
+        min_inst_collect = np.append(np.append(min_inst_collect, this_tc['min_inst_field']),MISSING)
+        min_running_collect = np.append(np.append(min_running_collect, this_tc['min_running_field']),MISSING)
+        min_filtered_running_collect = np.append(np.append(min_filtered_running_collect, this_tc['min_filtered_running_field']),MISSING)
+        max_inst_collect = np.append(np.append(max_inst_collect, this_tc['max_inst_field']),MISSING)
+        max_running_collect = np.append(np.append(max_running_collect, this_tc['max_running_field']),MISSING)
+        max_filtered_running_collect = np.append(np.append(max_filtered_running_collect, this_tc['max_filtered_running_field']),MISSING)
 
         lpt_end_index += [len(lptid_collect)-2] # zero based, and I added a NaN, so end index is the length.
 
-        start_lon_collect += [TIMECLUSTERS[ii]['centroid_lon'][0]]
-        start_lat_collect += [TIMECLUSTERS[ii]['centroid_lat'][0]]
-        end_lon_collect += [TIMECLUSTERS[ii]['centroid_lon'][-1]]
-        end_lat_collect += [TIMECLUSTERS[ii]['centroid_lat'][-1]]
+        start_lon_collect += [this_tc['centroid_lon'][0]]
+        start_lat_collect += [this_tc['centroid_lat'][0]]
+        end_lon_collect += [this_tc['centroid_lon'][-1]]
+        end_lat_collect += [this_tc['centroid_lat'][-1]]
 
         
     ##
@@ -407,8 +420,8 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, units={}):
     ## Fill in LPO variables
     ##
 
-    for ii in range(len(TIMECLUSTERS)):
-        lpo_objid[ii,0:len(TIMECLUSTERS[ii]['objid'])] = TIMECLUSTERS[ii]['objid']
+    for ii, this_tc in enumerate(TIMECLUSTERS):
+        lpo_objid[ii,0:len(this_tc['objid'])] = this_tc['objid']
 
 
     ## Construct Dictionaries for XArray
