@@ -1107,7 +1107,8 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                         timestamp_stitched_idx = np.argwhere(
                             np.logical_and(
                                 TC['lptid_stitched'] == this_lpt_id, 
-                                TC['timestamp_stitched'] == dt_this)) 
+                                TC['timestamp_stitched'] == dt_this)
+                        ) 
 
                         volrain_tser[timestamp_stitched_idx] = VOLRAIN[volrain_tser_name][dt_idx]
                         volrain_global_tser[timestamp_stitched_idx] = VOLRAIN[volrain_global_tser_name][dt_idx]
@@ -1116,7 +1117,7 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     maxvolrain_global[this_lpt_idx] = np.nanmax(volrain_global_tser)
 
                     # Add the volrain variables to the output NetCDF file.
-                    print(f'Adding {volrain_name} variables to: {lpt_systems_file}')
+                    print(f'Adding {volrain_name} to: {lpt_systems_file}')
 
                     volrain_atts1 = {
                         'units':'mm h-1 km2',
