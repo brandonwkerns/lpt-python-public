@@ -347,7 +347,7 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, dataset, lpo_options, unit
     ## Fill in stitched variables.
     ##
     max_lpo = 1
-    for ii, this_tc in enumerage(TIMECLUSTERS):
+    for ii, this_tc in enumerate(TIMECLUSTERS):
 
         max_lpo = max(max_lpo, len(this_tc['objid'])) # will be used below.
 
@@ -356,14 +356,14 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, dataset, lpo_options, unit
         # TODO: 
         # All the entries   =   LPT tracked centroids          +    initial "spin up" period
         # n_entries_in_stitch = len(TIMECLUSTERS[ii]['datetime'] +    
-        this_lpt_datetimes = xr.daterange(
-            start=this_tc['datetime'][0]-dt.timedelta(hours=lpo_options['acccumulation_hours']),
+        this_lpt_datetimes = xr.date_range(
+            start=this_tc['datetime'][0]-dt.timedelta(hours=lpo_options['accumulation_hours']),
             end=this_tc['datetime'][-1],
             freq=str(dataset['data_time_interval'])+'H',
             calendar=this_tc['datetime'][0].calendar
         )
 
-        lptid_collect = np.append(np.append(lptid_collect, np.ones(len(this_lpt_datetimes)*this_tc['lpt_id']),MISSING)
+        lptid_collect = np.append(np.append(lptid_collect, np.ones(len(this_lpt_datetimes))*this_tc['lpt_id']),MISSING)
         this_timestamp = [(x - REFTIME).total_seconds()/3600.0 for x in this_lpt_datetimes]
         timestamp_collect = np.append(np.append(timestamp_collect, this_timestamp), MISSING)
         this_datetime = this_lpt_datetimes.to_pandas().to_list()
