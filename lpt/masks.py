@@ -19,7 +19,7 @@ import sys
 from scipy.sparse import dok_matrix, csr_matrix, find, SparseEfficiencyWarning
 from multiprocessing import Pool, RLock, freeze_support
 from tqdm import tqdm
-
+import json
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
@@ -769,8 +769,9 @@ def fill_mask_arrays(
 def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'
     , detailed_output = False
-    , include_rain_rates=False, do_volrain=False, dataset_dict = {}
-    , calc_with_filter_radius = True
+    , include_rain_rates=False, do_volrain=False, dataset_dict = {},
+    lpo_options = {}, plotting_options = {}, output_options = {},
+    calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
     , coarse_grid_factor = 0
@@ -888,6 +889,20 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     
     ## Create XArray Dataset
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
+
+    # Set attributes
+    DS.attrs['title'] = 'Large-Scale Precipitation Objects (LPO) Mask'
+    DS.attrs['description'] = 'LPO Mask for the period {} to {}'.format(
+        dt_begin.strftime('%Y-%m-%d %H:%M'),
+        dt_end.strftime('%Y-%m-%d %H:%M')
+    )
+    DS.attrs['dataset'] = json.dumps(dataset_dict)
+    DS.attrs['lpo_options'] = json.dumps(lpo_options)
+    DS.attrs['output'] = json.dumps(output_options)
+    DS.attrs['plotting'] = json.dumps(plotting_options)
+    DS.attrs['history'] = 'Created at {} UTC by calc_lpo_mask'.format(
+        dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    )
 
     ## Write the data to NetCDF
     fn_out = (mask_output_dir + '/lp_objects_mask_' + YMDH1_YMDH2 + '.nc').replace('///','/').replace('//','/')

@@ -69,8 +69,11 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
             , detailed_output = lpo_options['mask_detailed_output']
             , include_rain_rates = lpo_options['mask_include_rain_rates']
             , do_volrain = lpo_options['mask_calc_volrain']
-            , dataset_dict = dataset
-            , calc_with_filter_radius = lpo_options['mask_calc_with_filter_radius']
+            , dataset_dict = dataset,
+            lpo_options = lpo_options,
+            plotting_options = plotting,
+            output_options = output,
+            calc_with_filter_radius = lpo_options['mask_calc_with_filter_radius']
             , cold_start_mode = lpo_options['cold_start_mode']
             , multiply_factor = lpo_options['multiply_factor']
             , units = lpo_options['field_units']
