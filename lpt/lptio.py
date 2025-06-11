@@ -9,6 +9,7 @@ import os
 import os.path
 import csv
 import datetime as dt
+import json
 
 ###################################################
 ### Output functions
@@ -37,7 +38,7 @@ def lp_objects_output_ascii(fn, OBJ, verbose=False):
     file.close()
 
 
-def lp_objects_output_netcdf(fn, OBJ):
+def lp_objects_output_netcdf(fn, OBJ, dataset, lpo_options, output, plotting):
     """
     This function outputs the "bulk" LP object properties (centroid, date, area)
     Plus the pixel information to a compressed netcdf file.
@@ -60,6 +61,12 @@ def lp_objects_output_netcdf(fn, OBJ):
             + "The values in grid_mask are: -1 for no LPT, or the nnnn part of the LP object otherwise. "
             + "NOTE: If no LP objects, nobj (npoints) dimension will be 0 (1).")
         DS.N = len(OBJ['n_points'])
+        DS.dataset = json.dumps(dataset)
+        DS.lpo_options = json.dumps(lpo_options)
+        DS.output = json.dumps(output)
+        DS.plotting = json.dumps(plotting)
+        DS.history = ('Created at ' 
+            + dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') + ' UTC.')
 
         ##
         ## Dimensions
