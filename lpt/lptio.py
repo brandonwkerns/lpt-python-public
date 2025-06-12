@@ -9,6 +9,7 @@ import os
 import os.path
 import csv
 import datetime as dt
+import json
 
 ###################################################
 ### Output functions
@@ -37,7 +38,7 @@ def lp_objects_output_ascii(fn, OBJ, verbose=False):
     file.close()
 
 
-def lp_objects_output_netcdf(fn, OBJ):
+def lp_objects_output_netcdf(fn, OBJ, dataset, lpo_options, output, plotting):
     """
     This function outputs the "bulk" LP object properties (centroid, date, area)
     Plus the pixel information to a compressed netcdf file.
@@ -60,6 +61,12 @@ def lp_objects_output_netcdf(fn, OBJ):
             + "The values in grid_mask are: -1 for no LPT, or the nnnn part of the LP object otherwise. "
             + "NOTE: If no LP objects, nobj (npoints) dimension will be 0 (1).")
         DS.N = len(OBJ['n_points'])
+        DS.dataset = json.dumps(dataset)
+        DS.lpo_options = json.dumps(lpo_options)
+        DS.output = json.dumps(output)
+        DS.plotting = json.dumps(plotting)
+        DS.history = ('Created at ' 
+            + dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') + ' UTC.')
 
         ##
         ## Dimensions
@@ -278,8 +285,9 @@ def read_lpt_systems_group_array(fn):
     return (LPT, BRANCHES)
 
 
-
-def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, dataset, lpo_options, units={}):
+def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, dataset, plotting,
+    output, lpo_options, lpt_options, merge_split_options, mjo_id_options,
+    dt_begin, dt_end, units={}):
     """
     This function outputs the "bulk" LPT system properties (centroid, date, area)
     plus the LP Objects belonging to each "TIMECLUSTER" to a netcdf file.
@@ -490,6 +498,28 @@ def lpt_system_tracks_output_netcdf(fn, TIMECLUSTERS, dataset, lpo_options, unit
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict, attrs={'description':description})
     encoding = {'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'}, 'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
         'num_objects': {'dtype': 'i'}}
+
+    # Write options and set some attributes
+    DS.attrs['title'] = 'LPT Systems NetCDF file'
+    DS.attrs['description'] = (
+        'LPT Systems NetCDF file for the period {} to {}. '
+        + 'Some variables are for the LPT systems as a whole. '
+        + 'Others, stitched variables, are for each time step of '
+        + 'each LPT system, stitched together consecutively.'
+    ).format(
+        dt_begin.strftime('%Y-%m-%d %H:%M'),
+        dt_end.strftime('%Y-%m-%d %H:%M')
+    )
+    DS.attrs['dataset'] = json.dumps(dataset)
+    DS.attrs['lpo_options'] = json.dumps(lpo_options)
+    DS.attrs['output'] = json.dumps(output)
+    DS.attrs['plotting'] = json.dumps(plotting)
+    DS.attrs['lpt_options'] = json.dumps(lpt_options)
+    DS.attrs['merge_split_options'] = json.dumps(merge_split_options)
+    DS.attrs['mjo_id_options'] = json.dumps(mjo_id_options)
+    DS.attrs['history'] = ('Created at ' 
+        + dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') + ' UTC.')
+
 
     # Save to NetCDF
     DS.to_netcdf(path=fn, mode='w', encoding=encoding)

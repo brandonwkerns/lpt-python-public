@@ -339,7 +339,6 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
             data_collect = []
             count = 0
 
-            dataset['datetime_init'] = begin_time
             for this_dt in reversed(dt_list):
                 DATA_RAW = lpt.readdata.readdata(this_dt, dataset)
                 DATA_RAW['data'] = np.array(DATA_RAW['data'].filled(
@@ -400,11 +399,6 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
                 lpo_options
             )
                 
-                # ['thresh'],
-                # min_points=lpo_options['min_points'], 
-                # object_is_gt_threshold=lpo_options['object_is_gt_threshold'],
-                # thresh_or_equal=lpo_options['thresh_or_equal'],
-                # verbose=dataset['verbose'])
             OBJ = calculate_lp_object_properties(
                 DATA_RAW['lon'], DATA_RAW['lat'],
                 DATA_RAW['data'], DATA_RUNNING, DATA_FILTERED, label_im, 0,
@@ -424,7 +418,8 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
             lpt.lptio.lp_objects_output_ascii(
                 objects_fn, OBJ, verbose=dataset['verbose'])
             lpt.lptio.lp_objects_output_netcdf(
-                objects_fn + '.nc', OBJ)
+                objects_fn + '.nc', OBJ,
+                dataset, lpo_options, output, plotting)
 
             """
             Object Plot

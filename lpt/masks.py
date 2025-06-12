@@ -19,7 +19,7 @@ import sys
 from scipy.sparse import dok_matrix, csr_matrix, find, SparseEfficiencyWarning
 from multiprocessing import Pool, RLock, freeze_support
 from tqdm import tqdm
-
+import json
 import warnings
 warnings.filterwarnings("ignore", category=SparseEfficiencyWarning)
 
@@ -769,8 +769,9 @@ def fill_mask_arrays(
 def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc', mask_output_dir = '.'
     , detailed_output = False
-    , include_rain_rates=False, do_volrain=False, dataset_dict = {}
-    , calc_with_filter_radius = True
+    , include_rain_rates=False, do_volrain=False, dataset_dict = {},
+    lpo_options = {}, plotting_options = {}, output_options = {},
+    calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
     , coarse_grid_factor = 0
@@ -889,6 +890,58 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     ## Create XArray Dataset
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
 
+    # Set attributes
+    DS.attrs['title'] = (
+        'Large-Scale Precipitation Objects (LPO) Mask '
+        + 'for time period ' + YMDH1_YMDH2
+    )
+    if detailed_output:
+        detailed_output_message = (
+            'Detailed output is enabled in lpt_options. '
+            'Therefore, separate mask variables are created for the '
+            'raw LPO masks (mask_at_end_time), and the masks with '
+            'accumulation period and/or spatial filter width, '
+            'if specified, as follows. '
+            'LPO Mask + with spatial filter width: mask_with_filter_at_end_time '
+            'LPO Mask + with accumulation period: mask_with_accumulation '
+            'LPO Mask + with accumulation period and spatial filter width: '
+            'mask_with_accumulation_and_filter. '
+            'Note that the accumulation period starts prior to the LPO '
+            'init time, so the mask_with_accumulation variable will '
+            'have some values for times prior to the specified '
+            'tracking period.'
+        )
+    else:
+        detailed_output_message = (
+            'Detailed output is disabled in lpt_options. '
+            'Therefore, only one mask variable is created: mask. '
+            'This mask includes the raw LPOs together with the '
+            'spatial filter width and/or the accumulation period,'
+            'as specified in lpt_options.'
+        )
+    with_rain_rates_message = (
+        'If specified in lpt_options, '
+        + 'Mask variables with_rain have the instantaneous rain rates '
+        + 'masked by the corresponding mask variables.'
+    )
+    DS.attrs['description'] = (
+        'LPO mask for {} to {}. '
+        + 'This file contains spatio-temporal masks of the area '
+        + 'encompassed by all LPOs during the tracking period. '
+        + detailed_output_message
+        + ' ' + with_rain_rates_message
+    ).format(
+        dt_begin.strftime('%Y-%m-%d %H:%M'),
+        dt_end.strftime('%Y-%m-%d %H:%M')
+    )
+    DS.attrs['dataset'] = json.dumps(dataset_dict)
+    DS.attrs['lpo_options'] = json.dumps(lpo_options)
+    DS.attrs['output'] = json.dumps(output_options)
+    DS.attrs['plotting'] = json.dumps(plotting_options)
+    DS.attrs['history'] = 'Created at {} UTC by calc_lpo_mask'.format(
+        dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    )
+
     ## Write the data to NetCDF
     fn_out = (mask_output_dir + '/lp_objects_mask_' + YMDH1_YMDH2 + '.nc').replace('///','/').replace('//','/')
     os.makedirs(mask_output_dir, exist_ok=True)
@@ -950,10 +1003,11 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=False
-    , do_volrain=False, include_rain_rates = False
-    , dataset_dict = {}
-    , detailed_output = False
+    , mask_output_dir = '.', verbose=False,
+    do_volrain=False, include_rain_rates = False, dataset_dict = {},
+    lpo_options = {}, plotting_options = {}, output_options = {},
+    lpt_options = {}, merge_split_options = {}, mjo_id_options = {},
+    detailed_output = False
     , calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
@@ -1260,6 +1314,63 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
         DS.meridional_propagation_speed.attrs = {'units':'m s-1','long_name':'meridional popagation speed','description':'Meridional popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
 
 
+        # Set attributes
+        DS.attrs['title'] = (
+            'Individual Large-Scale Precipitation System (LPT) Mask: LPTID '
+            + str(this_lpt_id) + ' of time period ' + YMDH1_YMDH2
+        )
+        if detailed_output:
+            detailed_output_message = (
+                'Detailed output is enabled in lpt_options. '
+                'Therefore, separate mask variables are created for the '
+                'raw LPO masks (mask_at_end_time), and the masks with '
+                'accumulation period and/or spatial filter width, '
+                'if specified, as follows. '
+                'LPO Mask + with spatial filter width: mask_with_filter_at_end_time '
+                'LPO Mask + with accumulation period: mask_with_accumulation '
+                'LPO Mask + with accumulation period and spatial filter width: '
+                'mask_with_accumulation_and_filter. '
+                'Note that the accumulation period starts prior to the LPO '
+                'init time, so the mask_with_accumulation variable will '
+                'have some values for times prior to the specified '
+                'tracking period.'
+            )
+        else:
+            detailed_output_message = (
+                'Detailed output is disabled in lpt_options. '
+                'Therefore, only one mask variable is created: mask. '
+                'This mask includes the raw LPOs together with the '
+                'spatial filter width and/or the accumulation period,'
+                'as specified in lpt_options.'
+            )
+        with_rain_rates_message = (
+            'If specified in lpt_options, '
+            + 'Mask variables with_rain have the instantaneous rain rates '
+            + 'masked by the corresponding mask variables.'
+        )
+        DS.attrs['description'] = (
+            'LPT System Mask for LPT ID {}, tracking period {} to {}. '
+            + 'This file contains spatio-temporal masks of the area '
+            + 'swept out by the LPT system through its lifetime, '
+            + 'as well as some basic LPT system properties for convenience. '
+            + detailed_output_message
+            + ' ' + with_rain_rates_message
+        ).format(
+            str(this_lpt_id),
+            dt_begin.strftime('%Y-%m-%d %H:%M'),
+            dt_end.strftime('%Y-%m-%d %H:%M')
+        )
+
+        DS.attrs['dataset'] = json.dumps(dataset_dict)
+        DS.attrs['lpo_options'] = json.dumps(lpo_options)
+        DS.attrs['output'] = json.dumps(output_options)
+        DS.attrs['plotting'] = json.dumps(plotting_options)
+        DS.attrs['lpt_options'] = json.dumps(lpt_options)
+        DS.attrs['merge_split_options'] = json.dumps(merge_split_options)
+        DS.attrs['mjo_id_options'] = json.dumps(mjo_id_options)
+        DS.attrs['history'] = (
+            'Created at {} UTC by calc_individual_lpt_masks'
+        ).format(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
 
         ## Write the data to NetCDF
         fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:010.4f}.nc'.format(this_lpt_id))
@@ -1318,11 +1429,12 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
     ,accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=False
-    , do_volrain=False, include_rain_rates = False
-    , dataset_dict = {}
-    , detailed_output = False
-    , calc_with_filter_radius = True
+    , mask_output_dir = '.', verbose=False,
+    do_volrain=False, include_rain_rates = False, dataset_dict = {},
+    lpo_options = {}, plotting_options = {}, output_options = {},
+    lpt_options = {}, merge_split_options = {}, mjo_id_options = {},
+    detailed_output = False,
+    calc_with_filter_radius = True
     , calc_with_accumulation_period = True
     , cold_start_mode = False
     , begin_lptid = 0, end_lptid = 10000, mjo_only = False
@@ -1528,7 +1640,64 @@ def calc_individual_lpt_group_masks(dt_begin, dt_end, interval_hours, prod='trmm
         DS.zonal_propagation_speed.attrs = {'units':'m s-1','long_name':'Zonal popagation speed','description':'Zonal popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
         DS.meridional_propagation_speed.attrs = {'units':'m s-1','long_name':'meridional popagation speed','description':'Meridional popagation speed of the entire LPT system -- based on least squares fit of lon(time).'}
 
+        # Set attributes
+        DS.attrs['title'] = (
+            'Large-Scale Precipitation Group (LPT group) Mask: LPT Group '
+            + str(this_lpt_group) + ' of time period ' + YMDH1_YMDH2
+        )
 
+        if detailed_output:
+            detailed_output_message = (
+                'Detailed output is enabled in lpt_options. '
+                'Therefore, separate mask variables are created for the '
+                'raw LPO masks (mask_at_end_time), and the masks with '
+                'accumulation period and/or spatial filter width, '
+                'if specified, as follows. '
+                'LPO Mask + with spatial filter width: mask_with_filter_at_end_time '
+                'LPO Mask + with accumulation period: mask_with_accumulation '
+                'LPO Mask + with accumulation period and spatial filter width: '
+                'mask_with_accumulation_and_filter. '
+                'Note that the accumulation period starts prior to the LPO '
+                'init time, so the mask_with_accumulation variable will '
+                'have some values for times prior to the specified '
+                'tracking period.'
+            )
+        else:
+            detailed_output_message = (
+                'Detailed output is disabled in lpt_options. '
+                'Therefore, only one mask variable is created: mask. '
+                'This mask includes the raw LPOs together with the '
+                'spatial filter width and/or the accumulation period,'
+                'as specified in lpt_options.'
+            )
+        with_rain_rates_message = (
+            'If specified in lpt_options, '
+            + 'Mask variables with_rain have the instantaneous rain rates '
+            + 'masked by the corresponding mask variables.'
+        )
+        DS.attrs['description'] = (
+            'LPT System group mask for group {}, tracking period {} to {}. '
+            + 'This file contains spatio-temporal masks of the area '
+            + 'swept out by the overlapping LPT systems in the group '
+            + 'through their lifetimes. '
+            + detailed_output_message
+            + ' ' + with_rain_rates_message
+        ).format(
+            str(this_lpt_group),
+            dt_begin.strftime('%Y-%m-%d %H:%M'),
+            dt_end.strftime('%Y-%m-%d %H:%M')
+        )
+
+        DS.attrs['dataset'] = json.dumps(dataset_dict)
+        DS.attrs['lpo_options'] = json.dumps(lpo_options)
+        DS.attrs['output'] = json.dumps(output_options)
+        DS.attrs['plotting'] = json.dumps(plotting_options)
+        DS.attrs['lpt_options'] = json.dumps(lpt_options)
+        DS.attrs['merge_split_options'] = json.dumps(merge_split_options)
+        DS.attrs['mjo_id_options'] = json.dumps(mjo_id_options)
+        DS.attrs['history'] = (
+            'Created at {} UTC by calc_individual_lpt_group_masks'
+        ).format(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
 
         ## Write the data to NetCDF
         fn_out = (mask_output_dir + '/' + YMDH1_YMDH2 + '/lpt_system_mask_'+prod+'.lptid{0:05d}.group.nc'.format(this_lpt_group))
@@ -1598,9 +1767,10 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
     , accumulation_hours = 0, filter_stdev = 0
     , lp_objects_dir = '.', lp_objects_fn_format='%Y/%m/%Y%m%d/objects_%Y%m%d%H.nc'
     , lpt_systems_dir = '.'
-    , mask_output_dir = '.', verbose=True
-    , do_volrain=False, include_rain_rates = False
-    , dataset_dict = {}
+    , mask_output_dir = '.', verbose=True,
+    do_volrain=False, include_rain_rates = False, dataset_dict = {},
+    lpo_options = {}, plotting_options = {}, output_options = {},
+    lpt_options = {}, merge_split_options = {}, mjo_id_options = {}
     , detailed_output = False
     , cold_start_mode = False
     , calc_with_filter_radius = True
@@ -1650,7 +1820,7 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
         AREA = DS['grid_area'][:]
 
     print('Initialize Mask:')
-    print('Mask times: {}'.format(len(mask_times)))
+    print('Mask times: {}'.format(len(grand_mask_times)))
     print('Mask lon/lat shape: {}, {}'.format(grand_mask_lon.shape, grand_mask_lat.shape))
     mask_arrays = initialize_mask_arrays(
         len(grand_mask_lat), len(grand_mask_lon), len(grand_mask_times),
@@ -1767,6 +1937,71 @@ def calc_composite_lpt_mask(dt_begin, dt_end, interval_hours, prod='trmm'
                 data_dict[field] = (['n',], [VOLRAIN[field],])
 
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
+
+    # Set attributes
+    lpt_systems_included = ''
+    if subset == 'mjo':
+        lpt_systems_included = 'MJO LPT systems'
+    elif subset == 'non_mjo':
+        lpt_systems_included = 'Non-MJO LPT systems'
+    else:
+        lpt_systems_included = 'All LPT systems'
+
+    DS.attrs['title'] = (
+        'Composite Large-Scale Precipitation System (LPT) Mask: '
+        + lpt_systems_included + ' for time period ' + YMDH1_YMDH2
+    )
+
+    if detailed_output:
+        detailed_output_message = (
+            'Detailed output is enabled in lpt_options. '
+            'Therefore, separate mask variables are created for the '
+            'raw LPO masks (mask_at_end_time), and the masks with '
+            'accumulation period and/or spatial filter width, '
+            'if specified, as follows. '
+            'LPO Mask + with spatial filter width: mask_with_filter_at_end_time '
+            'LPO Mask + with accumulation period: mask_with_accumulation '
+            'LPO Mask + with accumulation period and spatial filter width: '
+            'mask_with_accumulation_and_filter. '
+            'Note that the accumulation period starts prior to the LPO '
+            'init time, so the mask_with_accumulation variable will '
+            'have some values for times prior to the specified '
+            'tracking period.'
+        )
+    else:
+        detailed_output_message = (
+            'Detailed output is disabled in lpt_options. '
+            'Therefore, only one mask variable is created: mask. '
+            'This mask includes the raw LPOs together with the '
+            'spatial filter width and/or the accumulation period,'
+            'as specified in lpt_options.'
+        )
+    with_rain_rates_message = (
+        'If specified in lpt_options, '
+        + 'Mask variables with_rain have the instantaneous rain rates '
+        + 'masked by the corresponding mask variables.'
+    )
+    DS.attrs['description'] = (
+        'Composite LPT System mask for {} to {}. '
+        + 'This file contains spatio-temporal masks of the area '
+        + 'swept out by all the LPT systems throughout their lifetimes. '
+        + detailed_output_message
+        + ' ' + with_rain_rates_message
+    ).format(
+        dt_begin.strftime('%Y-%m-%d %H:%M'),
+        dt_end.strftime('%Y-%m-%d %H:%M')
+    )
+
+    DS.attrs['dataset'] = json.dumps(dataset_dict)
+    DS.attrs['lpo_options'] = json.dumps(lpo_options)
+    DS.attrs['output'] = json.dumps(output_options)
+    DS.attrs['plotting'] = json.dumps(plotting_options)
+    DS.attrs['lpt_options'] = json.dumps(lpt_options)
+    DS.attrs['merge_split_options'] = json.dumps(merge_split_options)
+    DS.attrs['mjo_id_options'] = json.dumps(mjo_id_options)
+    DS.attrs['history'] = (
+        'Created at {} UTC by calc_composite_lpt_mask'
+    ).format(dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'))
 
     ## Write the data to NetCDF
     os.makedirs(mask_output_dir + '/' + YMDH1_YMDH2, exist_ok=True)
