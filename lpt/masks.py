@@ -892,8 +892,8 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
 
     # Set attributes
     DS.attrs['title'] = (
-        'Large-Scale Precipitation Objects (LPO) Mask'
-        + str(this_lpt_id) + ' for time period ' + YMDH1_YMDH2
+        'Large-Scale Precipitation Objects (LPO) Mask '
+        + 'for time period ' + YMDH1_YMDH2
     )
     if detailed_output:
         detailed_output_message = (
