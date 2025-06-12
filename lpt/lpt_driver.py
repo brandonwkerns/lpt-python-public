@@ -195,7 +195,9 @@ def lpt_driver(dataset,plotting,output,lpo_options,lpt_options
         lpt.lptio.lpt_system_tracks_output_netcdf(
             fn_tc_base + '.nc',
             TIMECLUSTERS,
-            dataset, lpo_options
+            dataset, plotting, output, lpo_options,
+            lpt_options, merge_split_options, mjo_id_options,
+            begin_time, end_time
         )
 
         """
