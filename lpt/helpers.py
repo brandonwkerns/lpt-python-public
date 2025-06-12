@@ -611,8 +611,52 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     )
 
     area = ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
+
+    # Handle longitude wrap-around for max_lon and min_lon
+    max_lon = np.zeros(nb_labels)
+    min_lon = np.zeros(nb_labels)
+    for i in range(1, nb_labels + 1):
+        mask_i = label_im == i
+        lon_points = lon2[mask_i]
+        # Compute initial min and max
+        min_lon_i = np.min(lon_points)
+        max_lon_i = np.max(lon_points)
+        # Check if wrap is needed: min close to 0 and max close to 360
+        if (min_lon_i < 20) and (max_lon_i > 340):
+            # Add 360 to points less than 180 (east of prime meridian)
+            lon_points_wrapped = lon_points.copy()
+            lon_points_wrapped[lon_points < 180] += 360
+            max_lon[i-1] = np.max(lon_points_wrapped)
+            min_lon[i-1] = np.min(lon_points_wrapped)
+            # Convert back to [0, 360) range
+            if max_lon[i-1] >= 360:
+                max_lon[i-1] -= 360
+            if min_lon[i-1] >= 360:
+                min_lon[i-1] -= 360
+        else:
+            max_lon[i-1] = max_lon_i
+            min_lon[i-1] = min_lon_i
     max_lon = ndimage.maximum(lon2, label_im, range(1, nb_labels + 1))
     min_lon = ndimage.minimum(lon2, label_im, range(1, nb_labels + 1))
+    
+    # Handle latitude wrap-around for max_lat and min_lat
+    for i in range(1, nb_labels + 1):
+        if max_lon[i-1] - min_lon[i-1] > 340:
+            mask_i = label_im == i
+
+            lon2_wrap = lon2.copy()
+            ii_right = -1
+            for ii in range(lon2.shape[1]):
+                if np.any(mask_i[:, ii]):
+                    ii_right = ii
+                else:
+                    break
+            lon2_wrap[:, 0:ii_right+1] += 360
+
+            lon_points = lon2_wrap[mask_i]
+            min_lon[i-1] = np.min(lon_points)
+            max_lon[i-1] = np.max(lon_points)
+
     max_lat = ndimage.maximum(lat2, label_im, range(1, nb_labels + 1))
     min_lat = ndimage.minimum(lat2, label_im, range(1, nb_labels + 1))
 
