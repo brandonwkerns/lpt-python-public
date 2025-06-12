@@ -891,8 +891,46 @@ def calc_lpo_mask(dt_begin, dt_end, interval_hours, accumulation_hours = 0, filt
     DS = xr.Dataset(data_vars=data_dict, coords=coords_dict)
 
     # Set attributes
-    DS.attrs['title'] = 'Large-Scale Precipitation Objects (LPO) Mask'
-    DS.attrs['description'] = 'LPO Mask for the period {} to {}'.format(
+    DS.attrs['title'] = (
+        'Large-Scale Precipitation Objects (LPO) Mask'
+        + str(this_lpt_id) + ' for time period ' + YMDH1_YMDH2
+    )
+    if detailed_output:
+        detailed_output_message = (
+            'Detailed output is enabled in lpt_options. '
+            'Therefore, separate mask variables are created for the '
+            'raw LPO masks (mask_at_end_time), and the masks with '
+            'accumulation period and/or spatial filter width, '
+            'if specified, as follows. '
+            'LPO Mask + with spatial filter width: mask_with_filter_at_end_time '
+            'LPO Mask + with accumulation period: mask_with_accumulation '
+            'LPO Mask + with accumulation period and spatial filter width: '
+            'mask_with_accumulation_and_filter. '
+            'Note that the accumulation period starts prior to the LPO '
+            'init time, so the mask_with_accumulation variable will '
+            'have some values for times prior to the specified '
+            'tracking period.'
+        )
+    else:
+        detailed_output_message = (
+            'Detailed output is disabled in lpt_options. '
+            'Therefore, only one mask variable is created: mask. '
+            'This mask includes the raw LPOs together with the '
+            'spatial filter width and/or the accumulation period,'
+            'as specified in lpt_options.'
+        )
+    with_rain_rates_message = (
+        'If specified in lpt_options, '
+        + 'Mask variables with_rain have the instantaneous rain rates '
+        + 'masked by the corresponding mask variables.'
+    )
+    DS.attrs['description'] = (
+        'LPO mask for {} to {}. '
+        + 'This file contains spatio-temporal masks of the area '
+        + 'encompassed by all LPOs during the tracking period. '
+        + detailed_output_message
+        + ' ' + with_rain_rates_message
+    ).format(
         dt_begin.strftime('%Y-%m-%d %H:%M'),
         dt_end.strftime('%Y-%m-%d %H:%M')
     )
