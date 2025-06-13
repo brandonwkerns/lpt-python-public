@@ -455,119 +455,66 @@ def do_lpo_calc(end_of_accumulation_time0, begin_time, dataset, lpo_options,
             print('Data not yet available up to this point. Skipping.')
 
 
-def calculate_centroid_wrap_x(label_im, nb_labels, x, y, area):
-
+def calculate_centroid_and_bounds_wrap_x(label_im, nb_labels, x, y, area):
     """
-    calculate_centroid_wrap_x(label_im, nb_labels, x, y, area)
+    calculate_centroid_and_bounds_wrap_x(label_im, nb_labels, x, y, area)
 
     Given a labeled image, arrays of grid points x and y (2-d),
-    and the grid point areas, calculate the centroids of: (x, y).
+    and the grid point areas, calculate the centroids and bounds of: (x, y).
     (x, y) could be, for example, lat/lon or x and y grid points.
+
+    If the feature straddles the edge (ie the x=0 line),
+    the x values will be adjusted to account for wrap-around.
+    The convention that the x values can go < 0, but not > xmax.
+    For example, if x is longitude, a blob with x values: 0, 10, 350
+    will be adjusted to: -10, 0, 10.
     """
+
+    # Figure out what x values to stitch.
+    # (Assume regular grid here.)
+    dx = x[0,1] - x[0,0]
+    xmax = x[0,-1] + dx #e.g., for longitude, xmax = 360.0
 
     # Y is easy, take care of that.
     centroid_y = (
         ndimage.sum(y*area, label_im, range(1, nb_labels + 1))
         / ndimage.sum(area, label_im, range(1, nb_labels + 1))
     )
+    min_y = ndimage.minimum(y, label_im, range(1, nb_labels + 1))
+    max_y = ndimage.maximum(y, label_im, range(1, nb_labels + 1))
 
-    # X needs some work. Figure it out one by one
-    # account for wrap-around in the x direction.
-    centroid_x = []
+    # X needs some work. Start with the dummy method,
+    # Then check whether they need to be adjusted for wrap-around.
+    centroid_x = (
+        ndimage.sum(x*area, label_im, range(1, nb_labels + 1))
+        / ndimage.sum(area, label_im, range(1, nb_labels + 1))
+    )
+    min_x = ndimage.minimum(x, label_im, range(1, nb_labels + 1))
+    max_x = ndimage.maximum(x, label_im, range(1, nb_labels + 1))
 
-    for ii in range(1, nb_labels+1):
+    for i in range(1, nb_labels + 1):
+        if max_x[i-1] - min_x[i-1] > 0.9*xmax:
+            mask_i = label_im == i
 
-        this_im = label_im == ii
-        this_total_area = np.sum(this_im*area)
-
-        # Figure out what x values to stitch.
-        # (Assume regular grid here.)
-        dx = x[0,1] - x[0,0]
-        xmax = x[0,-1] + dx #e.g., for longitude, xmax = 360.0
-
-        # This mask may have two or more separate blobs.
-        # This will usually happen in the tracking step
-        # when LPTs split and merge, there may be two or more
-        # "peices" of it.
-        # And it's entirely possible that one or more peices (blobs)
-        # are on the opposite side of the prime meridian!
-        # So here are the steps:
-
-        # 1. Break "this_im_stitched" into its constituent blobs.
-        this_im_blobs, n_this_im_blobs = ndimage.label(this_im)
-
-        # 2. Start with the first detected blob A. Get its sum of lon * area.
-        this_im_blob = this_im_blobs == 1
-        x_area_sum = np.sum(this_im_blob * x * area)
-
-        # 3. For the next one (B, if any), get its sum of lon * area,
-        #    using lon, lon+360, and lon-360.
-
-        total_area_so_far = np.sum(this_im_blob*area)
-
-        if n_this_im_blobs > 1:
-            for nn in range(2, n_this_im_blobs+1):
-                this_im_blob = this_im_blobs == nn
-
-                this_im_blob_area = np.sum(this_im_blob*area)
-                x_area_sum0 = np.sum(this_im_blob * x * area)
-
-                x_area_sum_p360 = np.sum(this_im_blob * (x+xmax) * area)
-                x_area_sum_m360 = np.sum(this_im_blob * (x-xmax) * area)
-
-                # 4. For B, get the distance from A using lon, lon+360, lon-360.
-                #    Use abs (lonA*areaA - lonB*areaB) to get the min. value.
-                dist_sum0 = np.abs(
-                    x_area_sum0/this_im_blob_area
-                    - x_area_sum/total_area_so_far
-                )
-                dist_sum_p360 = np.abs(
-                    x_area_sum_p360/this_im_blob_area
-                    - x_area_sum/total_area_so_far
-                )
-                dist_sum_m360 = np.abs(
-                    x_area_sum_m360/this_im_blob_area
-                    - x_area_sum/total_area_so_far
-                )
-
-                # 5. Add the value of lonB*areaB
-                #    that gives the minimum "distance" to A.
-                if dist_sum0 < min(dist_sum_p360, dist_sum_m360):
-                    x_area_sum += x_area_sum0
-                elif dist_sum_p360 < min(dist_sum0, dist_sum_m360):
-                    x_area_sum += x_area_sum_p360
-                else:
-                    x_area_sum += x_area_sum_m360
-
-                total_area_so_far += this_im_blob_area
-
-            # 6. Repeat for any remaining blobs.
-
-        # 7. Divide by the total area.
-        centroid_x_this = x_area_sum / this_total_area
-
-        more_to_do = True
-        niter = 0
-        maxiter = 2
-        while more_to_do:
-            more_to_do = False
-            if centroid_x_this >= x[0,-1] + dx:
-                more_to_do = True
-                centroid_x_this -= xmax
-            if centroid_x_this < x[0,0]:
-                more_to_do = True
-                centroid_x_this += xmax
-            niter += 1
-            if niter > maxiter:
-                more_to_do = False
-
-        centroid_x += [centroid_x_this]
+            x_wrap = x.copy()
+            # HACK: For now, assume it doesn't stratch more than half the domain.
+            x_wrap[:, int(np.floor(0.5*len(x_wrap[0,:]))):] -= xmax
+            print(x_wrap[0,:])
+            x_points = x_wrap[mask_i]
+            areas = area[mask_i]
+            min_x[i-1] = np.min(x_points)
+            max_x[i-1] = np.max(x_points)
+            centroid_x[i-1] = np.sum(x_points * areas) / np.sum(areas)
 
     # Make sure output is np array.
+    min_x = np.array(min_x)
+    min_y = np.array(min_y)
     centroid_x = np.array(centroid_x)
     centroid_y = np.array(centroid_y)
+    max_x = np.array(max_x)
+    max_y = np.array(max_y)
 
-    return (centroid_x, centroid_y)
+    return (min_x, centroid_x, max_x, min_y, centroid_y, max_y)
 
 
 def calculate_lp_object_properties(lon, lat, field, field_running, field_filtered, label_im
@@ -603,18 +550,14 @@ def calculate_lp_object_properties(lon, lat, field, field_running, field_filtere
     max_running_field = ndimage.maximum(field_running, label_im, range(1, nb_labels + 1))
     max_filtered_running_field = ndimage.maximum(field_filtered, label_im, range(1, nb_labels + 1))
 
-    centroid_x, centroid_y = calculate_centroid_wrap_x(
+    min_x, centroid_x, max_x, min_y, centroid_y, max_y = calculate_centroid_and_bounds_wrap_x(
         label_im, nb_labels, X2, Y2, area2d
     )
-    centroid_lon, centroid_lat = calculate_centroid_wrap_x(
+    min_lon, centroid_lon, max_lon, min_lat, centroid_lat, max_lat = calculate_centroid_and_bounds_wrap_x(
         label_im, nb_labels, lon2, lat2, area2d
     )
-
+    
     area = ndimage.sum(area2d, label_im, range(1, nb_labels + 1))
-    max_lon = ndimage.maximum(lon2, label_im, range(1, nb_labels + 1))
-    min_lon = ndimage.minimum(lon2, label_im, range(1, nb_labels + 1))
-    max_lat = ndimage.maximum(lat2, label_im, range(1, nb_labels + 1))
-    min_lat = ndimage.minimum(lat2, label_im, range(1, nb_labels + 1))
 
     ## Assign LPT IDs. Order is by longitude. Use zero-base indexing.
     id0 = 1e10 * end_of_accumulation_time.year + 1e8 * end_of_accumulation_time.month + 1e6 * end_of_accumulation_time.day + 1e4 * end_of_accumulation_time.hour
@@ -1479,11 +1422,15 @@ def add_fields_to_a_TC(TC_this0, timestamp_all, options, fmt, tt):
     label_im_this = mask_this > 0.5
 
     # Then use the labeled image to get the centroid for this LPT system.
-    centroid_lon_this, centroid_lat_this = calculate_centroid_wrap_x(
+    min_lon_this, centroid_lon_this, max_lon_this, min_lat_this, centroid_lat_this, max_lat_this = calculate_centroid_and_bounds_wrap_x(
         label_im_this, 1, lon2, lat2, area2
     )
+    TC_this['min_lon'][tt] = min_lon_this[0]
     TC_this['centroid_lon'][tt] = centroid_lon_this[0]
+    TC_this['max_lon'][tt] = max_lon_this[0]
+    TC_this['min_lat'][tt] = min_lat_this[0]
     TC_this['centroid_lat'][tt] = centroid_lat_this[0]
+    TC_this['max_lat'][tt] = max_lat_this[0]
 
     TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
     TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
@@ -1661,6 +1608,7 @@ def calc_lpt_properties_without_branches(G, options,
                 chunksize=1
                 )
         
+        ## Assign the fields to the TC_this dict.
         varlist = ['nobj','area','centroid_lon','centroid_lat',
             'largest_object_centroid_lon','largest_object_centroid_lat',
             'amean_inst_field','amean_running_field',
@@ -1675,6 +1623,18 @@ def calc_lpt_properties_without_branches(G, options,
         for tt in range(len(TC_this['timestamp'])):
             for var in varlist:
                 TC_this[var][tt] = fields[tt][var][tt]
+
+        # If this case had any times when it crossed the prime meridian
+        # Then set all the longitudes to be stradling zero.
+        if np.nanmax(TC_this['centroid_lon']) - np.nanmin(TC_this['centroid_lon']) > 0.9*360:
+            for var in ['centroid_lon', 'largest_object_centroid_lon',
+                        'min_lon', 'max_lon',
+                        'northmost_lon', 'southmost_lon']:
+                TC_this[var] = np.where(
+                    TC_this[var] > 180.0,
+                    TC_this[var] - 360.0,
+                    TC_this[var]
+                )
 
         ## Smooth the tracks, and insert data for any center jump gaps.
         TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
@@ -1766,9 +1726,22 @@ def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/
                 'max_inst_field','max_running_field',
                 'max_filtered_running_field']
 
+            ## Assign the fields to the TC_this dict.
             for tt in range(len(TC_this['timestamp'])):
                 for var in varlist:
                     TC_this[var][tt] = fields[tt][var][tt]
+
+            # If this case had any times when it crossed the prime meridian
+            # Then set all the longitudes to be stradling zero.
+            if np.nanmax(TC_this['centroid_lon']) - np.nanmin(TC_this['centroid_lon']) > 0.9*360:
+                for var in ['centroid_lon', 'largest_object_centroid_lon',
+                            'min_lon', 'max_lon',
+                            'northmost_lon', 'southmost_lon']:
+                    TC_this[var] = np.where(
+                        TC_this[var] > 180.0,
+                        TC_this[var] - 360.0,
+                        TC_this[var]
+                    )
 
             ## Smooth the tracks, and insert data for any center jump gaps.
             TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
@@ -1915,7 +1888,8 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                     ),
                     chunksize=1
                     )
-            
+
+            ## Assign the fields to the TC_this dict.
             varlist = ['nobj','area','centroid_lon','centroid_lat',
                 'largest_object_centroid_lon','largest_object_centroid_lat',
                 'amean_inst_field','amean_running_field',
@@ -1930,6 +1904,18 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
             for tt in range(len(TC_this['timestamp'])):
                 for var in varlist:
                     TC_this[var][tt] = fields[tt][var][tt]
+
+            # If this case had any times when it crossed the prime meridian
+            # Then set all the longitudes to be stradling zero.
+            if np.nanmax(TC_this['centroid_lon']) - np.nanmin(TC_this['centroid_lon']) > 0.9*360:
+                for var in ['centroid_lon', 'largest_object_centroid_lon',
+                            'min_lon', 'max_lon',
+                            'northmost_lon', 'southmost_lon']:
+                    TC_this[var] = np.where(
+                        TC_this[var] > 180.0,
+                        TC_this[var] - 360.0,
+                        TC_this[var]
+                    )
 
             ## Smooth the tracks, and insert data for any center jump gaps.
             TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
