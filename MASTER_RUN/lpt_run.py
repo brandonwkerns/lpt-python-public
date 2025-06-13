@@ -74,6 +74,7 @@ dataset['time_variable_name'] = 'time'
 dataset['field_variable_name'] = 'rain'
 dataset['field_is_accumulated'] = False
 dataset['field_units'] = 'mm h-1' ## This is used only for plotting and NetCDF attributes.
+dataset['area'] = [0, 360, -50, 50]   # Geographical area of data to use.
 """
 Set calendar below. Use a valid cftime calendar.
 Valid calendars are currently:
@@ -128,6 +129,7 @@ lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?
 lpo_options['min_points'] = 400             # Throw away LP objects smaller than this.
 lpo_options['min_area'] = 250000            # Throw away LP objects smaller than this (km2).
+lpo_options['periodic_longitude'] = True  # Is the longitude periodic? (e.g., 0-360 or -180 to 180)
 # "Cold start mode"
 #
 # Useful for model runs.
@@ -160,10 +162,10 @@ lpo_options['cold_start_const_period'] = 24.0  # hours
 #lpo_options['do_lpo_mask'] = True
 lpo_options['do_lpo_mask'] = False
 
-
 ## Options for the LPO mask output.
 lpo_options['mask_calc_volrain'] = True                    # Whether to calculate a volumetric rain and include with mask files.
 lpo_options['mask_include_rain_rates'] = True              # Whether to include masked rain rates in mask output files.
+lpo_options['mask_detailed_output'] = False               # Whether to output separate masks with filter and/or accumulation.
 lpo_options['mask_calc_with_filter_radius'] = True         # Whether to calculate the mask with filter variables. (See coarse grid factor option if this takes too long to run.)
 lpo_options['mask_calc_with_accumulation_period'] = True   # Whether to calculate the mask with filter variables.
 lpo_options['mask_coarse_grid_factor'] = 0                 # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
@@ -251,10 +253,13 @@ lpt_options['do_non_mjo_lpt_composite_mask'] = False    # Whether to generate ma
 ## Options for the LPT systems mask output. Only used if one or more of the above "do" masks options are True
 lpt_options['individual_masks_begin_lptid'] = 0           # LPT ID to start with
 lpt_options['individual_masks_end_lptid'] = 9999          # LPT ID to end with
+lpt_options['individual_masks_mjo_only'] = False          # If True, then only do MJO LPTs only.
 lpt_options['mask_include_rain_rates'] = True             # Whether to include masked rain rates in mask output files.
 lpt_options['mask_calc_volrain'] = True                   # Whether to calculate a volumetric rain and include with mask files.
+lpt_options['mask_detailed_output'] = False               # Whether to output separate masks with filter and/or accumulation.
 lpt_options['mask_calc_with_filter_radius'] = True        # Whether to calculate the mask with filter variables. (Takes much longer to run)
 lpt_options['mask_calc_with_accumulation_period'] = True  # Whether to calculate the mask with filter variables. (Takes much longer to run)
+lpt_options['mask_coarse_grid_factor'] = 0                # If > 0, it will use a coarsened grid to calculate masks. Good for high res data.
 lpt_options['target_memory_for_writing_masks_MB'] = 1000  # Target to limit memory demand from writing masks to files. The more, the faster it can run.
 lpt_options['mask_n_cores'] = 1                           # How many processors to use for LPT system mask calculations.
 
