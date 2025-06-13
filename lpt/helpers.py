@@ -1608,6 +1608,7 @@ def calc_lpt_properties_without_branches(G, options,
                 chunksize=1
                 )
         
+        ## Assign the fields to the TC_this dict.
         varlist = ['nobj','area','centroid_lon','centroid_lat',
             'largest_object_centroid_lon','largest_object_centroid_lat',
             'amean_inst_field','amean_running_field',
@@ -1622,6 +1623,18 @@ def calc_lpt_properties_without_branches(G, options,
         for tt in range(len(TC_this['timestamp'])):
             for var in varlist:
                 TC_this[var][tt] = fields[tt][var][tt]
+
+        # If this case had any times when it crossed the prime meridian
+        # Then set all the longitudes to be stradling zero.
+        if np.nanmax(TC_this['centroid_lon']) - np.nanmin(TC_this['centroid_lon']) > 0.9*360:
+            for var in ['centroid_lon', 'largest_object_centroid_lon',
+                        'min_lon', 'max_lon',
+                        'northmost_lon', 'southmost_lon']:
+                TC_this[var] = np.where(
+                    TC_this[var] > 180.0,
+                    TC_this[var] - 360.0,
+                    TC_this[var]
+                )
 
         ## Smooth the tracks, and insert data for any center jump gaps.
         TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
@@ -1713,9 +1726,22 @@ def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/
                 'max_inst_field','max_running_field',
                 'max_filtered_running_field']
 
+            ## Assign the fields to the TC_this dict.
             for tt in range(len(TC_this['timestamp'])):
                 for var in varlist:
                     TC_this[var][tt] = fields[tt][var][tt]
+
+            # If this case had any times when it crossed the prime meridian
+            # Then set all the longitudes to be stradling zero.
+            if np.nanmax(TC_this['centroid_lon']) - np.nanmin(TC_this['centroid_lon']) > 0.9*360:
+                for var in ['centroid_lon', 'largest_object_centroid_lon',
+                            'min_lon', 'max_lon',
+                            'northmost_lon', 'southmost_lon']:
+                    TC_this[var] = np.where(
+                        TC_this[var] > 180.0,
+                        TC_this[var] - 360.0,
+                        TC_this[var]
+                    )
 
             ## Smooth the tracks, and insert data for any center jump gaps.
             TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
@@ -1862,7 +1888,8 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
                     ),
                     chunksize=1
                     )
-            
+
+            ## Assign the fields to the TC_this dict.
             varlist = ['nobj','area','centroid_lon','centroid_lat',
                 'largest_object_centroid_lon','largest_object_centroid_lat',
                 'amean_inst_field','amean_running_field',
@@ -1877,6 +1904,18 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
             for tt in range(len(TC_this['timestamp'])):
                 for var in varlist:
                     TC_this[var][tt] = fields[tt][var][tt]
+
+            # If this case had any times when it crossed the prime meridian
+            # Then set all the longitudes to be stradling zero.
+            if np.nanmax(TC_this['centroid_lon']) - np.nanmin(TC_this['centroid_lon']) > 0.9*360:
+                for var in ['centroid_lon', 'largest_object_centroid_lon',
+                            'min_lon', 'max_lon',
+                            'northmost_lon', 'southmost_lon']:
+                    TC_this[var] = np.where(
+                        TC_this[var] > 180.0,
+                        TC_this[var] - 360.0,
+                        TC_this[var]
+                    )
 
             ## Smooth the tracks, and insert data for any center jump gaps.
             TC_this = smooth_and_fill_tc(TC_this, options['data_time_interval'])
