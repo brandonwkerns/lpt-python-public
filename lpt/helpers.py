@@ -1422,11 +1422,15 @@ def add_fields_to_a_TC(TC_this0, timestamp_all, options, fmt, tt):
     label_im_this = mask_this > 0.5
 
     # Then use the labeled image to get the centroid for this LPT system.
-    centroid_lon_this, centroid_lat_this = calculate_centroid_wrap_x(
+    min_lon_this, centroid_lon_this, max_lon_this, min_lat_this, centroid_lat_this, max_lat_this = calculate_centroid_and_bounds_wrap_x(
         label_im_this, 1, lon2, lat2, area2
     )
+    TC_this['min_lon'][tt] = min_lon_this[0]
     TC_this['centroid_lon'][tt] = centroid_lon_this[0]
+    TC_this['max_lon'][tt] = max_lon_this[0]
+    TC_this['min_lat'][tt] = min_lat_this[0]
     TC_this['centroid_lat'][tt] = centroid_lat_this[0]
+    TC_this['max_lat'][tt] = max_lat_this[0]
 
     TC_this['amean_inst_field'][tt] /= TC_this['area'][tt]
     TC_this['amean_running_field'][tt] /= TC_this['area'][tt]
