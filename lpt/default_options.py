@@ -35,12 +35,9 @@ plotting = {}
 plotting['do_plotting'] = False               # True or False -- Should I make plots?
 plotting['plot_area'] = [0, 360, -50, 50]    # Plotting area for LPO maps. (Does NOT affect tracking)
 plotting['time_lon_range'] = [40, 200]       # Longitude Range for time-longitude plots. (Does NOT affect tracking)
-#plotting['time_lon_range'] = [200, 360]       # Longitude Range for time-longitude plots. (Does NOT affect tracking)
 
 ## High level output directories. Images and data will go in here.
 output={}
-#output['img_dir'] = './images_no_merge_split'
-#output['data_dir'] = './data_no_merge_split/processed'
 output['img_dir'] = './images'
 output['data_dir'] = './data/processed'
 output['sub_directory_format'] = '%Y/%m/%Y%m%d'
@@ -60,9 +57,9 @@ lpo_options['thresh_or_equal'] = False       # Should >= or <= be used?
 lpo_options['accumulation_hours'] = 72      # Accumulation period for LP objects (hours).
 lpo_options['filter_stdev'] = 20            # Gaussian filter stdev, in terms of grid points.
 lpo_options['filter_n_stdev_width'] = 3     # Gaussian filter width, how many stdevs to go out?
-lpo_options['periodic_longitude'] = True  # Is the longitude periodic? (e.g., 0-360 or -180 to 180)
 lpo_options['min_points'] = 400             # Throw away LP objects smaller than this.
 lpo_options['min_area'] = 250000            # Throw away LP objects smaller than this (km2).
+lpo_options['periodic_longitude'] = True  # Is the longitude periodic? (e.g., 0-360 or -180 to 180)
 # If COLD_START_MODE is specified, assume there is no rain data before time zero.
 #   Calculate the accumulation as follows:
 #   For the first COLD_START_CONST_PERIOD, use the average rain rate during
