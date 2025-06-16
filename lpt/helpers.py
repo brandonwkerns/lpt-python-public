@@ -1641,7 +1641,9 @@ def calc_lpt_properties_without_branches(G, options,
 
         ## Least squares linear fit for propagation speed.
         Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
-        TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
+        # deg / s --> m / s
+        TC_this['zonal_propagation_speed'] = (Pzonal[0] * 111000.0
+            * np.cos(3.14159*np.nanmean(TC_this['centroid_lat'])/180.0))
 
         Pmeridional = np.polyfit(TC_this['timestamp'],TC_this['centroid_lat'],1)
         TC_this['meridional_propagation_speed'] = Pmeridional[0] * 111000.0  # deg / s --> m / s
@@ -1748,7 +1750,9 @@ def calc_lpt_properties_break_up_merge_split(G, G0, options, fmt="/%Y/%m/%Y%m%d/
 
             ## Least squares linear fit for propagation speed.
             Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
-            TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
+            # deg / s --> m / s
+            TC_this['zonal_propagation_speed'] = (Pzonal[0] * 111000.0
+                * np.cos(3.14159*np.nanmean(TC_this['centroid_lat'])/180.0))
 
             Pmeridional = np.polyfit(TC_this['timestamp'],TC_this['centroid_lat'],1)
             TC_this['meridional_propagation_speed'] = Pmeridional[0] * 111000.0  # deg / s --> m / s
@@ -1922,7 +1926,9 @@ def calc_lpt_properties_with_branches(G, options, fmt="/%Y/%m/%Y%m%d/objects_%Y%
 
             ## Least squares linear fit for propagation speed.
             Pzonal = np.polyfit(TC_this['timestamp'],TC_this['centroid_lon'],1)
-            TC_this['zonal_propagation_speed'] = Pzonal[0] * 111000.0  # deg / s --> m / s
+            # deg / s --> m / s
+            TC_this['zonal_propagation_speed'] = (Pzonal[0] * 111000.0
+                * np.cos(3.14159*np.nanmean(TC_this['centroid_lat'])/180.0))
 
             Pmeridional = np.polyfit(TC_this['timestamp'],TC_this['centroid_lat'],1)
             TC_this['meridional_propagation_speed'] = Pmeridional[0] * 111000.0  # deg / s --> m / s
