@@ -69,10 +69,16 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None,
     props['begin_lon'] = lon[props['begin_indx']]
     props['end_lon'] = lon[props['end_indx']]
     props['lon_propagation'] = lon[props['end_indx']] - lon[props['begin_indx']]
-    props['total_zonal_spd'] = linregress(
-        np.array(hours_since_beginning)[np.isfinite(lon)],
-        lon[np.isfinite(lon)]
-    )[0] * (111000 / 3600.0)
+    if lat is None:
+        props['total_zonal_spd'] = linregress(
+            np.array(hours_since_beginning)[np.isfinite(lon)],
+            lon[np.isfinite(lon)]
+        )[0] * (111000 / 3600.0)
+    else:
+        props['total_zonal_spd'] = linregress(
+            np.array(hours_since_beginning)[np.isfinite(lon)],
+            lon[np.isfinite(lon)]
+        )[0] * (111000 * (np.cos(3.14159*np.nanmean(lat)/180.0))/ 3600.0)
 
     min_lon,max_lon,indx1, indx2 = ndimage.extrema(lon, label_im, range(1,nE+1))
     props['min_lon'] = min_lon
@@ -88,10 +94,16 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None,
             np.isfinite(lon_segment)
         ]
         lon_segment = lon_segment[np.isfinite(lon_segment)]
-        props['segment_zonal_spd'][iii] = linregress(
-            hours_since_beginning_segment,
-            lon_segment
-        )[0] * (111000 / 3600.0)
+        if lat is None:
+            props['segment_zonal_spd'][iii] = linregress(
+                hours_since_beginning_segment,
+                lon_segment
+            )[0] * (111000 / 3600.0)
+        else:
+            props['segment_zonal_spd'][iii] = linregress(
+                hours_since_beginning_segment,
+                lon_segment
+            )[0] * (111000 * (np.cos(3.14159*np.nanmean(lat[ii1:ii2])/180.0))/ 3600.0)
 
     if not lat is None:
         props['begin_lat'] = lat[props['begin_indx']]
