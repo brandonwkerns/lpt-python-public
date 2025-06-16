@@ -49,15 +49,19 @@ def median_filter(data):
         data_filtered[ii] = np.median(data[ii-1:ii+2])
     return data_filtered
 
-def get_mask_period_info(hours_since_beginning, lon, mask, lat=None, verbose=False):
-    ## Get Pandas data frame of east propagation periods.
-    ## If lat is set to None, don't calculate latitude related stuff.
+def get_mask_period_info(hours_since_beginning, lon, mask, lat=None,
+                            verbose=False):
+    """
+    Get Pandas data frame of east propagation periods.
+    If lat is set to None, don't calculate latitude related stuff.
+    """
     label_im, nE = ndimage.label(mask)
     if verbose:
         print(f'Found {str(nE)} propagation periods.')
 
     props = {}
-    begin_hours,end_hours,indx1, indx2 = ndimage.extrema(hours_since_beginning, label_im, range(1,nE+1))
+    begin_hours,end_hours,indx1, indx2 = ndimage.extrema(
+        hours_since_beginning, label_im, range(1,nE+1))
 
     props['duration'] = (np.array(end_hours) - np.array(begin_hours))
     props['begin_indx'] = np.array(indx1)[:,0].astype(int)
@@ -65,18 +69,29 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None, verbose=Fal
     props['begin_lon'] = lon[props['begin_indx']]
     props['end_lon'] = lon[props['end_indx']]
     props['lon_propagation'] = lon[props['end_indx']] - lon[props['begin_indx']]
-    props['total_zonal_spd'] = linregress(hours_since_beginning,lon)[0] * (111000 / 3600.0 )
+    props['total_zonal_spd'] = linregress(
+        np.array(hours_since_beginning)[np.isfinite(lon)],
+        lon[np.isfinite(lon)]
+    )[0] * (111000 / 3600.0 )
 
     min_lon,max_lon,indx1, indx2 = ndimage.extrema(lon, label_im, range(1,nE+1))
     props['min_lon'] = min_lon
     props['max_lon'] = max_lon
 
-
     props['segment_zonal_spd'] = 0.0 * np.arange(nE)
     for iii in range(nE):
         ii1 = props['begin_indx'][iii]
         ii2 = props['end_indx'][iii]+1
-        props['segment_zonal_spd'][iii] = linregress(hours_since_beginning[ii1:ii2],lon[ii1:ii2])[0] * (111000 / 3600.0 )
+        hours_since_beginning_segment = np.array(hours_since_beginning[ii1:ii2])
+        lon_segment = np.array(lon[ii1:ii2])
+        hours_since_beginning_segment = hours_since_beginning_segment[
+            np.isfinite(lon_segment)
+        ]
+        lon_segment = lon_segment[np.isfinite(lon_segment)]
+        props['segment_zonal_spd'][iii] = linregress(
+            hours_since_beginning_segment,
+            lon_segment
+        )[0] * (111000 / 3600.0)
 
     if not lat is None:
         props['begin_lat'] = lat[props['begin_indx']]
