@@ -72,7 +72,7 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None,
     props['total_zonal_spd'] = linregress(
         np.array(hours_since_beginning)[np.isfinite(lon)],
         lon[np.isfinite(lon)]
-    )[0] * (111000 / 3600.0 )
+    )[0] * (111000 / 3600.0)
 
     min_lon,max_lon,indx1, indx2 = ndimage.extrema(lon, label_im, range(1,nE+1))
     props['min_lon'] = min_lon
@@ -100,13 +100,25 @@ def get_mask_period_info(hours_since_beginning, lon, mask, lat=None,
         min_lat,max_lat,indx1, indx2 = ndimage.extrema(lat, label_im, range(1,nE+1))
         props['min_lat'] = min_lat
         props['max_lat'] = max_lat
-        props['total_meridional_spd'] = linregress(hours_since_beginning,lat)[0] * (111000 / 3600.0 )
+        props['total_meridional_spd'] = linregress(
+            np.array(hours_since_beginning)[np.isfinite(lat)],
+            lat[np.isfinite(lat)]
+        )[0] * (111000 / 3600.0)
 
         props['segment_meridional_spd'] = 0.0 * np.arange(nE)
         for iii in range(nE):
             ii1 = props['begin_indx'][iii]
             ii2 = props['end_indx'][iii]+1
-            props['segment_meridional_spd'][iii] = linregress(hours_since_beginning[ii1:ii2],lat[ii1:ii2])[0] * (111000 / 3600.0 )
+            hours_since_beginning_segment = np.array(hours_since_beginning[ii1:ii2])
+            lat_segment = np.array(lat[ii1:ii2])
+            hours_since_beginning_segment = hours_since_beginning_segment[
+                np.isfinite(lat_segment)
+            ]
+            lat_segment = lat_segment[np.isfinite(lat_segment)]
+            props['segment_meridional_spd'][iii] = linregress(
+                hours_since_beginning_segment,
+                lat_segment
+            )[0] * (111000 / 3600.0)
 
     ## Put in to Pandas DataFrame
     F = pd.DataFrame.from_dict(props)
