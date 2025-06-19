@@ -158,6 +158,9 @@ def feature_spread_2d(array_2d0, npoints, spread_value=None):
     # Unpad the array to return to original size.
     array_2d_new = array_2d_new[npy:-npy, npx:-npx]
 
+    # Convert to sparse array to save memory.
+    array_2d_new = csr_matrix(array_2d_new)
+
     return array_2d_new
 
 
