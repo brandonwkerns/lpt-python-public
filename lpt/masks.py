@@ -733,30 +733,40 @@ def fill_mask_arrays(
         else:
             mask_name = 'mask'
 
-        with Pool(nproc) as p:
-            output = p.starmap(
-                fill_matrix,
-                tqdm(
-                    [
-                        (
-                            mask_arrays[mask_name][t],
-                            i,
-                            j,
-                            1
-                        ) for t, i, j in zip(
-                            dt_indices_expanded,
-                            iii_indices_expanded,
-                            jjj_indices_expanded
-                        )
-                    ],
-                    desc=f"Filling {mask_name}",
-                ),
-                chunksize=1
-            )
-        # Assign output to the correct location.
-        for t0, t in enumerate(dt_indices_expanded):
-            mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t],
-                                                    output[t0])
+
+        # HACK: Do this in chunks. I had trouble with some large systems doing it
+        # all at once. I kept crashing even the new orca nodes! It was also using
+        # over 100 GB of memory, which is pretty excessive!
+        chunk_size = 10000
+        chunk_begin_indices = list(range(0, len(dt_indices_expanded), chunk_size))
+
+        for chunk_begin_index in chunk_begin_indices:
+            chunk_end_index = min(len(dt_indices_expanded), chunk_begin_index+chunk_size)
+            print(f'{chunk_begin_index} to {chunk_end_index-1}.')
+            with Pool(nproc) as p:
+                output = p.starmap(
+                    fill_matrix,
+                    tqdm(
+                        [
+                            (
+                                mask_arrays[mask_name][t],
+                                i,
+                                j,
+                                1
+                            ) for t, i, j in zip(
+                                dt_indices_expanded[chunk_begin_index:chunk_end_index],
+                                iii_indices_expanded[chunk_begin_index:chunk_end_index],
+                                jjj_indices_expanded[chunk_begin_index:chunk_end_index]
+                            )
+                        ],
+                        desc=f"Filling {mask_name}",
+                    ),
+                    chunksize=1
+                )
+            # Assign output to the correct location.
+            for t0, t in enumerate(dt_indices_expanded[chunk_begin_index:chunk_end_index]):
+                mask_arrays[mask_name][t] = sparse_max(mask_arrays[mask_name][t],
+                                                       output[t0])
 
     return mask_arrays
 
