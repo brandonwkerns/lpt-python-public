@@ -394,15 +394,32 @@ def add_masked_rain_rates(mask_array, mask_times, multiply_factor,
 ):
 
     ## Parallelize in time.
-    with Pool(nproc) as p:
-        mask_array_new = p.starmap(
-            get_masked_rain_at_time,
-            tqdm([(mask_times[tt],
-                mask_array[tt],
-                multiply_factor,
-                dataset_dict) for tt in range(len(mask_times))]
+    # HACK: Do this in chunks. I had trouble with some large systems doing it
+    # all at once. I kept crashing even the new orca nodes! It was also using
+    # over 100 GB of memory, which is pretty excessive!
+    chunk_size = 10000
+    chunk_begin_indices = list(range(0, len(mask_times), chunk_size))
+
+    for chunk_begin_index in chunk_begin_indices:
+        chunk_end_index = min(len(mask_times), chunk_begin_index+chunk_size)
+        print(f'{chunk_begin_index} to {chunk_end_index-1}.')
+        with Pool(nproc) as p:
+            output = p.starmap(
+                get_masked_rain_at_time,
+                tqdm([(mask_times[tt],
+                       mask_array[tt],
+                       multiply_factor,
+                       dataset_dict) for tt in range(chunk_begin_index, chunk_end_index)],
+                    desc=f"Filling in rainfall",
+                ),
+                chunksize=1
             )
-        )
+
+        # Stitch the chunks together.
+        if chunk_begin_index == 0:
+            mask_array_new = output
+        else:
+            mask_array_new += output
 
     return mask_array_new
 
