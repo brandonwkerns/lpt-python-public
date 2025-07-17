@@ -93,7 +93,7 @@ def get_projection(plot_area = [0,360,-60,60]):
     Then use central_longitude = 0.
     """
 
-    if plot_area[0] < -0.0001:
+    if plot_area[0] < -0.0001 or plot_area[0] > 179.9999:
         proj = ccrs.PlateCarree(central_longitude = 0)
     else:
         proj = ccrs.PlateCarree(central_longitude = 180)
