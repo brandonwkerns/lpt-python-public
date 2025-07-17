@@ -499,7 +499,6 @@ def calculate_centroid_and_bounds_wrap_x(label_im, nb_labels, x, y, area):
             x_wrap = x.copy()
             # HACK: For now, assume it doesn't stratch more than half the domain.
             x_wrap[:, int(np.floor(0.5*len(x_wrap[0,:]))):] -= xmax
-            print(x_wrap[0,:])
             x_points = x_wrap[mask_i]
             areas = area[mask_i]
             min_x[i-1] = np.min(x_points)
@@ -1067,7 +1066,6 @@ def lpt_graph_allow_falling_below_threshold(G, options,
                             is_overlap = True
 
                         if is_overlap:
-                            # print(f'Overlap: {kkkk} --> {llll}!', flush=True)
                             G.add_edge(kkkk,llll)
                             end_nodes.remove(kkkk)
                             begin_nodes.remove(llll)
