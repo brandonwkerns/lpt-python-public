@@ -1248,10 +1248,12 @@ def calc_individual_lpt_masks(dt_begin, dt_end, interval_hours, prod='trmm'
                     encoding = {
                         'nlpt': {'dtype': 'i'}, 'nstitch': {'dtype': 'i'},
                         'nobj': {'dtype': 'i'}, 'nobj_stitched': {'dtype': 'i'},
-                        'num_objects': {'dtype': 'i'},
-                        'is_mjo': {'dtype': 'bool'}, 'is_mjo_stitched': {'dtype': 'bool'},
-                        'is_mjo_eprop_stitched': {'dtype': 'bool'},
+                        'num_objects': {'dtype': 'i'}
                     }
+                    if 'is_mjo' in ds2:
+                        encoding['is_mjo'] = {'dtype': 'bool'}
+                        encoding['is_mjo_stitched'] = {'dtype': 'bool'}
+                        encoding['is_mjo_eprop_stitched'] = {'dtype': 'bool'}
 
                     lpt.lptio.replace_nc_file_with_dataset(lpt_systems_file, ds2, encoding)
 
